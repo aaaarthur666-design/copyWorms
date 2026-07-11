@@ -121,6 +121,9 @@ size = Vector2(299, 25)
 [sub_resource type="RectangleShape2D" id="s2_16"]
 size = Vector2(616, 20.5)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pjd0w"]
+size = Vector2(1018, 18)
+
 [sub_resource type="RectangleShape2D" id="s2_17"]
 size = Vector2(316, 25)
 
@@ -235,14 +238,14 @@ scale = Vector2(0.87, 0.87)
 [node name="Level04_CyberBG2" type="Sprite2D" parent="." unique_id=1620329765]
 z_index = -10
 position = Vector2(0, 6500)
-scale = Vector2(1.35, 1.35)
+scale = Vector2(3.647889, 3.647889)
 texture = ExtResource("8_cyber_bg2")
 centered = false
 
 [node name="Level04_LingnanBG2" type="Sprite2D" parent="." unique_id=490134256]
 z_index = -10
 position = Vector2(0, 4000)
-scale = Vector2(1.35, 1.35)
+scale = Vector2(3.6484373, 3.633803)
 texture = ExtResource("9_lingnan_bg2")
 centered = false
 
@@ -692,6 +695,10 @@ position = Vector2(6178, 4667)
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Stage2Collisions/S2_P16" unique_id=-50761991]
 position = Vector2(154, -40.75)
 shape = SubResource("s2_16")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Stage2Collisions/S2_P16" unique_id=292807999]
+position = Vector2(201, -300)
+shape = SubResource("RectangleShape2D_pjd0w")
 
 [node name="S2_P17" type="StaticBody2D" parent="Stage2Collisions" unique_id=2139485761]
 position = Vector2(6804, 4684)

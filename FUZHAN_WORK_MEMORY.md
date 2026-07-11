@@ -160,11 +160,9 @@
 ## 已知注意点
 
 - `Level_02_03.tscn` 的 `level_data` 不是常规 `DataConfig/Level/Level02Data.tres`，而是绑定到 `LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres`。修改 Level0203 文本时必须确认实际绑定文件。
-- `Tools/DropSystem.gd` 是旧掉落物管理工具，目前复战场景没有使用它。
 - `level_fuzhan_01` 掉落物如果再次出现小于 0 的情况，优先看运行日志中的：
   - `生成童年回忆掉落物`
   - `global=...`
   - `x_range=...`
   - `y_range=...`
 - 当前 `Level_fuzhan_memory_base.gd` 是两个复战场景共享基类，修改掉落/敌人/死亡/文本框逻辑时会同时影响区域 01 和区域 02。
-

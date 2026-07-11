@@ -133,9 +133,9 @@ compile_success_text = "编译完成。
 bed_unlocked_text = "回去吧。
 这一次，不只是去梦里。
 是带着那些真正的回忆，去见爷爷。"
-sfx_phone_vibrate_path = "res://Assets/Audio/sfx_phone_vibrate.ogg"
-sfx_electric_noise_path = "res://Assets/Audio/sfx_electric_noise.ogg"
-bgm_dream_warm_path = "res://Assets/Audio/bgm_dream_warm.ogg"
+sfx_phone_vibrate_path = ""
+sfx_electric_noise_path = ""
+bgm_dream_warm_path = ""
 dream_rebuilt_text = "西关梦境 v2.0 重构完毕。
 记忆样本同步完成：6 / 6。
 

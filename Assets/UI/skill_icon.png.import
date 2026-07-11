@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cj7nb5oi4hrtf"
-path="res://.godot/imported/tile_1.7_0.png-89c4833c0c2731cf3279f78d7cec7bc2.ctex"
+uid="uid://bigyftemugdke"
+path="res://.godot/imported/skill_icon.png-fa3be256a3e091e4912971fcfc16f34c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://LevelModule/Scenes/PixelworkMapStitch/Level_03_Lingnanbase/images/overall/tile_1.7_0.png"
-dest_files=["res://.godot/imported/tile_1.7_0.png-89c4833c0c2731cf3279f78d7cec7bc2.ctex"]
+source_file="res://Assets/UI/skill_icon.png"
+dest_files=["res://.godot/imported/skill_icon.png-fa3be256a3e091e4912971fcfc16f34c.ctex"]
 
 [params]
 
@@ -36,5 +36,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=2048
+process/size_limit=0
 detect_3d/compress_to=1
