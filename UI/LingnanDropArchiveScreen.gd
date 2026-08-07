@@ -25,84 +25,90 @@ const COLOR_PAPER := Color(0.92, 0.86, 0.72, 1.0)
 const COLOR_TEXT := Color(0.10, 0.20, 0.14, 1.0)
 const COLOR_TEXT_DARK := Color(0.055, 0.105, 0.075, 1.0)
 const COLOR_TEXT_MUTED := Color(0.36, 0.43, 0.34, 1.0)
-const UNKNOWN_NAME := "？？？"
-const LOCKED_HINT := "尚未获得该梦物"
+const UNKNOWN_NAME := "???"
+const LOCKED_HINT := "Dream Relic Not Yet Obtained"
 const DROP_ID_ALIASES: Dictionary = {
 	"月饼": "mooncake",
 	"mooncake": "mooncake",
+	"Mooncake": "mooncake",
 	"虾饺": "har_gow",
 	"har_gow": "har_gow",
+	"Har Gow": "har_gow",
 	"木棉": "kapok",
 	"kapok": "kapok",
+	"Kapok Flower": "kapok",
 	"醒狮": "lion_dance",
 	"lion_dance": "lion_dance",
+	"Awakening Lion": "lion_dance",
 	"烧卖": "siu_mai",
 	"广式烧卖": "siu_mai",
 	"siu_mai": "siu_mai",
+	"Siu Mai": "siu_mai",
 	"蒲葵扇": "palm_fan",
 	"palm_fan": "palm_fan",
+	"Palm-Leaf Fan": "palm_fan",
 }
 
 const ITEM_DATA: Array[Dictionary] = [
 	{
 		"id": "mooncake",
-		"name": "月饼",
-		"rarity": "广府记忆",
-		"source": "岭南梦境 · 街巷敌人掉落",
+		"name": "Mooncake",
+		"rarity": "Guangfu Memory",
+		"source": "Lingnan Dream · Dropped by Alley Enemies",
 		"icon": "res://Assets/Effects/月饼.png",
-		"usage": "恢复少量精神稳定度，并记录一次节庆记忆。",
-		"description": "雕花饼模压出的月饼，表皮留着细密纹路。它不是单纯的食物，更像从梦境里凝结出的团圆符号。",
-		"lore": "广府节庆常以食物维系家族和街坊关系。梦境将这种关系压缩成可拾取的物件，提醒玩家：记忆不是宏大的叙事，而是仍能被分食的一小块甜。"
+		"usage": "Restores a small amount of mental stability and records one festival memory.",
+		"description": "A mooncake pressed in a carved mold, its crust covered in fine patterns. It is more than food: it feels like a symbol of reunion condensed from the dream.",
+		"lore": "In Guangfu festivals, food often sustains bonds among families and neighbors. The dream compresses those bonds into an object that can be picked up, reminding the player that memory is not a grand narrative, but a small piece of sweetness that can still be shared."
 	},
 	{
 		"id": "har_gow",
-		"name": "虾饺",
-		"rarity": "茶楼珍品",
-		"source": "岭南梦境 · 茶楼幻影",
+		"name": "Har Gow",
+		"rarity": "Teahouse Delicacy",
+		"source": "Lingnan Dream · Teahouse Phantom",
 		"icon": "res://Assets/Effects/虾饺.png",
-		"usage": "短时间提高移动流畅度，减少梦境迟滞。",
-		"description": "半透明的虾饺在光下像满洲窗的彩玻璃。薄皮包住鲜红内馅，也包住一句没有说出口的早茶问候。",
-		"lore": "茶楼是岭南城市的公共客厅。虾饺代表一种日常秩序：慢慢坐下，慢慢说话，慢慢从混乱里恢复人的节奏。"
+		"usage": "Temporarily improves movement responsiveness and reduces dream latency.",
+		"description": "The translucent har gow glows like the colored glass of a Manchu window. Its delicate wrapper holds bright red filling—and an unspoken morning-tea greeting.",
+		"lore": "The teahouse is Lingnan's public living room. Har gow represents an everyday rhythm: sit down slowly, talk at leisure, and gradually recover a human pace from the chaos."
 	},
 	{
 		"id": "kapok",
-		"name": "木棉",
-		"rarity": "英雄花",
-		"source": "岭南梦境 · 老街树影",
+		"name": "Kapok Flower",
+		"rarity": "Hero's Flower",
+		"source": "Lingnan Dream · Old Street Tree Shadows",
 		"icon": "res://Assets/Effects/木棉.png",
-		"usage": "用于解锁岭南图鉴中的地点记录。",
-		"description": "落在青砖地上的木棉花，颜色像燃尽前的火。它没有香气，却有一种站直的力量。",
-		"lore": "木棉常被称作英雄花。它在梦里不是装饰，而是对抗侵蚀的标记：即使城市不断被改写，也仍有东西保持挺拔。"
+		"usage": "Unlocks location records in the Lingnan archive.",
+		"description": "A kapok flower fallen on the gray-brick pavement, its color like a flame just before it burns out. It has no fragrance, yet carries the strength to stand tall.",
+		"lore": "The kapok is often called the hero's flower. In the dream it is not decoration, but a mark of resistance against corruption: even as the city is rewritten again and again, some things remain upright."
 	},
 	{
 		"id": "lion_dance",
-		"name": "醒狮",
-		"rarity": "醒梦之物",
-		"source": "岭南梦境 · 祠前仪式",
+		"name": "Awakening Lion",
+		"rarity": "Dream-Waking Relic",
+		"source": "Lingnan Dream · Ritual Before the Ancestral Hall",
 		"icon": "res://Assets/Effects/醒狮.png",
-		"usage": "触发一次醒梦提示，标记附近关键交互。",
-		"description": "狮头的眼睛像刚点亮的灯。它被拾起时没有锣鼓声，但梦境边缘会短暂震动。",
-		"lore": "醒狮既是表演，也是驱邪和开新的仪式。作为掉落物，它象征玩家重新夺回对梦的主动权。"
+		"usage": "Triggers a dream-waking hint and marks nearby key interactions.",
+		"description": "The lion head's eyes shine like lamps freshly lit. No gongs or drums sound when it is picked up, but the edge of the dream trembles for a moment.",
+		"lore": "The awakening lion is both a performance and a ritual for warding off evil and welcoming the new. As a drop, it symbolizes the player reclaiming agency over the dream."
 	},
 	{
 		"id": "siu_mai",
-		"name": "广式烧卖",
-		"rarity": "市井风味",
-		"source": "岭南梦境 · 骑楼摊档",
+		"name": "Cantonese Siu Mai",
+		"rarity": "Street-Corner Flavor",
+		"source": "Lingnan Dream · Arcade Street Stall",
 		"icon": "res://Assets/Effects/广式烧卖.png",
-		"usage": "补充少量体力，并增加图鉴收集进度。",
-		"description": "热气在梦中凝成一圈浅金色的光。烧卖不贵重，却有真实生活的重量。",
-		"lore": "岭南的市井并不只属于怀旧，它是一套仍在运转的生活技术。摊档、骑楼和人声共同构成城市的低频心跳。"
+		"usage": "Restores a small amount of stamina and increases archive collection progress.",
+		"description": "Steam condenses into a ring of pale golden light inside the dream. Siu mai is not precious, but it carries the weight of real life.",
+		"lore": "Lingnan street life does not belong only to nostalgia. It is a living system that still operates today. Stalls, arcades, and human voices together form the city's low-frequency heartbeat."
 	},
 	{
 		"id": "palm_fan",
-		"name": "蒲葵扇",
-		"rarity": "旧物回声",
-		"source": "岭南梦境 · 祖屋角落",
+		"name": "Palm-Leaf Fan",
+		"rarity": "Echo of an Heirloom",
+		"source": "Lingnan Dream · Corner of the Ancestral Home",
 		"icon": "res://Assets/Effects/蒲葵扇.png",
-		"usage": "短暂驱散屏幕边缘的梦境雾化效果。",
-		"description": "一把磨得发亮的蒲葵扇，边缘有旧线缝补。扇面轻轻一晃，像把闷热和噪声都推远了。",
-		"lore": "蒲葵扇连接着家庭、夏夜和街巷乘凉的经验。它的价值不在稀有，而在于它让梦境重新出现人的温度。"
+		"usage": "Temporarily disperses the dream-fog effect around the edge of the screen.",
+		"description": "A palm-leaf fan polished smooth by use, its edges mended with old thread. One gentle wave seems to push both the stifling heat and the noise far away.",
+		"lore": "The palm-leaf fan connects family, summer nights, and the experience of gathering in cool neighborhood lanes. Its value lies not in rarity, but in how it restores human warmth to the dream."
 	}
 ]
 
@@ -287,7 +293,7 @@ func _build_ui() -> void:
 func _add_header() -> void:
 	var title := Label.new()
 	title.name = "ArchiveTitle"
-	title.text = "岭南梦物志"
+	title.text = "Lingnan Dream Compendium"
 	title.position = Vector2(116, 116)
 	title.size = Vector2(420, 48)
 	title.add_theme_font_size_override("font_size", 36)
@@ -366,7 +372,7 @@ func _add_item_cabinet() -> void:
 	_main_panel.add_child(cabinet)
 
 	var title := Label.new()
-	title.text = "展柜目录"
+	title.text = "Display Case Index"
 	title.position = Vector2(28, 20)
 	title.size = Vector2(180, 28)
 	title.add_theme_font_size_override("font_size", 24)
@@ -374,7 +380,7 @@ func _add_item_cabinet() -> void:
 	cabinet.add_child(title)
 
 	var hint := Label.new()
-	hint.text = "点击物件查看百科"
+	hint.text = "Click an Item to View Its Entry"
 	hint.position = Vector2(210, 25)
 	hint.size = Vector2(106, 22)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -401,7 +407,7 @@ func _add_article_area() -> void:
 	_main_panel.add_child(article)
 
 	var title := Label.new()
-	title.text = "百科札记"
+	title.text = "Archive Notes"
 	title.position = Vector2(28, 26)
 	title.size = Vector2(180, 30)
 	title.add_theme_font_size_override("font_size", 28)
@@ -436,7 +442,7 @@ func _add_article_area() -> void:
 func _add_close_button() -> void:
 	var btn := Button.new()
 	btn.name = "CloseButton"
-	btn.text = "退出图鉴"
+	btn.text = "Exit Archive"
 	btn.position = Vector2(936, 108)
 	btn.size = Vector2(142, 46)
 	btn.focus_mode = Control.FOCUS_NONE
@@ -514,17 +520,17 @@ func _select_item(index: int) -> void:
 	_left_placeholder.text = str(item.get("name", "?")) if owned else UNKNOWN_NAME
 	_left_placeholder.visible = texture == null
 	if owned:
-		_name_label.text = str(item.get("name", "未命名"))
-		_rarity_label.text = "◇ " + str(item.get("rarity", "未知品级")) + " ◇"
-		_source_label.text = str(item.get("source", "来源未记录"))
-		_usage_label.text = "用途：" + str(item.get("usage", "暂无用途记录。"))
-		_article_label.text = "[b]说明[/b]\n%s\n\n[b]背景[/b]\n%s" % [
-			str(item.get("description", "暂无说明。")),
-			str(item.get("lore", "暂无背景记录。"))
+		_name_label.text = str(item.get("name", "Unnamed"))
+		_rarity_label.text = "◇ " + str(item.get("rarity", "Unknown Rarity")) + " ◇"
+		_source_label.text = str(item.get("source", "Source Not Recorded"))
+		_usage_label.text = "Use: " + str(item.get("usage", "No Use Recorded."))
+		_article_label.text = "[b]Description[/b]\n%s\n\n[b]Background[/b]\n%s" % [
+			str(item.get("description", "No Description Available.")),
+			str(item.get("lore", "No Background Recorded."))
 		]
 	else:
 		_name_label.text = UNKNOWN_NAME
-		_rarity_label.text = "◇ 未收录 ◇"
+		_rarity_label.text = "◇ Not Collected ◇"
 		_source_label.text = LOCKED_HINT
 		_usage_label.text = LOCKED_HINT
 		_article_label.text = "[center]%s[/center]" % LOCKED_HINT
@@ -552,7 +558,7 @@ func _apply_item_button_owned_state(btn: Button, item: Dictionary, selected: boo
 		placeholder.visible = icon == null or icon.texture == null
 	var label := btn.get_node_or_null("Name") as Label
 	if label:
-		label.text = str(item.get("name", "未命名")) if owned else UNKNOWN_NAME
+		label.text = str(item.get("name", "Unnamed")) if owned else UNKNOWN_NAME
 		label.add_theme_color_override("font_color", COLOR_PAPER if owned else Color(0.55, 0.56, 0.50, 1.0))
 	btn.tooltip_text = str(item.get("name", "")) if owned else LOCKED_HINT
 	btn.add_theme_stylebox_override("normal", _make_item_style(selected, false, not owned))

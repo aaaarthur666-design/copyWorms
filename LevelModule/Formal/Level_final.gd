@@ -15,7 +15,7 @@ var _ending_triggered: bool = false
 const PLAYER_SPAWN := Vector2(320, 616)
 const INTERACT_POS := Vector2(192, 592)
 const INTERACT_ID := "final_sun"
-const FINAL_ENDING_TEXT := "太阳照常升起。\n房间还是那间房间，桌上还有灰，电脑还在发烫。\n但窗帘被拉开了。\n\n外面很吵。\n车声、人声、早点摊的蒸汽声，乱成一团。\n可那才是真的世界。\n\n阿明合上旧项目，新建文件夹：\nXiguan_Archive\n他背起相机，拿起爷爷的灯笼。\n去记录那些还没来得及消失的门、窗、声音和人。\n\n老街会被拆掉。\n但记忆不该只被关在梦里。\n技术也不该只是逃避的温室。\n\n从今天起，\n它会成为一座通向现实的桥。"
+const FINAL_ENDING_TEXT := "The sun rises as usual.\nThe room is still the same room, with dust on the desk and heat pouring from the computer.\nBut the curtains are open.\n\nOutside, it is noisy.\nCars, voices, and the hiss of steam from breakfast stalls all tangle together.\nBut that is the real world.\n\nMing closes the old project and creates a new folder:\nXiguan_Archive\nHe shoulders his camera and picks up Grandpa's lantern.\nHe goes to record the doors, windows, sounds, and people that have not yet disappeared.\n\nThe old street will be demolished.\nBut memories shouldn't be locked away inside a dream.\nAnd technology shouldn't be only a greenhouse for hiding from reality.\n\nFrom this day forward,\nit will become a bridge back to reality."
 
 func _ready() -> void:
 	# 清除旧玩家

@@ -26,8 +26,8 @@ const LNGN_POSITIONS: Array[Vector2] = [
 	Vector2(524, 2060), Vector2(3564, 2073), Vector2(1631, 1316)
 ]
 const LNGN_DIALOGS: Array[String] = [
-	"不太对。\n这条路像是旧阁楼的残片。\n我需要到上面看看。",
-	"还是不对。\n系统把路折回来了。",
+	"Something's wrong.\nThis road looks like a fragment of the old attic.\nI need to get up there and take a look.",
+	"Still wrong.\nThe system folded the road back on itself.",
 	""
 ]
 const STAGE2_SPAWN := Vector2(242, 4333)
@@ -213,7 +213,7 @@ func _on_ready() -> void:
 
 	if level_data and level_data.anchor_narrative != "":
 		_show_narrative("[color=green]> User_Ming_Override_Protocol: Phase_Final.[/color]\n[color=green]> Target: REAL_EXIT.[/color]", func():
-			_show_narrative("[color=goldenrod]阿明：[/color]" + level_data.anchor_narrative, func():
+			_show_narrative("[color=goldenrod]Ming: [/color]" + level_data.anchor_narrative, func():
 				_pan_camera_to(Vector2(1733, 318), func():
 					_spawn_stage1_enemies(); _restore_combat_mechanics()
 				)
@@ -232,9 +232,9 @@ func _setup_stage_test_panel() -> void:
 		push_error("[Level_04] 无法加载 StageTestPanel.gd")
 		return
 	var panel = script.new(self, [
-		{"name": "阶段1: 同构战斗", "action": func(): _goto_stage1_test()},
-		{"name": "阶段2: 世界切换", "action": func(): _goto_stage2_test()},
-		{"name": "阶段3: 出口交互", "action": func(): _goto_stage3_test()},
+		{"name": "Stage 1: Isomorphic Combat", "action": func(): _goto_stage1_test()},
+		{"name": "Stage 2: World Switching", "action": func(): _goto_stage2_test()},
+		{"name": "Stage 3: Exit Interaction", "action": func(): _goto_stage3_test()},
 	])
 	add_child(panel)
 
@@ -366,9 +366,9 @@ func _on_object_interacted(data: Dictionary) -> void:
 	var oid: String = data.get("object_id", "")
 	if oid == "guide":
 		if _float_text: _float_text.visible = false
-		_show_narrative("[color=cyan]阿明：[/color]攻击怪物，或被怪物攻击时，世界会瞬间切换。\n这不是规则错误。\n这是裂缝。\n我需要借助世界切换，脱离这里的卡死。")
+		_show_narrative("[color=cyan]Ming: [/color]The world switches instantly whenever I attack a monster or a monster attacks me.\nThis isn't a rules error.\nIt's a fracture.\nI need to use the world switching to break free from this deadlock.")
 	elif oid == "greeting":
-		_show_floating_text("晚上好，椰汁城")
+		_show_floating_text("Good evening, Coconut City")
 	elif oid == "enter_stage2":
 		_enter_stage2()
 	elif oid == "enter_stage3":
@@ -611,7 +611,7 @@ func _prime_hurt_feedback_before_swap(player: Node) -> void:
 func _on_wall_trigger(_body: Node2D) -> void:
 	if _wall_dialog_shown: return
 	_wall_dialog_shown = true
-	_show_narrative("[color=gray]前面没有路了。\n但现实本来就没有铺好的路。\n这次，我自己走过去。[/color]")
+	_show_narrative("[color=gray]There's no road ahead.\nBut reality never came with a road already paved.\nThis time, I'll find my own way across.[/color]")
 
 func _swap_world() -> void:
 	var p = GameManager.player_ref; if not p or not is_instance_valid(p): return
@@ -633,7 +633,7 @@ func _swap_world() -> void:
 		if dia != "":
 			get_tree().create_timer(1.0).timeout.connect(func():
 				if _current_world != 1 or _narrative_open: return
-				_show_narrative("[color=cyan]阿明：[/color]" + dia)
+				_show_narrative("[color=cyan]Ming: [/color]" + dia)
 			)
 	else:
 		p.global_position = CYBER_TELEPORT; _current_world = 0
@@ -645,7 +645,7 @@ func _swap_world() -> void:
 			_cyber_return_dialog_shown = true
 			get_tree().create_timer(1.0).timeout.connect(func():
 				if _current_world != 0 or _narrative_open: return
-				_show_narrative("[color=cyan]阿明：[/color]我又回来了。\n出口被藏在重复的梦里。\n可能需要多切换几次。")
+				_show_narrative("[color=cyan]Ming: [/color]I'm back again.\nThe exit is hidden inside a repeating dream.\nI may need to switch worlds a few more times.")
 			)
 	_swap_count += 1
 
@@ -689,7 +689,7 @@ func _enter_stage2() -> void:
 	_start_stage2_swap_timer()
 	_spawn_stage2_enemies()
 	_start_right_edge_flash()
-	_show_narrative("[color=cyan]阿明：[/color]这里……\n才是真正的出口吗？")
+	_show_narrative("[color=cyan]Ming: [/color]Is this...\nthe real exit?")
 
 func _create_black_overlay() -> ColorRect:
 	var cv = $CanvasLayerUI
@@ -880,7 +880,7 @@ func _build_erosion_ui() -> void:
 	_erosion_label.name = "ErosionLabel"
 	_erosion_label.size = Vector2(280, 24)
 	_erosion_label.position = Vector2(0, 4)
-	_erosion_label.text = "侵蚀 0%"
+	_erosion_label.text = "Corruption 0%"
 	_erosion_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_erosion_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_erosion_label.add_theme_font_size_override("font_size", 18)
@@ -915,7 +915,7 @@ func _update_erosion_ui() -> void:
 	_erosion_label.visible = true
 	var ratio: float = _erosion_value / EROSION_MAX
 	_erosion_bar_fill.size.x = 280.0 * ratio
-	_erosion_label.text = "侵蚀 %.0f%%" % _erosion_value
+	_erosion_label.text = "Corruption %.0f%%" % _erosion_value
 	# 颜色从紫→红逐渐变化
 	if ratio > 0.7:
 		_erosion_bar_fill.color = Color(0.9, 0.1, 0.2, 0.95)

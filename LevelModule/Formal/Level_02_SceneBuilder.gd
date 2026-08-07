@@ -52,25 +52,25 @@ func _build_interactives() -> void:
 	var win_indicator = level._window_node.get_node_or_null("Indicator")
 	if win_indicator:
 		win_indicator.queue_free()
-	level._window_node.prompt_text = "按 Enter 观察"
+	level._window_node.prompt_text = "Press Enter to Observe"
 
 	level._attic_door_node = _ensure_interactive(container, "AtticDoor", "attic_door", Vector2(424, 500), Vector2(60, 160))
 	var door_indicator = level._attic_door_node.get_node_or_null("Indicator")
 	if door_indicator:
 		door_indicator.queue_free()
-	level._attic_door_node.prompt_text = "按 Enter 推开"
+	level._attic_door_node.prompt_text = "Press Enter to Push Open"
 
 	level._rattan_chair_node = _ensure_interactive(container, "GroceryStore", "rattan_chair", Vector2(880, 552), Vector2(80, 50))
 	var chair_indicator = level._rattan_chair_node.get_node_or_null("Indicator")
 	if chair_indicator:
 		chair_indicator.queue_free()
-	level._rattan_chair_node.prompt_text = "按 Enter 回忆"
+	level._rattan_chair_node.prompt_text = "Press Enter to Remember"
 
 	level._chips_cat_node = _ensure_interactive(container, "ChipsCat", "chips_cat", Vector2(2824, 552), Vector2(80, 60))
 	var cat_indicator = level._chips_cat_node.get_node_or_null("Indicator")
 	if cat_indicator:
 		cat_indicator.queue_free()
-	level._chips_cat_node.prompt_text = "按 Enter 呼唤"
+	level._chips_cat_node.prompt_text = "Press Enter to Call Out"
 	level._chips_cat_node.allow_repeat = true
 
 func _build_triggers() -> void:

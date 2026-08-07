@@ -352,9 +352,9 @@ func _setup_stage_test_panel() -> void:
 		push_error("[Level_05] 无法加载 StageTestPanel.gd")
 		return
 	var panel = script.new(self, [
-		{"name": "bg3: 双世界侵蚀", "action": func(): _goto_bg3_test()},
-		{"name": "bg4: Boss战", "action": func(): _goto_bg4_test()},
-		{"name": "bg5: 灯笼结局", "action": func(): _goto_bg5_test()},
+		{"name": "bg3: Two-World Corruption", "action": func(): _goto_bg3_test()},
+		{"name": "bg4: Boss Battle", "action": func(): _goto_bg4_test()},
+		{"name": "bg5: Lantern Ending", "action": func(): _goto_bg5_test()},
 	])
 	add_child(panel)
 
@@ -701,7 +701,7 @@ func _on_object_interacted(data: Dictionary) -> void:
 		var grandpa := _get_interactive_by_id("grandpa")
 		if grandpa:
 			grandpa.mark_completed()
-		_show_dialog(["爷爷？\n如果你真的是我记忆里的那盏灯，\n就请照我回去。"], _play_grandpa_video)
+		_show_dialog(["Grandpa?\nIf you truly are the light I remember,\nplease guide me home."], _play_grandpa_video)
 
 ## 播放花旦CG过场（进入Boss战前）：淡入黑屏→播放CG→进入Boss战
 func _play_huadan_cg() -> void:
@@ -761,7 +761,7 @@ func _play_grandpa_video() -> void:
 	var stream := load("res://Assets/视频演出.ogv") as VideoStream
 	if stream == null:
 		push_error("[Level_05] 视频演出.ogv 加载失败")
-		_show_dialog(["（视频加载失败）"], Callable())
+		_show_dialog(["(Failed to load video)"], Callable())
 		return
 	# 屏蔽游戏输入
 	InputManager.block_input("视频演出", self)
@@ -815,7 +815,7 @@ func _on_boss_death_recover(death_pos: Vector2) -> void:
 	Engine.time_scale = 1.0
 	_spawn_lantern(death_pos)
 	_show_dialog([
-		"[color=#ff6b9d]花旦：[/color]为什么要拥抱……残酷的现实……\n明明是你先请求我……\n把痛苦关在门外……",
+		"[color=#ff6b9d]Huadan: [/color]Why embrace... cruel reality...?\nYou were the one who asked me...\nto shut the pain outside...",
 	], Callable())
 
 ## 在Boss死亡位置生成灯笼交互物
@@ -846,7 +846,7 @@ func _spawn_lantern(pos: Vector2) -> void:
 	# 交互提示标签
 	var prompt = Label.new()
 	prompt.name = "Prompt"
-	prompt.text = "按 Enter 拾起灯笼"
+	prompt.text = "Press Enter to Pick Up the Lantern"
 	prompt.visible = false
 	prompt.add_theme_font_size_override("font_size", 16)
 	prompt.add_theme_color_override("font_color", Color(1, 0.9, 0.2, 0.95))
@@ -898,7 +898,7 @@ func _play_lantern_spawn(lantern: Node2D, glow: Sprite2D) -> void:
 func _on_lantern_interacted() -> void:
 	# 灯笼设为 allow_repeat，不标记 completed，对话结束后仍可再次交互
 	_show_dialog([
-		"[color=cyan]阿明：[/color]这是……爷爷给我的手提灯笼。\n\n小时候停电，他总提着它走在前面。\n他说，路黑不要紧。\n人要自己记得往哪走。\n\n爷爷。\n我回去了。",
+		"[color=cyan]Ming: [/color]This is... the hand lantern Grandpa gave me.\n\nWhenever the power went out when I was little, he carried it as he walked ahead of me.\nHe said there was no need to fear a dark road.\nYou just have to remember which way to go.\n\nGrandpa.\nI'm going home.",
 	], _teleport_to_bg5)
 
 ## 检查玩家是否在灯笼交互范围内（自定义距离检测，不依赖Area2D）
@@ -994,9 +994,9 @@ func _enter_boss_arena() -> void:
 			obj.mark_completed()
 	# 显示对话 → 对话结束后传送到 Boss 区域
 	_show_dialog([
-		"[color=#ff6b9d]花旦：[/color]阿明，你瞧。\n技术能给你你想要的一切。",
-		"[color=#ff6b9d]花旦：[/color]它能让回忆拥有形状。\n它能让记忆死而复生。\n它能让失去的人，永远站在原地等你。",
-		"[color=#ff6b9d]花旦：[/color]留下来吧。\n永远留在这个温暖的世界里。\n不要回到那个会失败、会失去、会拆毁一切的现实。",
+		"[color=#ff6b9d]Huadan: [/color]Look, Ming.\nTechnology can give you everything you want.",
+		"[color=#ff6b9d]Huadan: [/color]It can give memories a shape.\nIt can bring dead memories back to life.\nIt can make those you lost stand still and wait for you forever.",
+		"[color=#ff6b9d]Huadan: [/color]Stay.\nRemain forever in this warm world.\nDon't return to a reality where you can fail, lose, and watch everything be torn down.",
 	], _play_huadan_cg)
 
 func _teleport_to_boss() -> void:
@@ -1020,7 +1020,7 @@ func _show_skin_hint() -> void:
 	if existing: existing.queue_free()
 	var hint = Label.new()
 	hint.name = "SkinHintLabel"
-	hint.text = "按 G 切换人物外观"
+	hint.text = "Press G to Switch Character Appearance"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 40)
 	hint.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 0.95))
@@ -1154,7 +1154,7 @@ func _update_erosion_bar() -> void:
 	if not _erosion_bar_fill or not _erosion_label: return
 	var ratio = _erosion_value / EROSION_MAX
 	_erosion_bar_fill.size.x = 280.0 * ratio
-	_erosion_label.text = "侵蚀 %.0f%%" % _erosion_value
+	_erosion_label.text = "Corruption %.0f%%" % _erosion_value
 	if ratio > 0.7:
 		_erosion_bar_fill.color = Color(0.9, 0.1, 0.2, 0.95)
 	elif ratio > 0.4:
@@ -1346,7 +1346,7 @@ func _create_boss_bar() -> void:
 
 	_boss_bar_label = Label.new()
 	_boss_bar_label.size = Vector2(BOSS_BAR_MAX_WIDTH, 28)
-	_boss_bar_label.text = "花旦"
+	_boss_bar_label.text = "Huadan"
 	_boss_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_bar_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_boss_bar_label.add_theme_font_size_override("font_size", 22)
@@ -1371,7 +1371,7 @@ func _create_boss_bar() -> void:
 	_boss_toughness_label = Label.new()
 	_boss_toughness_label.position = Vector2(0, 28)
 	_boss_toughness_label.size = Vector2(BOSS_BAR_MAX_WIDTH, 18)
-	_boss_toughness_label.text = "韧性"
+	_boss_toughness_label.text = "Poise"
 	_boss_toughness_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_toughness_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_boss_toughness_label.add_theme_font_size_override("font_size", 12)
@@ -1389,7 +1389,7 @@ func _update_boss_bar() -> void:
 	var max_hp = _boss_instance.max_health
 	var ratio = clampf(float(hp) / float(max_hp), 0.0, 1.0)
 	_boss_bar_fill.size.x = BOSS_BAR_MAX_WIDTH * ratio
-	_boss_bar_label.text = "花旦  %d / %d" % [hp, max_hp]
+	_boss_bar_label.text = "Huadan  %d / %d" % [hp, max_hp]
 	if _boss_toughness_fill and "toughness" in _boss_instance and "max_toughness" in _boss_instance:
 		var toughness = float(_boss_instance.get("toughness"))
 		var max_toughness = maxf(float(_boss_instance.get("max_toughness")), 1.0)
@@ -1397,10 +1397,10 @@ func _update_boss_bar() -> void:
 		_boss_toughness_fill.size.x = BOSS_BAR_MAX_WIDTH * toughness_ratio
 		if toughness_ratio <= 0.01:
 			_boss_toughness_fill.color = Color(0.15, 0.35, 0.55, 0.7)
-			_boss_toughness_label.text = "破韧"
+			_boss_toughness_label.text = "Poise Broken"
 		else:
 			_boss_toughness_fill.color = Color(0.35, 0.75, 1.0, 0.95)
-			_boss_toughness_label.text = "韧性"
+			_boss_toughness_label.text = "Poise"
 	# 狂暴变色
 	if ratio < 0.3:
 		_boss_bar_fill.color = Color(0.95, 0.2, 0.1, 0.95)

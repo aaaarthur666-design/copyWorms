@@ -24,7 +24,6 @@ var _skill_cd_label: Label = null            # 冷却剩余秒数
 var _skill_ready_glow: ColorRect = null      # 就绪时边框高亮
 var _skill_icon_suppressed: bool = false     # 关卡可禁用技能图标显示（如叙事关卡）
 const SKILL_ICON_SIZE: float = 64.0
-const SKILL_ICON_PATH: String = "res://Assets/UI/skill_icon.png"  # 后续替换图片用
 var _skill2_icon_container: Control = null
 var _skill2_cooldown_overlay: ColorRect = null
 var _skill2_key_label: Label = null
@@ -175,7 +174,7 @@ func _build_ui() -> void:
 	_build_pause_code_rain()
 
 	var pause_label = Label.new()
-	pause_label.text = "游戏已暂停"
+	pause_label.text = "Game Paused"
 	pause_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pause_label.add_theme_font_size_override("font_size", 56)
 	pause_label.add_theme_color_override("font_color", Color.WHITE)
@@ -184,15 +183,15 @@ func _build_ui() -> void:
 	pause_label.size = Vector2(500, 70)
 	pause_panel.add_child(pause_label)
 
-	var resume_btn = _make_panel_btn("继续游戏", Vector2(530, 233), Vector2(220, 110), 24)
+	var resume_btn = _make_panel_btn("Resume", Vector2(530, 233), Vector2(220, 110), 24)
 	resume_btn.pressed.connect(_on_resume_pressed)
 	pause_panel.add_child(resume_btn)
 
-	var keybind_btn = _make_panel_btn("按键设置", Vector2(530, 363), Vector2(220, 110), 24)
+	var keybind_btn = _make_panel_btn("Key Bindings", Vector2(530, 363), Vector2(220, 110), 24)
 	keybind_btn.pressed.connect(_on_keybind_settings_pressed)
 	pause_panel.add_child(keybind_btn)
 
-	var back_btn2 = _make_panel_btn("返回主界面", Vector2(530, 493), Vector2(220, 110), 24)
+	var back_btn2 = _make_panel_btn("Return to Main Menu", Vector2(530, 493), Vector2(220, 110), 24)
 	back_btn2.pressed.connect(_on_back_pressed)
 	pause_panel.add_child(back_btn2)
 
@@ -206,7 +205,7 @@ func _build_ui() -> void:
 	add_child(game_over_panel)
 
 	var go_label = Label.new()
-	go_label.text = "游戏结束"
+	go_label.text = "Game Over"
 	go_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	go_label.add_theme_font_size_override("font_size", 68)
 	go_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
@@ -215,11 +214,11 @@ func _build_ui() -> void:
 	go_label.size = Vector2(500, 78)
 	game_over_panel.add_child(go_label)
 
-	var restart_btn = _make_panel_btn("重新开始", Vector2(530, 283), Vector2(220, 110), 24)
+	var restart_btn = _make_panel_btn("Restart", Vector2(530, 283), Vector2(220, 110), 24)
 	restart_btn.pressed.connect(_on_restart_pressed)
 	game_over_panel.add_child(restart_btn)
 
-	var back_btn3 = _make_panel_btn("返回主界面", Vector2(530, 413), Vector2(220, 110), 24)
+	var back_btn3 = _make_panel_btn("Return to Main Menu", Vector2(530, 413), Vector2(220, 110), 24)
 	back_btn3.pressed.connect(_on_back_pressed)
 	game_over_panel.add_child(back_btn3)
 
@@ -256,29 +255,9 @@ func _build_skill_icon() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_skill_icon_container.add_child(bg)
 
-	# 技能图标（TextureRect，后续替换图片只需改 SKILL_ICON_PATH 常量）
-	var tex = load(SKILL_ICON_PATH) as Texture2D
-	if tex:
-		var icon = TextureRect.new()
-		icon.name = "Icon"
-		icon.texture = tex
-		icon.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
-		icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_skill_icon_container.add_child(icon)
-	else:
-		# 无图标资源时用文字占位
-		var placeholder = Label.new()
-		placeholder.name = "Placeholder"
-		placeholder.text = "技"
-		placeholder.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
-		placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		placeholder.add_theme_font_size_override("font_size", 16)
-		placeholder.add_theme_color_override("font_color", Color(0.7, 0.7, 0.85))
-		placeholder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_skill_icon_container.add_child(placeholder)
+	# 当前没有可用的技能图标资源，使用明确的英文文字，避免误用场景插图。
+	var placeholder = _make_skill_placeholder("Skill 1", Color(0.7, 0.7, 0.85), 13)
+	_skill_icon_container.add_child(placeholder)
 
 	# 冷却遮罩（从上往下收缩，冷却中半透明黑覆盖）
 	_skill_cooldown_overlay = ColorRect.new()
@@ -344,15 +323,7 @@ func _build_skill2_icon() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_skill2_icon_container.add_child(bg)
 
-	var placeholder = Label.new()
-	placeholder.name = "Placeholder"
-	placeholder.text = "技2"
-	placeholder.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
-	placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	placeholder.add_theme_font_size_override("font_size", 16)
-	placeholder.add_theme_color_override("font_color", Color(0.75, 0.9, 1.0))
-	placeholder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var placeholder = _make_skill_placeholder("Skill 2", Color(0.75, 0.9, 1.0), 13)
 	_skill2_icon_container.add_child(placeholder)
 
 	_skill2_cooldown_overlay = ColorRect.new()
@@ -441,16 +412,8 @@ func _build_dash_icon() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dash_icon_container.add_child(bg)
 
-	# 文字图标（蓄）
-	var placeholder = Label.new()
-	placeholder.name = "Placeholder"
-	placeholder.text = "蓄"
-	placeholder.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
-	placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	placeholder.add_theme_font_size_override("font_size", 16)
-	placeholder.add_theme_color_override("font_color", Color(0.85, 0.7, 1.0))
-	placeholder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 文字图标
+	var placeholder = _make_skill_placeholder("Charge", Color(0.85, 0.7, 1.0), 12)
 	_dash_icon_container.add_child(placeholder)
 
 	# 冷却遮罩
@@ -501,6 +464,18 @@ func _process(delta: float) -> void:
 	if _timer_running and not get_tree().paused:
 		_timer_elapsed += delta
 		_update_timer_display()
+
+func _make_skill_placeholder(text: String, color: Color, font_size: int) -> Label:
+	var placeholder = Label.new()
+	placeholder.name = "Placeholder"
+	placeholder.text = text
+	placeholder.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE - 18)
+	placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	placeholder.add_theme_font_size_override("font_size", font_size)
+	placeholder.add_theme_color_override("font_color", color)
+	placeholder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return placeholder
 
 ## 每帧更新技能冷却UI
 func _update_skill_cooldown() -> void:

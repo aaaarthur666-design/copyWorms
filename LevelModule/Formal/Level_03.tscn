@@ -265,7 +265,7 @@ collision_mask = 4
 monitorable = false
 script = ExtResource("4_bfbdy")
 object_id = "grandpa"
-prompt_text = "按 Enter 与爷爷对话"
+prompt_text = "Press Enter to Talk to Grandpa"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/Grandpa" unique_id=581014448]
 shape = SubResource("RectangleShape2D_k2v8w")
@@ -284,7 +284,7 @@ offset_right = 72.0
 offset_bottom = 32.0
 theme_override_colors/font_color = Color(1, 0.9, 0.2, 0.8454809)
 theme_override_font_sizes/font_size = 28
-text = "按 Enter 与爷爷对话"
+text = "Press Enter to Talk to Grandpa"
 horizontal_alignment = 1
 
 [node name="MemoryEcho1" type="Area2D" parent="InteractiveObjects" unique_id=232827919]
@@ -294,7 +294,7 @@ collision_mask = 4
 monitorable = false
 script = ExtResource("4_bfbdy")
 object_id = "memory_echo_1"
-prompt_text = "按 Enter 触碰记忆"
+prompt_text = "Press Enter to Touch the Memory"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/MemoryEcho1" unique_id=1265149454]
 shape = SubResource("RectangleShape2D_7ym3o")
@@ -314,7 +314,7 @@ offset_right = 80.0
 offset_bottom = -31.0
 theme_override_colors/font_color = Color(1, 0.9, 0.2, 0.95)
 theme_override_font_sizes/font_size = 28
-text = "按 Enter 触碰记忆"
+text = "Press Enter to Touch the Memory"
 horizontal_alignment = 1
 
 [node name="MemoryEcho2" type="Area2D" parent="InteractiveObjects" unique_id=1686167008]
@@ -324,7 +324,7 @@ collision_mask = 4
 monitorable = false
 script = ExtResource("4_bfbdy")
 object_id = "memory_echo_2"
-prompt_text = "按 Enter 触碰记忆"
+prompt_text = "Press Enter to Touch the Memory"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/MemoryEcho2" unique_id=650958723]
 shape = SubResource("RectangleShape2D_sshky")
@@ -344,7 +344,7 @@ offset_right = 80.0
 offset_bottom = -31.0
 theme_override_colors/font_color = Color(1, 0.9, 0.2, 0.95)
 theme_override_font_sizes/font_size = 28
-text = "按 Enter 触碰记忆"
+text = "Press Enter to Touch the Memory"
 horizontal_alignment = 1
 
 [node name="TriggerZones" type="Node2D" parent="." unique_id=1242003108]

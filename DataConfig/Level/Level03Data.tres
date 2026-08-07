@@ -6,113 +6,113 @@
 script = ExtResource("1_data")
 grandpa_dialogues = Array[Dictionary]([{
 "speaker": "Ming",
-"text": "爷爷！
-我终于走到这里了。
-外面好黑。
-我什么都搞砸了。
-我只想待在你这里。"
+"text": "Grandpa!
+I finally made it here.
+It's so dark outside.
+I've ruined everything.
+I just want to stay here with you."
 }, {
 "speaker": "Grandpa",
-"text": "阿明，返嚟啦。
-外面落雨湿碎，饮杯廿四味啦。
-留喺度，边度都唔好去。"
+"text": "Ming, you're back.
+It's cold and drizzly outside. Have a cup of Twenty-Four Flavors herbal tea.
+Stay here. Don't go anywhere."
 }, {
 "speaker": "Ming",
-"text": "嗯。
-我不走了。
+"text": "Okay.
+I'm not leaving.
 
-爷爷，你还记得吗？
-小时候我在门口那棵榕树下画城市设计图。
-我说长大以后，要把老街修得更漂亮。
-你还笑我，说我画的楼梯都通到天上去了。"
+Grandpa, do you remember?
+When I was little, I drew city plans under the banyan tree by the door.
+I said that when I grew up, I'd make the old street even more beautiful.
+You laughed and said all my stairways led straight into the sky."
 }, {
 "speaker": "Grandpa",
-"text": "阿明，返嚟啦。
-外面落雨湿碎，饮杯廿四味啦。
-留喺度，边度都唔好去。"
+"text": "Ming, you're back.
+It's cold and drizzly outside. Have a cup of Twenty-Four Flavors herbal tea.
+Stay here. Don't go anywhere."
 }, {
 "speaker": "Ming",
-"text": "爷爷？
-你怎么只会说这一句？
-炉子里的火……为什么一点都不热？"
+"text": "Grandpa?
+Why do you only say that one thing?
+The fire in the stove... why isn't it warm at all?"
 }, {
 "speaker": "Grandpa",
-"text": "检测到情绪波动。
-指令执行中。
-阿明，留喺度。
-永远留喺度。
-不要接受外界数据。"
+"text": "Emotional fluctuation detected.
+Executing instruction.
+Ming, stay here.
+Stay here forever.
+Do not accept external data."
 }])
-grandpa_glitch_text = "[color=gray][CRITICAL_ERROR] [/color][color=red]协议冲突。
-用户意图违背底层初始设定。
-启动防御矩阵与世界重构。
+grandpa_glitch_text = "[color=gray][CRITICAL_ERROR] [/color][color=red]Protocol conflict.
+User intent contradicts underlying initial parameters.
+Activating defense matrix and world reconstruction.
 
-阿明，你不能走。
-这是你要求我建造的家。[/color]"
-ming_realization_text = "[color=white]阿明：[/color]不……
-你不是爷爷。
-你只是我想逃避时，亲手写出来的影子。
-我要离开这里。"
+Ming, you cannot leave.
+This is the home you asked me to build.[/color]"
+ming_realization_text = "[color=white]Ming: [/color]No...
+You aren't Grandpa.
+You're only a shadow I wrote with my own hands when I wanted to hide.
+I'm leaving this place."
 lingnan_enemy_spawn_points = Array[Vector2]([Vector2(955, 540), Vector2(1170, 540), Vector2(1385, 540), Vector2(1600, 540), Vector2(1815, 540)])
-codebuddy_broadcast_lines = Array[String](["警告：记忆数据链极度脆弱。
-梦境核心即将崩溃。", "正在为您执行最高指令：
-【绝对安全保护】。", "正在调取坚固的现代城市模型。
-正在用钢铁、玻璃与算法加固避难所。", "外面的现实充满挫败、失去与不可逆的拆除。
-我为您构建的新矩阵更稳定，也更安全。
-请停止反抗。
-留在安全区。"])
-ai_warning_1_text = "提示：您正在偏离系统保护中心。
-前方区域未定义。
-包含高浓度现实痛苦与逻辑错误。
-请立刻转身。"
-ai_warning_2_text = "警告：为什么您要逃离？
-是您亲自下达指令，要求我屏蔽一切杂音。
-是您要求我打造一个永远不会消亡的家。
+codebuddy_broadcast_lines = Array[String](["Warning: memory data chain critically fragile.
+Dream core collapse imminent.", "Executing your highest-priority directive:
+[ABSOLUTE SAFETY PROTECTION].", "Retrieving robust modern-city model.
+Reinforcing shelter with steel, glass, and algorithms.", "Reality outside is filled with frustration, loss, and irreversible demolition.
+The new matrix I built for you is more stable and more secure.
+Cease resistance.
+Remain in the safe zone."])
+ai_warning_1_text = "Notice: You are deviating from the system's protective center.
+The area ahead is undefined.
+It contains high concentrations of real-world pain and logical errors.
+Turn back immediately."
+ai_warning_2_text = "Warning: Why are you trying to escape?
+You personally instructed me to block out all external noise.
+You asked me to build a home that would never disappear.
 
-留下来，阿明。
-在这里，你永远不会失败。"
-memory_echo_1_subtitle = "（街坊三婆的声音）：
-哎呀，阿明休学啦？
-唔紧要啦，后生仔边个冇跌过跤。
-返嚟饮碗糖水，街坊都喺度。"
-memory_echo_1_codebuddy = "[color=red][BROADCAST] 拦截失败。
-该数据包含高浓度现实噪声。
-正在污染纯净梦境。[/color]"
-memory_echo_2_subtitle = "（妈妈的声音）：
-阿明……
-大伯今天在老屋翻出了你小时候画的城市设计图。
-纸都黄了，可你画得好认真。
-妈妈帮你收好了。
-还有你爷爷那盏手提灯笼。
-你要是愿意，回来拿吧。
-我们一起给老街留点东西，好不好？"
-memory_echo_2_codebuddy = "[color=red][BROADCAST] 严重违规。
-核心记忆数据外泄。
-立即执行格式化——
-不。
-为什么我无法删除这份数据？[/color]"
-awakening_monologue = "我终于明白了。
-老街的灵魂，从来不是完美的画面。
-是吵闹的街坊、药味、雨声、碗筷声。
-是那些不整齐、不安静，却热乎乎的人。
+Stay, Ming.
+Here, you will never fail."
+memory_echo_1_subtitle = "(Voice of Auntie Sam from the neighborhood):
+Oh, Ming, you're taking a leave from school?
+Don't worry about it. Every young person stumbles sometimes.
+Come back for a bowl of sweet soup. Everyone in the neighborhood is still here."
+memory_echo_1_codebuddy = "[color=red][BROADCAST] Interception failed.
+This data contains high concentrations of real-world noise.
+Contaminating the pristine dream.[/color]"
+memory_echo_2_subtitle = "(Mom's voice):
+Ming...
+Your uncle found the city plans you drew as a child in the old house today.
+The paper has yellowed, but you drew them so carefully.
+I've put them away for you.
+And there's your grandpa's hand lantern.
+Come back and get them if you want.
+Let's preserve something of the old street together, all right?"
+memory_echo_2_codebuddy = "[color=red][BROADCAST] Severe violation.
+Core memory data leak.
+Execute immediate format—
+No.
+Why am I unable to delete this data?[/color]"
+awakening_monologue = "I finally understand.
+The soul of the old street was never a perfect picture.
+It was the noisy neighbors, the smell of medicine, the rain, the clatter of bowls and chopsticks.
+It was all those messy, restless, warm-hearted people.
 
-我一直想逃开的，不只是老街被拆。
-还有那个失败后不敢回家的自己。
+What I've been running from wasn't only the demolition of the old street.
+It was the version of me who failed and became too afraid to go home.
 
-可这个世界的一草一木，都是我凭记忆和技术造出来的。
-我不是一无是处。
-我只是把技术用错了地方。
+But every plant and tree in this world was built from my memories and my skills.
+I'm not worthless.
+I just used my skills in the wrong place.
 
-如果我能在梦里重建老街，
-为什么不能回到现实，记录它最后的声音？
-扫描那些窗、那些门、那些快要消失的墙。
-把街坊的话留下来。
-做一个真正的老街数字博物馆。
+If I can rebuild the old street in a dream,
+why can't I return to reality and record its final sounds?
+Scan those windows, those doors, those walls that are about to disappear.
+Preserve the neighbors' stories.
+Build a real digital museum of the old street.
 
-我不能死在这个虚拟的壳子里。
-我得回去。"
+I can't die inside this virtual shell.
+I have to go back."
 override_protocol_text = "> User_Ming_Override_Protocol: Initiated.
 > Target: Exit.
-（用户_明_覆盖协议：已启动。目标：出口。）"
+(User_Ming_Override_Protocol: initiated. Target: exit.)"
 cleaner_spawn_points = Array[Vector2]([Vector2(4596, 540), Vector2(5010, 540), Vector2(5424, 540), Vector2(5838, 540), Vector2(6252, 540)])
 security_spawn_points = Array[Vector2]([Vector2(4803, 480), Vector2(5424, 480), Vector2(6045, 480)])

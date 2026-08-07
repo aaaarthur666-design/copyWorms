@@ -59,7 +59,7 @@ collision_mask = 4
 script = ExtResource("2_interactive")
 object_id = "reality_phone"
 is_active = false
-prompt_text = "按 Enter 查看"
+prompt_text = "Press Enter to Examine"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/RealityPhone" unique_id=644833568]
 shape = SubResource("RectangleShape2D_phone")
@@ -72,7 +72,7 @@ collision_mask = 4
 script = ExtResource("2_interactive")
 object_id = "reality_computer"
 is_active = false
-prompt_text = "按 Enter 使用"
+prompt_text = "Press Enter to Use"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/RealityComputer" unique_id=1128892627]
 shape = SubResource("RectangleShape2D_computer")
@@ -85,7 +85,7 @@ collision_mask = 4
 script = ExtResource("2_interactive")
 object_id = "reality_bed"
 is_active = false
-prompt_text = "按 Enter 入梦"
+prompt_text = "Press Enter to Enter the Dream"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/RealityBed" unique_id=1703452312]
 shape = SubResource("RectangleShape2D_bed")

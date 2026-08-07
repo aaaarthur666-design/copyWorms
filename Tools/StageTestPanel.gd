@@ -37,7 +37,7 @@ func _build_ui() -> void:
 	add_child(_panel)
 
 	var title = Label.new()
-	title.text = "阶段测试面板 (按0开关)"
+	title.text = "Stage Test Panel (Press 0 to Toggle)"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
 	title.position = Vector2(10, 10)
@@ -46,7 +46,7 @@ func _build_ui() -> void:
 
 	for i in _stages.size():
 		var btn = Button.new()
-		btn.text = _stages[i].get("name", "阶段%d" % i)
+		btn.text = _stages[i].get("name", "Stage %d" % i)
 		btn.position = Vector2(10, 50 + i * 50)
 		btn.size = Vector2(260, 40)
 		btn.add_theme_font_size_override("font_size", 16)

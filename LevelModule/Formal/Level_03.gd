@@ -197,7 +197,7 @@ func _on_ready() -> void:
 
 	# 关卡开场叙事，延迟 0.5s 弹出
 	await get_tree().create_timer(0.5).timeout
-	_show_narrative("我……真的回来了。\n凉茶铺还在。\n炉子还在。\n爷爷就在前面。\n\n爷爷！\n爷爷！")
+	_show_narrative("I... really made it back.\nThe herbal tea shop is still here.\nThe stove is still here.\nGrandpa is right ahead.\n\nGrandpa!\nGrandpa!")
 
 
 ## 入场黑屏遮罩：创建满黑 CanvasLayer，覆盖整个初始化过程
@@ -730,12 +730,12 @@ func _advance_grandpa_dialogue() -> void:
 	var text = entry.get("text", "")
 	var formatted = ""
 	match speaker:
-		"Ming": formatted = "阿明：" + text
+		"Ming": formatted = "Ming: " + text
 		"Grandpa":
 			if grandpa_dialogue_index >= 4:
-				formatted = "[GLITCH] 爷爷：" + text
+				formatted = "[GLITCH] Grandpa: " + text
 			else:
-				formatted = "爷爷：" + text
+				formatted = "Grandpa: " + text
 		_: formatted = text
 	grandpa_dialogue_index += 1
 	if speaker == "Grandpa" and grandpa_dialogue_index == 4:
@@ -807,7 +807,7 @@ func _trigger_lingnan_combat() -> void:
 
 	# 显示战斗开始叙事
 	if level_data:
-		_show_narrative("[color=red]空气中弥漫着不安的气息。\n凉茶铺的影子正在变形。\n有什么东西，正在逼近。[/color]")
+		_show_narrative("[color=red]Unease hangs in the air.\nThe shadow of the herbal tea shop is warping.\nSomething is drawing closer.[/color]")
 
 func _spawn_lingnan_enemies() -> void:
 	if not _enemy_paper_effigy_scene or not _enemy_lantern_ghost_scene:

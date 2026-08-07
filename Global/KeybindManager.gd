@@ -9,15 +9,15 @@ const SAVE_PATH := "user://keybindings.json"
 
 ## 可重绑定的动作列表（动作名 → 显示名）
 const REBINDABLE_ACTIONS: Dictionary = {
-	&"player_attack": "攻击",
-	&"player_dash": "闪避",
-	&"player_skill": "技能",
-	&"player_skill_2": "技能2",
-	&"player_jump": "跳跃",
-	&"ui_left": "左移",
-	&"ui_right": "右移",
-	&"ui_up": "上移",
-	&"ui_down": "下移",
+	&"player_attack": "Attack",
+	&"player_dash": "Dodge",
+	&"player_skill": "Skill",
+	&"player_skill_2": "Skill 2",
+	&"player_jump": "Jump",
+	&"ui_left": "Move Left",
+	&"ui_right": "Move Right",
+	&"ui_up": "Move Up",
+	&"ui_down": "Move Down",
 }
 
 ## 默认绑定（启动时快照，用于恢复出厂）
@@ -202,42 +202,42 @@ func _key_display_text(ev: InputEventKey) -> String:
 
 func _mouse_button_display_text(ev: InputEventMouseButton) -> String:
 	match ev.button_index:
-		1: return "鼠标左键"
-		2: return "鼠标右键"
-		3: return "鼠标中键"
-		4: return "滚轮上"
-		5: return "滚轮下"
-		6: return "滚轮左"
-		7: return "滚轮右"
-		8: return "鼠标侧键1"
-		9: return "鼠标侧键2"
-		_: return "鼠标键%d" % ev.button_index
+		1: return "Left Mouse Button"
+		2: return "Right Mouse Button"
+		3: return "Middle Mouse Button"
+		4: return "Mouse Wheel Up"
+		5: return "Mouse Wheel Down"
+		6: return "Mouse Wheel Left"
+		7: return "Mouse Wheel Right"
+		8: return "Mouse Side Button 1"
+		9: return "Mouse Side Button 2"
+		_: return "Mouse Button %d" % ev.button_index
 
 func _joypad_button_display_text(ev: InputEventJoypadButton) -> String:
 	match ev.button_index:
-		0: return "手柄A"
-		1: return "手柄B"
-		2: return "手柄X"
-		3: return "手柄Y"
-		4: return "手柄选择"
-		5: return "手柄开始"
-		6: return "手柄LB"
-		7: return "手柄RB"
-		_: return "手柄键%d" % ev.button_index
+		0: return "Controller A"
+		1: return "Controller B"
+		2: return "Controller X"
+		3: return "Controller Y"
+		4: return "Controller Select"
+		5: return "Controller Start"
+		6: return "Controller LB"
+		7: return "Controller RB"
+		_: return "Controller Button %d" % ev.button_index
 
 func _joypad_motion_display_text(ev: InputEventJoypadMotion) -> String:
 	var axis_name: String = ""
 	match ev.axis:
-		0: axis_name = "左摇杆"
-		1: axis_name = "左摇杆"
-		2: axis_name = "右摇杆"
-		3: axis_name = "右摇杆"
-		_: return "轴%d" % ev.axis
+		0: axis_name = "Left Stick "
+		1: axis_name = "Left Stick "
+		2: axis_name = "Right Stick "
+		3: axis_name = "Right Stick "
+		_: return "Axis %d" % ev.axis
 	var dir: String = ""
 	match ev.axis:
-		0: dir = "左" if ev.axis_value < 0 else "右"
-		1: dir = "上" if ev.axis_value < 0 else "下"
-		2: dir = "左" if ev.axis_value < 0 else "右"
-		3: dir = "上" if ev.axis_value < 0 else "下"
+		0: dir = "Left" if ev.axis_value < 0 else "Right"
+		1: dir = "Up" if ev.axis_value < 0 else "Down"
+		2: dir = "Left" if ev.axis_value < 0 else "Right"
+		3: dir = "Up" if ev.axis_value < 0 else "Down"
 		_: dir = ""
 	return axis_name + dir

@@ -166,7 +166,7 @@ func _show_web_quit_hint() -> void:
 	if not _web_quit_hint:
 		_web_quit_hint = Label.new()
 		_web_quit_hint.name = "WebQuitHint"
-		_web_quit_hint.text = "网页版请直接关闭当前浏览器标签页"
+		_web_quit_hint.text = "For the web version, simply close this browser tab."
 		_web_quit_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_web_quit_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_web_quit_hint.add_theme_font_size_override("font_size", 24)

@@ -19,7 +19,7 @@ extends Resource
 @export_multiline var cliff_first_sight_text: String = ""
 @export var cliff_safe_spawn: Vector2 = Vector2(3340, 550)
 @export var interference_fall_threshold: int = 1
-@export var dream_phone_echo_sender: String = "来自：妈妈"
+@export var dream_phone_echo_sender: String = "From: Mom"
 @export_multiline var dream_phone_echo_text: String = ""
 @export var wake_hold_required: float = 1.5
 
@@ -27,7 +27,7 @@ extends Resource
 @export_multiline var wake_up_monologue: String = ""
 @export_multiline var computer_locked_text: String = ""
 @export_multiline var bed_locked_text: String = ""
-@export var reality_phone_sender: String = "来自：妈妈"
+@export var reality_phone_sender: String = "From: Mom"
 @export_multiline var reality_phone_content: String = ""
 @export_multiline var reality_phone_monologue: String = ""
 
@@ -56,5 +56,5 @@ extends Resource
 @export var bgm_dream_warm_path: String = ""
 
 @export_category("Ending")
-@export_multiline var dream_rebuilt_text: String = "西关梦境 v2.0 重构完毕。意识正在下沉……闭上眼睛，回到梦里。"
+@export_multiline var dream_rebuilt_text: String = "Xiguan Dream v2.0 reconstruction complete. Consciousness descending... Close your eyes and return to the dream."
 @export var next_level_path: String = "res://LevelModule/Formal/Level_03.tscn"

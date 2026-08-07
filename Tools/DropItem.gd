@@ -10,7 +10,7 @@ extends InteractiveObject
 class_name DropItem
 
 ## 掉落物类型（对应 Assets/Effects 中的贴图文件名，不含扩展名）
-@export var drop_type: String = "月饼"
+@export var drop_type: String = "Mooncake"
 
 var _drop_sprite: Sprite2D = null
 var _float_phase: float = 0.0
@@ -23,12 +23,18 @@ const DROP_TEXTURES: Dictionary = {
 	"醒狮": "res://Assets/Effects/醒狮.png",
 	"烧卖": "res://Assets/Effects/广式烧卖.png",
 	"蒲葵扇": "res://Assets/Effects/蒲葵扇.png",
+	"Mooncake": "res://Assets/Effects/月饼.png",
+	"Har Gow": "res://Assets/Effects/虾饺.png",
+	"Kapok Flower": "res://Assets/Effects/木棉.png",
+	"Awakening Lion": "res://Assets/Effects/醒狮.png",
+	"Siu Mai": "res://Assets/Effects/广式烧卖.png",
+	"Palm-Leaf Fan": "res://Assets/Effects/蒲葵扇.png",
 }
 
 func _ready() -> void:
 	super._ready()
 	allow_repeat = false
-	prompt_text = "按 Enter 拾取"
+	prompt_text = "Press Enter to Pick Up"
 	_create_drop_visual()
 	_float_phase = randf() * TAU
 

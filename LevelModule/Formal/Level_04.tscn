@@ -418,7 +418,7 @@ shape = SubResource("ln6")
 position = Vector2(1733, 318)
 script = ExtResource("7_intobj")
 object_id = "guide"
-prompt_text = "按 Enter 互动"
+prompt_text = "Press Enter to Interact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactives/IA_Guide" unique_id=1496396176]
 shape = SubResource("iadet")
@@ -443,7 +443,7 @@ color = Color(1, 0.9, 0.3, 0.3)
 position = Vector2(950, -395)
 script = ExtResource("7_intobj")
 object_id = "greeting"
-prompt_text = "按 Enter 互动"
+prompt_text = "Press Enter to Interact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactives/IA_Greeting" unique_id=1548242869]
 shape = SubResource("iadet")
@@ -468,7 +468,7 @@ color = Color(1, 0.9, 0.3, 0.3)
 position = Vector2(2305, 1247)
 script = ExtResource("7_intobj")
 object_id = "enter_stage2"
-prompt_text = "按 Enter 互动"
+prompt_text = "Press Enter to Interact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactives/IA_Stage2" unique_id=982340563]
 shape = SubResource("iadet")
@@ -493,7 +493,7 @@ color = Color(1, 0.9, 0.3, 0.3)
 position = Vector2(7354, 4257)
 script = ExtResource("7_intobj")
 object_id = "enter_stage3"
-prompt_text = "按 Enter 互动"
+prompt_text = "Press Enter to Interact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactives/IA_Stage3_Lingnan" unique_id=-2112345684]
 position = Vector2(0, 21)
@@ -519,7 +519,7 @@ color = Color(1, 0.9, 0.3, 0.3)
 position = Vector2(7312, 7418)
 script = ExtResource("7_intobj")
 object_id = "enter_stage3"
-prompt_text = "按 Enter 互动"
+prompt_text = "Press Enter to Interact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Interactives/IA_Stage3_Cyber" unique_id=-2112345686]
 position = Vector2(0, 13)

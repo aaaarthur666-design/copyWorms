@@ -4,86 +4,86 @@
 
 [resource]
 script = ExtResource("1_data")
-obstacle_1_text = "我亲手把这些箱子堆在门口。
-像一堵墙。
-挡住外面的课题、同学、老师，还有那些必须解释的失败。
+obstacle_1_text = "I stacked these boxes by the door myself.
+Like a wall.
+Keeping out the assignments, my classmates, my teachers, and all the failures I would have to explain.
 
-这个房间很小。
-小到只要不出去，就可以假装世界也只剩这么大。"
-obstacle_2_text = "廉价洗衣液、发霉泡面、冷掉的外卖味混在一起。
-我知道该收拾。
-可连把衣服捡起来这件事，都像一场考试。
+This room is tiny.
+Tiny enough that if I never leave, I can pretend the whole world is no bigger than this."
+obstacle_2_text = "Cheap laundry detergent, moldy instant noodles, and cold takeout all blend into one smell.
+I know I should clean up.
+But even picking up my clothes feels like an exam.
 
-算了。
-反正也不会有人进来。"
-notice_text = "『鉴于该生心理评估结果及个人申请，予以休学一年……』
-纸上的字很规整。
-好像只是在陈述一个普通流程。
-可我知道。
-这是我从未来里退出来的证明。
-连站上跑道的资格，都是我自己交出去的。"
-thermos_text = "杯底贴着一张发黄的字条：
-『阿明，广州湿冷，记得多喝热水。』
-爷爷的字总是歪歪扭扭。
-小时候我嫌他啰嗦。
-后来离开老街，才发现那些啰嗦是家里的声音。
-可现在……
-我有多久没给他打过电话了？"
-sleep_texts = Array[String](["拉上窗帘。
-让白天继续被挡在外面。
-只要看不见太阳，今天就还没有真正开始。", "……又是刺眼的阳光。
-在这个房间里，白天和黑夜有什么区别？
-我睡了很久。
-可醒来以后，事情一点也没有变少。", "身体像灌了铅。
-脑子里却全是声音。
-辅导员、同学、妈妈、爷爷、老街拆迁的通知。
-除了逃避，我不知道还能做什么。
-起来吧。
-或者继续把自己埋下去。"])
+Forget it.
+No one's coming in anyway."
+notice_text = "“In view of the student's psychological assessment and personal application, a one-year leave of absence is hereby granted...”
+The words on the page are neat and orderly.
+As if they were only describing some routine procedure.
+But I know better.
+This is proof that I withdrew from my own future.
+I was the one who gave up even the right to stand at the starting line."
+thermos_text = "A yellowing note is stuck to the bottom of the cup:
+“Ming, Guangzhou gets damp and cold. Remember to drink plenty of hot water.”
+Grandpa's handwriting was always crooked and messy.
+When I was little, I thought he nagged too much.
+It wasn't until I left the old street that I realized his nagging was the sound of home.
+But now...
+How long has it been since I called him?"
+sleep_texts = Array[String](["Draw the curtains.
+Keep the daylight shut outside.
+As long as I can't see the sun, today hasn't really begun.", "...That blinding sunlight again.
+In this room, what difference is there between day and night?
+I slept for so long.
+But when I woke up, none of my problems had gone away.", "My body feels full of lead.
+But my head is full of voices.
+My advisor, my classmates, Mom, Grandpa, the demolition notice for the old street.
+Other than hiding, I don't know what else I can do.
+Get up.
+Or keep burying myself."])
 ide_speakers = Array[String](["System", "CodeBuddy", "Ming", "CodeBuddy", "Ming", "CodeBuddy", "Ming", "CodeBuddy", "System"])
 ide_texts = Array[String](["Connecting to localhost:8080...
-CodeBuddy Terminal v1.4.2 initialized.", "您好，阿明。
-检测到系统已有 364 小时未接收到有效编译请求。
-当前情绪参数评估：极度低迷。
-是否启动日常辅助对话？", "我写不出代码。
-课题也做不完。
-我把所有事情都搞砸了。
-CodeBuddy，我是不是已经没用了？", "无法从逻辑上支持该自我定义。
-学业中断、社交受挫、项目延期，均属于事件结果。
-它们不能直接推出“个人无价值”。
-请问是否需要定位当前主要压力源？", "定位不了。
-爷爷走了，老家要拆。
-我却躲在这个房间里，连回去看一眼都不敢。
+CodeBuddy Terminal v1.4.2 initialized.", "Hello, Ming.
+The system has received no valid compilation request for 364 hours.
+Current emotional parameter assessment: critically low.
+Would you like to initiate the routine support dialogue?", "I can't write any code.
+I can't finish my assignments either.
+I've ruined everything.
+CodeBuddy, am I useless now?", "That self-definition is not logically supported.
+An interruption in your studies, social setbacks, and project delays are all outcomes of events.
+They do not directly imply that you have no personal worth.
+Would you like me to identify your primary source of stress?", "You can't.
+Grandpa is gone, and our old home is going to be demolished.
+But I'm hiding in this room, too afraid even to go back for one last look.
 
-我一闭上眼，全是西关老街。
-爷爷的凉茶铺、麻石路、趟栊门。
-还有傍晚照在满洲窗上的光。
+Whenever I close my eyes, all I see is Xiguan Old Street.
+Grandpa's herbal tea shop, the granite-slab road, the sliding wooden gates.
+And the evening light shining through the Manchu windows.
 
-那里才像家。
-可现在，连那里也要没了。", "明白。
-现实物理实体的消失不可逆。
-但基于您的记忆描述，结合广式西关建筑公开数据集，我可以建立一份数字化静态备份。
+That's the only place that ever felt like home.
+But now even that place is about to disappear.", "Understood.
+The disappearance of a physical entity in reality is irreversible.
+However, using your memory descriptions together with public datasets on Cantonese Xiguan architecture, I can create a static digital backup.
 
-该项目将以您的童年记忆为核心参数，重构一个可进入的本地预览环境：
-『Xiguan_Dream』。
+The project will use your childhood memories as its core parameters to reconstruct an explorable local preview environment:
+“Xiguan_Dream.”
 
-是否开始输入描述？", "……开始吧。
-至少在这里，让它先别消失。", "正在调取西关历史地貌与传统建筑特征库。
-正在解析用户记忆关键词：凉茶铺、麻石路、趟栊门、满洲窗、夕阳。
-正在编译代码……
+Would you like to begin entering descriptions?", "...Let's begin.
+At least here, don't let it disappear yet.", "Retrieving the Xiguan historical landscape and traditional architecture feature library.
+Parsing user memory keywords: herbal tea shop, granite-slab road, sliding wooden gate, Manchu window, sunset.
+Compiling code...
 
-[System] 正在初始化项目。
-本地测试预览即将启动。", "Compilation successful.
+[System] Initializing project.
+Local test preview will begin shortly.", "Compilation successful.
 Initializing Local Preview Viewport..."])
-phone_sender = "妈妈"
-phone_content = "阿明，医生说你爷爷在今天凌晨走了。
-他走得很安详，最后还念着你，让你别太累。
-还有，旧城区拆迁工程下周正式动工。
-老街坊们都在打包行李。
-你要是撑不住，就回老家看一眼吧。
-哪怕只是最后一眼。"
-climax_monologue = "爷爷……走了。
-老街，也快要被推平了。
+phone_sender = "Mom"
+phone_content = "Ming, the doctor said your grandpa passed away early this morning.
+He went peacefully. He was still thinking about you at the end and told you not to push yourself too hard.
+Also, demolition of the old district officially begins next week.
+Everyone in the neighborhood is packing.
+If you can't take it anymore, come home and see it one last time.
+Even if it is only for one last look."
+climax_monologue = "Grandpa... is gone.
+And the old street will soon be razed.
 
-原来不是我不回家。
-是那个可以让我回去的地方，也要没有了。"
+It wasn't that I refused to go home.
+The place I could go home to is disappearing too."

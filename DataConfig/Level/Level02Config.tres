@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_main")
-level_name = "撕裂与沉溺"
+level_name = "Rupture and Surrender"
 level_id = "level_02"
 bgm_path = "res://Assets/Music/2 test-2.ogg"
 bg_color = Color(0.32, 0.2, 0.14, 1)

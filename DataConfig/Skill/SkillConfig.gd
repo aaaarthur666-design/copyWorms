@@ -6,7 +6,7 @@ extends Resource
 class_name SkillConfig
 
 @export_group("基础信息")
-@export var skill_name: String = "未命名技能"
+@export var skill_name: String = "Unnamed Skill"
 @export var skill_id: String = ""
 @export var skill_icon: Texture2D = null
 

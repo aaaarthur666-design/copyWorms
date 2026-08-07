@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_script")
-level_name = "双世界撕裂·花旦"
+level_name = "Two Worlds Torn Asunder · Huadan"
 level_id = "level_05"
 bgm_path = "res://Assets/Music/lv5-bossfight.ogg"
 bg_color = Color(0.05, 0.04, 0.08, 1)

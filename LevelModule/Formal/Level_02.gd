@@ -51,9 +51,9 @@ var _enemy_paper_effigy_scene: PackedScene = null
 const FINAL_BLACKOUT_FADE_DURATION: float = 0.8
 const NEXT_LEVEL_SEGMENT_PATH: String = "res://LevelModule/Formal/Level_02_01.tscn"
 const CHIPS_CAT_TEXTS: Array[String] = [
-	"薯片，是你！\n你还在这里。",
-	"薯片以前总躺在药店门口的桌子上。\n晒太阳，露肚皮，谁叫都不理。\n看见它，我总觉得老街还活着。\n可现在它一动不动。\n像一段被循环播放的温柔数据。",
-	"喵呜唔～\n声音很像。\n但只响了一次。",
+	"Chips, it's you!\nYou're still here.",
+	"Chips used to lie on the table outside the pharmacy.\nSunbathing, belly exposed, ignoring everyone who called.\nWhenever I saw him, I felt as if the old street was still alive.\nBut now he isn't moving at all.\nLike a gentle piece of data trapped on a loop.",
+	"Mrrrow~\nIt sounds just like him.\nBut it only played once.",
 ]
 
 var _level_complete_emitted: bool = false
@@ -350,7 +350,7 @@ func _show_combat_hint() -> void:
 		cv = self
 	_combat_hint_label = Label.new()
 	_combat_hint_label.name = "CombatHintLabel"
-	_combat_hint_label.text = "[%s] 跳跃    [%s] 攻击    [%s] 冲刺    [%s] 技能" % [
+	_combat_hint_label.text = "[%s] Jump    [%s] Attack    [%s] Dash    [%s] Skill" % [
 		_get_first_action_event_display(&"player_jump"),
 		_get_first_action_event_display(&"player_attack"),
 		_get_first_action_event_display(&"player_dash"),

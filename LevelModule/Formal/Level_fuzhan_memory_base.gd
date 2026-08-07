@@ -320,7 +320,7 @@ func _on_enemy_died(data: Dictionary) -> void:
 func _spawn_memory_drop() -> void:
 	_drops = _drops.filter(func(drop): return is_instance_valid(drop) and not drop.completed)
 	if not _drops.is_empty():
-		_show_narrative("已有童年回忆样本正在等待回收。")
+		_show_narrative("A childhood memory fragment is waiting to be recovered.")
 		return
 	var drop := DropItem.new()
 	var type_index := clampi(LevelFuzhanSub01.total_fragments(), 0, LevelFuzhanSub01.DROP_TYPES.size() - 1)
@@ -479,7 +479,7 @@ func _finish_memory_drop_collection() -> void:
 	if collected >= LevelFuzhanSub01.REQUIRED_PER_AREA:
 		_complete_area()
 	else:
-		_show_narrative("童年回忆样本已回收。\n当前区域进度：%d / %d。" % [collected, LevelFuzhanSub01.REQUIRED_PER_AREA])
+		_show_narrative("Childhood memory fragment recovered.\nCurrent area progress: %d / %d." % [collected, LevelFuzhanSub01.REQUIRED_PER_AREA])
 
 
 func _check_player_death_guard() -> void:
@@ -638,7 +638,7 @@ func _build_ui() -> void:
 func _update_progress_label() -> void:
 	if not _progress_label:
 		return
-	_progress_label.text = "记忆回收 Area %02d  %d / %d    击杀进度 %d / %d" % [
+	_progress_label.text = "Memory Recovery Area %02d  %d / %d    Enemies Defeated %d / %d" % [
 		area_index,
 		LevelFuzhanSub01.area_collected(area_index),
 		LevelFuzhanSub01.REQUIRED_PER_AREA,

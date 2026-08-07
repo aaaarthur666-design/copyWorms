@@ -44,7 +44,7 @@ func _build_ui() -> void:
 
 	# 标题
 	var title := Label.new()
-	title.text = "按键设置"
+	title.text = "Key Bindings"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
 	title.add_theme_color_override("font_color", _title_color())
@@ -54,7 +54,7 @@ func _build_ui() -> void:
 
 	# 提示文字
 	var hint := Label.new()
-	hint.text = "点击 [修改] 后按下新按键，ESC 取消"
+	hint.text = "Click [Change], then press a new key. Press ESC to cancel."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", _hint_color())
@@ -79,11 +79,11 @@ func _build_ui() -> void:
 		_add_action_row(action)
 
 	# 底部按钮
-	var reset_btn := _make_btn("恢复默认", Vector2(500, 504), Vector2(182, 68), true, 16)
+	var reset_btn := _make_btn("Restore Defaults", Vector2(500, 504), Vector2(182, 68), true, 16)
 	reset_btn.pressed.connect(_on_reset_pressed)
 	add_child(reset_btn)
 
-	var back_btn := _make_btn("返回", Vector2(738, 504), Vector2(182, 68), true, 16)
+	var back_btn := _make_btn("Back", Vector2(738, 504), Vector2(182, 68), true, 16)
 	back_btn.pressed.connect(_on_back_pressed)
 	add_child(back_btn)
 
@@ -127,7 +127,7 @@ func _add_action_row(action: StringName) -> void:
 	row.add_child(bind_label)
 
 	# 修改按钮
-	var rebind_btn := _make_btn("修改", Vector2.ZERO, Vector2(132, 64), true, 16)
+	var rebind_btn := _make_btn("Change", Vector2.ZERO, Vector2(132, 64), true, 16)
 	rebind_btn.pressed.connect(_on_rebind_pressed.bind(action))
 	row.add_child(rebind_btn)
 
@@ -146,7 +146,7 @@ func _update_binding_display(action: StringName) -> void:
 		if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
 			continue
 		texts.append(KeybindManager.get_event_display_text(ev))
-	bind_label.text = ", ".join(texts) if texts.size() > 0 else "未绑定"
+	bind_label.text = ", ".join(texts) if texts.size() > 0 else "Unbound"
 
 func _title_color() -> Color:
 	return Color(0.1, 0.18, 0.13) if GameUIStyle.is_lingnan_theme() else Color.WHITE
@@ -175,7 +175,7 @@ func _on_rebind_pressed(action: StringName) -> void:
 	var row_data: Dictionary = _action_rows.get(action, {})
 	if not row_data.is_empty():
 		var bind_label: Label = row_data["label"]
-		bind_label.text = "< 请按键... (ESC取消) >"
+		bind_label.text = "< Press a key... (ESC to cancel) >"
 		bind_label.add_theme_color_override("font_color", _listening_color())
 		var rebind_btn: TextureButton = row_data["button"]
 		GameUIStyle.set_texture_button_disabled(rebind_btn, true)

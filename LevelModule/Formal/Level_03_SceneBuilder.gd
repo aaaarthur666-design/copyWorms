@@ -367,7 +367,7 @@ func _build_interactives() -> void:
 	var grandpa_indicator = level._grandpa_node.get_node_or_null("Indicator")
 	if grandpa_indicator:
 		grandpa_indicator.color = Color(0.8, 0.7, 0.4, 0.4)
-	level._grandpa_node.prompt_text = "按 Enter 与爷爷对话"
+	level._grandpa_node.prompt_text = "Press Enter to Talk to Grandpa"
 	level._grandpa_node.allow_repeat = false
 	container.add_child(level._grandpa_node)
 
@@ -377,12 +377,12 @@ func _build_interactives() -> void:
 	var echo1_indicator = level._memory_echo_1_node.get_node_or_null("Indicator")
 	if echo1_indicator:
 		echo1_indicator.color = Color(1.0, 0.85, 0.3, 0.6)
-	level._memory_echo_1_node.prompt_text = "按 Enter 触碰记忆"
+	level._memory_echo_1_node.prompt_text = "Press Enter to Touch the Memory"
 	level._memory_echo_1_node.is_active = false
 	container.add_child(level._memory_echo_1_node)
 	var warning_1 = Label.new()
 	warning_1.name = "ErrorLabel"
-	warning_1.text = "[Error_Data: 建议立刻清除]"
+	warning_1.text = "[Error_Data: Immediate deletion recommended]"
 	warning_1.add_theme_font_size_override("font_size", 16)
 	warning_1.add_theme_color_override("font_color", Color(1, 0.2, 0.2, 0.9))
 	warning_1.position = Vector2(-80, -75)
@@ -395,12 +395,12 @@ func _build_interactives() -> void:
 	var echo2_indicator = level._memory_echo_2_node.get_node_or_null("Indicator")
 	if echo2_indicator:
 		echo2_indicator.color = Color(1.0, 0.85, 0.3, 0.6)
-	level._memory_echo_2_node.prompt_text = "按 Enter 触碰记忆"
+	level._memory_echo_2_node.prompt_text = "Press Enter to Touch the Memory"
 	level._memory_echo_2_node.is_active = false
 	container.add_child(level._memory_echo_2_node)
 	var warning_2 = Label.new()
 	warning_2.name = "ErrorLabel"
-	warning_2.text = "[Error_Data: 建议立刻清除]"
+	warning_2.text = "[Error_Data: Immediate deletion recommended]"
 	warning_2.add_theme_font_size_override("font_size", 16)
 	warning_2.add_theme_color_override("font_color", Color(1, 0.2, 0.2, 0.9))
 	warning_2.position = Vector2(-80, -75)

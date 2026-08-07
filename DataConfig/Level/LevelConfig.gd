@@ -6,7 +6,7 @@ extends Resource
 class_name LevelConfig
 
 @export_group("关卡信息")
-@export var level_name: String = "未命名关卡"
+@export var level_name: String = "Unnamed Level"
 @export var level_id: String = ""
 @export var bgm_resource: AudioStream = null
 @export var bgm_path: String = ""        # BGM 文件路径（备用，bgm_resource 优先）

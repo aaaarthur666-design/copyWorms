@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_main")
-skill_name = "横斩"
+skill_name = "Horizontal Slash"
 skill_id = "slash"
 skill_icon = null
 damage = 35

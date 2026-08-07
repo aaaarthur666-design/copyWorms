@@ -122,7 +122,7 @@ func _show_end_placeholder() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	canvas.add_child(bg)
 	var label = Label.new()
-	label.text = "—— 未完待续 ——\n\n后续关卡正在制作中"
+	label.text = "—— To Be Continued ——\n\nMore Levels in Development"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 36)
 	label.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7))

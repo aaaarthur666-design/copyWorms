@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dcg37hnjxpjqx" path="res://LevelModule/Formal/Level_02.gd" id="1_script"]
 [ext_resource type="Resource" uid="uid://l3hmrf4ux81n" path="res://DataConfig/Level/Level02Config.tres" id="2_config"]
-[ext_resource type="Resource" uid="uid://b1s4igaiqss34" path="res://LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres" id="3_data"]
+[ext_resource type="Resource" path="res://DataConfig/Level/Level02Data.tres" id="3_data"]
 [ext_resource type="PackedScene" path="res://LevelModule/Scenes/PixelworkMapStitch/Level 2/2D__2026-06-14T09-34-36-404Z_20260616_150503_986.tscn" id="4_2inj4"]
 [ext_resource type="Script" uid="uid://b8ncuf7p5o5rh" path="res://LevelModule/Formal/InteractiveObject.gd" id="5_interactive"]
 
@@ -82,7 +82,7 @@ collision_layer = 0
 collision_mask = 4
 script = ExtResource("5_interactive")
 object_id = "window_l2"
-prompt_text = "按 Enter 观察"
+prompt_text = "Press Enter to Observe"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/Window_L2" unique_id=1305049417]
 shape = SubResource("RectangleShape2D_window_l2")
@@ -93,7 +93,7 @@ collision_layer = 0
 collision_mask = 4
 script = ExtResource("5_interactive")
 object_id = "attic_door"
-prompt_text = "按 Enter 推开"
+prompt_text = "Press Enter to Push Open"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/AtticDoor" unique_id=1829069298]
 shape = SubResource("RectangleShape2D_attic_door")
@@ -104,7 +104,7 @@ collision_layer = 0
 collision_mask = 4
 script = ExtResource("5_interactive")
 object_id = "rattan_chair"
-prompt_text = "按 Enter 回忆"
+prompt_text = "Press Enter to Remember"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/GroceryStore" unique_id=1287486027]
 shape = SubResource("RectangleShape2D_rattan_chair")
@@ -115,7 +115,7 @@ collision_layer = 0
 collision_mask = 4
 script = ExtResource("5_interactive")
 object_id = "chips_cat"
-prompt_text = "按 Enter 呼唤"
+prompt_text = "Press Enter to Call Out"
 allow_repeat = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="InteractiveObjects/ChipsCat" unique_id=709915651]

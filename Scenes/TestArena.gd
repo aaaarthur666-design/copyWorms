@@ -21,7 +21,7 @@ var _drop_archive_screen: LingnanDropArchiveScreen = null
 
 # ---- 掉落物测试 ----
 var _active_drops: Array[DropItem] = []
-const DROP_TYPES = ["月饼", "虾饺", "木棉", "醒狮", "烧卖", "蒲葵扇"]
+const DROP_TYPES = ["Mooncake", "Har Gow", "Kapok Flower", "Awakening Lion", "Siu Mai", "Palm-Leaf Fan"]
 const DROP_GROUND_Y: float = 730.0  # 地面表面上方（地面中心800，高度80，顶面760，掉落物中心730）
 
 func _ready() -> void:
@@ -71,12 +71,12 @@ func _ready() -> void:
 
 func _load_enemy_scenes() -> void:
 	var scenes = [
-		{"path": "res://EnemyModule/Formal/Enemy_Slime.tscn", "name": "史莱姆"},
-		{"path": "res://EnemyModule/Formal/Enemy_CyberWolf.tscn", "name": "赛博狼人"},
-		{"path": "res://EnemyModule/Formal/Enemy_CyberBull.tscn", "name": "冲撞兽"},
-		{"path": "res://EnemyModule/Formal/Enemy_LanternGhost.tscn", "name": "灯笼鬼"},
-		{"path": "res://EnemyModule/Formal/Enemy_PaperEffigy.tscn", "name": "纸符人"},
-		{"path": "res://EnemyModule/Formal/Enemy_BossHuadan.tscn", "name": "花旦Boss"},
+		{"path": "res://EnemyModule/Formal/Enemy_Slime.tscn", "name": "Slime"},
+		{"path": "res://EnemyModule/Formal/Enemy_CyberWolf.tscn", "name": "Cyber Werewolf"},
+		{"path": "res://EnemyModule/Formal/Enemy_CyberBull.tscn", "name": "Charging Beast"},
+		{"path": "res://EnemyModule/Formal/Enemy_LanternGhost.tscn", "name": "Lantern Ghost"},
+		{"path": "res://EnemyModule/Formal/Enemy_PaperEffigy.tscn", "name": "Paper Talisman Figure"},
+		{"path": "res://EnemyModule/Formal/Enemy_BossHuadan.tscn", "name": "Huadan Boss"},
 	]
 	for s in scenes:
 		if ResourceLoader.exists(s.path):
@@ -236,7 +236,7 @@ func _build_test_panel() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_test_panel.add_child(panel)
 	var title = Label.new()
-	title.text = "怪物切换 (按1开关)\n图鉴: 0=岭南梦物志\n掉落物: 2=月饼 3=虾饺 4=木棉 5=醒狮 6=烧卖 7=蒲葵扇"
+	title.text = "Switch Monster (Press 1 to Toggle)\nArchive: 0=Lingnan Dream Compendium\nDrops: 2=Mooncake 3=Har Gow 4=Kapok Flower 5=Awakening Lion 6=Siu Mai 7=Palm-Leaf Fan"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
 	title.position = Vector2(10, 10)

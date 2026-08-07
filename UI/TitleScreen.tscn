@@ -92,7 +92,7 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 3
 theme_override_fonts/font = ExtResource("3_font_main")
 theme_override_font_sizes/font_size = 34
-text = "亲手编织家乡的梦"
+text = "Weave a Dream of Home with Your Own Hands"
 horizontal_alignment = 2
 
 [node name="MenuCenter" type="VBoxContainer" parent="." unique_id=1622811245]
@@ -131,7 +131,7 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = ExtResource("3_font_main")
 theme_override_font_sizes/font_size = 26
-text = "开始游戏 (正式模式)"
+text = "Start Game (Story Mode)"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -158,7 +158,7 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = ExtResource("3_font_main")
 theme_override_font_sizes/font_size = 26
-text = "从精彩处开始"
+text = "Start from Highlights"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -185,7 +185,7 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = ExtResource("3_font_main")
 theme_override_font_sizes/font_size = 26
-text = "设置 (按键)"
+text = "Settings (Key Bindings)"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -212,7 +212,7 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = ExtResource("3_font_main")
 theme_override_font_sizes/font_size = 26
-text = "退出游戏"
+text = "Quit Game"
 horizontal_alignment = 1
 vertical_alignment = 1
 

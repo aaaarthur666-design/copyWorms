@@ -27,7 +27,7 @@ signal player_exited
 ## 编辑器配置: "box", "clothes", "bed", "computer", "phone"
 @export var object_id: String = ""
 @export var is_active: bool = true
-@export var prompt_text: String = "按 Enter 交互"
+@export var prompt_text: String = "Press Enter to Interact"
 ## 是否允许重复交互（如床可多次睡眠）
 @export var allow_repeat: bool = false
 ## 距离轮询判定的额外容差。小物件可调低，避免与附近交互物范围重叠。
