@@ -38,11 +38,41 @@ var _dash_cd_label: Label = null
 var _dash_key_label: Label = null
 var _dash_ready_glow: ColorRect = null
 
+# ---- 关卡计时器 ----
+var _timer_container: Control = null
+var _timer_label: Label = null
+var _timer_running: bool = false
+var _timer_elapsed: float = 0.0
+
 ## 关卡调用以禁用/启用技能图标显示（禁用时完全隐藏，不受 _process 影响）
 func suppress_skill_icon(suppress: bool) -> void:
 	_skill_icon_suppressed = suppress
 	if suppress and _skill_icon_container:
 		_skill_icon_container.visible = false
+
+## 启动关卡计时器（复战关卡在 HUD 加载后调用）
+func start_timer() -> void:
+	_timer_elapsed = 0.0
+	_timer_running = true
+	if _timer_container:
+		_timer_container.visible = true
+	_update_timer_display()
+
+## 停止关卡计时器（关卡完成或玩家死亡时调用）
+func stop_timer() -> void:
+	_timer_running = false
+
+func _update_timer_display() -> void:
+	if not _timer_label:
+		return
+	_timer_label.text = _format_time(_timer_elapsed)
+
+func _format_time(seconds: float) -> String:
+	var total_cs := int(seconds * 100.0)
+	var m := total_cs / 6000
+	var s := (total_cs / 100) % 60
+	var cs := total_cs % 100
+	return "%02d:%02d.%02d" % [m, s, cs]
 
 func _ready() -> void:
 	# 关键：暂停时 HUD 必须继续运行，否则按钮无法响应
@@ -106,6 +136,33 @@ func _build_ui() -> void:
 	_health_frame.z_index = 10
 	bar_container.add_child(_health_frame)
 	_update_health_frame()
+
+	# === 右上角：关卡计时器 ===
+	_timer_container = Control.new()
+	_timer_container.name = "TimerContainer"
+	_timer_container.position = Vector2(980, 20)
+	_timer_container.size = Vector2(280, 36)
+	_timer_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_timer_container.visible = false
+	add_child(_timer_container)
+
+	var timer_bg = ColorRect.new()
+	timer_bg.name = "TimerBg"
+	timer_bg.size = Vector2(280, 36)
+	timer_bg.color = Color(0.15, 0.15, 0.15, 0.9)
+	timer_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_timer_container.add_child(timer_bg)
+
+	_timer_label = Label.new()
+	_timer_label.name = "TimerLabel"
+	_timer_label.size = Vector2(280, 36)
+	_timer_label.text = "00:00.00"
+	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_timer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_timer_label.add_theme_font_size_override("font_size", 20)
+	_timer_label.add_theme_color_override("font_color", Color(0.95, 0.86, 0.52))
+	_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_timer_container.add_child(_timer_label)
 
 	# === 暂停面板 ===
 	pause_panel = Panel.new()
@@ -434,13 +491,16 @@ func _build_dash_icon() -> void:
 	_dash_key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dash_icon_container.add_child(_dash_key_label)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_update_skill_cooldown()
 	_update_skill2_cooldown()
 	_update_dash_cooldown()
 	_update_skill_key_hint()
 	_update_skill2_key_hint()
 	_update_dash_key_hint()
+	if _timer_running and not get_tree().paused:
+		_timer_elapsed += delta
+		_update_timer_display()
 
 ## 每帧更新技能冷却UI
 func _update_skill_cooldown() -> void:

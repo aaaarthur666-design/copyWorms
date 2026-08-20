@@ -1,8 +1,8 @@
 [gd_scene load_steps=46 format=3]
 
-[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_lingnan1/岭南怪物1待机.png" id="tex_idle"]
-[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_lingnan1/岭南怪物1行走.png" id="tex_walk"]
-[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_lingnan1/岭南怪物1攻击.png" id="tex_attack"]
+[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_Lingnan1/岭南怪物1待机.png" id="tex_idle"]
+[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_Lingnan1/岭南怪物1行走.png" id="tex_walk"]
+[ext_resource type="Texture2D" path="res://Assets/Sprites/monster_Lingnan1/岭南怪物1攻击.png" id="tex_attack"]
 [ext_resource type="Script" path="res://EnemyModule/Formal/Enemy_PaperEffigy.gd" id="scr"]
 
 [sub_resource type="AtlasTexture" id="atl_i0"]

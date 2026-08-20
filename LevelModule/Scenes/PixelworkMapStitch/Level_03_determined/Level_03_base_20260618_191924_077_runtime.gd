@@ -3,9 +3,9 @@ extends Node2D
 
 const ADJUST_Z_INDEX := -2
 const ACTOR_SCAN_INTERVAL := 0.35
-const STREAM_UPDATE_INTERVAL := 0.05
+const STREAM_UPDATE_INTERVAL := 0.10
 const TILE_WINDOW_RADIUS := 1
-const MAX_TILE_WINDOW_KEYS := 9
+const MAX_TILE_WINDOW_KEYS := 7
 const MAX_TILE_LOADS_PER_TICK := 4
 const MAX_TILE_ATTACHES_PER_TICK := 3
 const AIR_WALL_MAX_DOTS := 96
@@ -223,11 +223,10 @@ func _tile_updates_enabled() -> bool:
 func _runtime_tile_streaming_enabled() -> bool:
 	if Engine.is_editor_hint() and map_display_mode != DISPLAY_MODE_RUNTIME_STREAM:
 		return false
-	if _npc_library_runtime_available():
-		return true
-	if map_display_mode == DISPLAY_MODE_RUNTIME_STREAM:
-		_warn_runtime_gate_locked("Runtime Stream")
-	return false
+	# Tile streaming is self-contained: it only creates and unloads Sprite2D nodes.
+	# Do not let an optional editor plugin make exported builds fall back to loading
+	# every map tile at once. The plugin gate remains in use for runtime regions.
+	return true
 
 func _runtime_regions_enabled() -> bool:
 	if not enable_runtime_regions:

@@ -53,6 +53,7 @@ var _right_edge_flash: ColorRect = null
 var _right_edge_glow: ColorRect = null
 var _right_edge_flash_active: bool = false
 var _enemies_frozen: bool = false
+var _hud: Node = null
 
 
 func _ready() -> void:
@@ -172,7 +173,15 @@ func _setup_camera_limits() -> void:
 func _load_hud() -> void:
 	var hud_path := "res://UI/HUD.tscn"
 	if ResourceLoader.exists(hud_path):
-		add_child(load(hud_path).instantiate())
+		_hud = load(hud_path).instantiate()
+		add_child(_hud)
+		if _hud.has_method("start_timer"):
+			_hud.start_timer()
+
+
+func _stop_timer() -> void:
+	if _hud and is_instance_valid(_hud) and _hud.has_method("stop_timer"):
+		_hud.stop_timer()
 
 
 func _apply_area_configuration() -> void:
@@ -494,6 +503,7 @@ func _on_player_died(_data: Dictionary) -> void:
 	_transition_running = true
 	GameManager.is_game_over = false
 	_hide_game_over_panels()
+	_stop_timer()
 	_set_enemies_frozen(true)
 	LevelFuzhanSub01.request_return_to_reality(area_index, false)
 	_show_narrative(LevelFuzhanSub01.field_failed_text(area_index), func():
@@ -506,6 +516,7 @@ func _complete_area() -> void:
 		return
 	_transition_running = true
 	LevelFuzhanSub01.request_return_to_reality(area_index, true)
+	_stop_timer()
 	if _spawn_timer:
 		_spawn_timer.stop()
 	_set_enemies_frozen(true)
@@ -816,6 +827,7 @@ func _stop_all_edge_flash() -> void:
 
 func _cleanup() -> void:
 	EventBus.unsubscribe_all(self)
+	_stop_timer()
 	if _spawn_timer and is_instance_valid(_spawn_timer):
 		_spawn_timer.stop()
 	_enemies.clear()

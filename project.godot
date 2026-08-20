@@ -27,9 +27,6 @@ KeybindManager="*res://Global/KeybindManager.gd"
 MusicManager="*res://Global/MusicManager.gd"
 SFXManager="*res://Global/SFXManager.gd"
 SceneTransitionManager="*res://Global/SceneTransitionManager.gd"
-MCPScreenshot="res://addons/godot_mcp/mcp_screenshot_service.gd"
-MCPInputService="res://addons/godot_mcp/mcp_input_service.gd"
-MCPGameInspector="res://addons/godot_mcp/mcp_game_inspector_service.gd"
 
 [display]
 
@@ -122,3 +119,4 @@ ui_pause={
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
