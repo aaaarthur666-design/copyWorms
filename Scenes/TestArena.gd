@@ -304,5 +304,9 @@ func _show_drop_showcase(drop_type: String) -> void:
 	add_child(showcase)
 	showcase.show_item(drop_type)
 
+## 注册掉落物（DropSystem 调用，TestArena 直接用 _active_drops 无需此方法）
+func _register_drop(drop: DropItem) -> void:
+	_active_drops.append(drop)
+
 func _exit_tree() -> void:
 	EventBus.unsubscribe_all(self)

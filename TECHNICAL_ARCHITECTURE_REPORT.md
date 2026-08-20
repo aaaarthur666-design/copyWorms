@@ -431,6 +431,7 @@ Boss 段的玩家采用双角色独立血量策略：
 - `CodeRain.gd`：代码雨渲染
 - `DamageCalculator.gd`：伤害计算
 - `FireballProjectile.gd`：火球弹体
+- `PixelGlitch.gd`：像素故障特效
 - `SlashEffect.gd`：刀光特效
 - `SwordQiProjectile.gd`：剑气弹体
 - `WarningBarrier.gd`：警告屏障
