@@ -3,8 +3,8 @@ name: godot-resources
 description: >
   Model, load, duplicate, or save Godot 4.6.2 Resource data with custom Resource
   classes, .tres/.res files, ResourceLoader, ResourceSaver, or threaded loading.
-  Use for data assets and configs; use godot-nodes-scenes for live node composition,
-  save-system guidance for player progress, and godot-csharp for C# Resources.
+  Use for data assets and configs; use godot-nodes-scenes for live node composition.
+  Runtime save-game design and non-GDScript Resource authoring are out of scope.
 ---
 
 # Godot Resources (4.x)
@@ -17,9 +17,8 @@ values, and load/save them as `.tres`/`.res`. Targets **Godot 4.6.2**.
 - Use when representing items, stats, enemy configs, dialogue lines, or level metadata as
   data; authoring `.tres` files in the Inspector; or loading/saving custom resources.
 
-**When *not* to use:** nodes/scene structure → `godot-nodes-scenes`; saving the player's
-*runtime progress* (engine-agnostic save format/slots) → `save-systems`; the C# variant of
-this pattern → `godot-csharp`.
+**When *not* to use:** nodes/scene structure → `godot-nodes-scenes`; non-GDScript
+Resource authoring; or designing runtime save formats and slots.
 
 ## Core workflow
 
@@ -115,5 +114,3 @@ func load_config() -> Resource:
 
 - `godot-gdscript` — `@export` annotations used to define resource fields.
 - `godot-nodes-scenes` — instancing scenes vs. sharing resource data.
-- `save-systems` — persisting runtime progress (separate from static data).
-- `unity-scriptableobjects` — the equivalent data-asset pattern in Unity.

@@ -4,7 +4,7 @@ description: >
   Configure or debug Godot 4.6.2 2D/3D physics bodies, collision layers and masks,
   Area overlap signals, RigidBody forces, RayCast nodes, or direct space-state
   queries. Use for collision, detection, and forces; use godot-2d-movement for
-  CharacterBody2D move_and_slide() controllers and godot-tilemap for tile collision.
+  CharacterBody2D move_and_slide() controllers. Map authoring is out of scope.
 ---
 
 # Godot Physics (4.x, 2D + 3D)
@@ -20,8 +20,8 @@ rays. Concepts apply to both 2D and 3D (swap the `2D`/`3D` suffix). Targets
   forces/impulses to a `RigidBody`, or casting rays for line-of-sight/ground checks.
 
 **When *not* to use:** kinematic character controllers (`move_and_slide`) →
-`godot-2d-movement`; tile collision setup → `godot-tilemap`; tuning the *feel* of physics
-(timestep, mass, jitter) → `physics-tuning`.
+`godot-2d-movement`; map authoring; or engine-agnostic tuning of physics feel
+(timestep, mass, jitter).
 
 ## Core workflow
 
@@ -132,6 +132,3 @@ func ground_under(global_from: Vector2) -> Dictionary:
 ## Related skills
 
 - `godot-2d-movement` — kinematic `CharacterBody2D` controllers.
-- `godot-tilemap` — tile collision shapes and their layers.
-- `physics-tuning` — engine-agnostic feel: timestep, mass, drag, CCD.
-- `godot-3d-essentials` — 3D scene setup these bodies live in.

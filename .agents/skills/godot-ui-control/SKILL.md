@@ -4,7 +4,7 @@ description: >
   Build or debug Godot 4.6.2 UI with Control and Container nodes, anchors, offsets,
   Theme or StyleBox resources, HUD/menu layout, or keyboard/gamepad focus. Use for
   UI layout, theming, and focus; use godot-animation for UI tweens,
-  godot-signals-groups for event architecture, and input guidance for rebinding.
+  and godot-signals-groups for event architecture. Full input rebinding is out of scope.
 ---
 
 # Godot UI / Control nodes (4.x)
@@ -19,8 +19,8 @@ Lay out responsive UI with `Control` anchors and `Container` nodes, style it wit
   focus navigation for controller/keyboard.
 
 **When *not* to use:** in-world 2D nodes (`Node2D`/sprites) → `godot-nodes-scenes`;
-animating UI transitions → `godot-animation` (Tween); genre UIs like card hands →
-`card-game`/`visual-novel`. For full input rebinding → `input-systems`.
+animating UI transitions → `godot-animation` (Tween); full input rebinding; or complete
+genre-specific UI templates.
 
 ## Core workflow
 
@@ -118,8 +118,5 @@ func _ready() -> void:
 
 ## Related skills
 
-- `game-ui-ux` — cross-engine UI/UX: responsive scaling, safe areas, focus navigation, screen flow.
 - `godot-animation` — Tween-based UI transitions and juicing.
 - `godot-signals-groups` — connecting UI events to game logic.
-- `input-systems` — rebindable input and multi-device focus.
-- `card-game` / `visual-novel` — UI-heavy genre templates.

@@ -3,8 +3,9 @@ name: godot-gdscript
 description: >
   Write, review, or debug Godot 4.6.2 .gd code using static typing, lifecycle
   callbacks, annotations, signals, or await, including Godot 3-to-4 syntax migration.
-  Use for GDScript language issues; use godot-nodes-scenes for scene composition,
-  godot-signals-groups for event architecture, and godot-csharp for .cs code.
+  Use for GDScript language issues; use godot-nodes-scenes for scene composition
+  and godot-signals-groups for event architecture. Non-GDScript language work is
+  out of scope.
 ---
 
 # Godot GDScript (4.x)
@@ -20,7 +21,7 @@ system the way the engine intends. Targets **Godot 4.6.2** (GDScript 2.0).
 
 **When *not* to use:** scene/node structure and instancing questions →
 `godot-nodes-scenes`; signal *architecture*/decoupling patterns →
-`godot-signals-groups`; using C# instead of GDScript → `godot-csharp`.
+`godot-signals-groups`; or non-GDScript language work.
 
 ## Core workflow
 
@@ -126,4 +127,3 @@ func get_first_name(d: Dictionary) -> String:
 - `godot-nodes-scenes` — the scene tree, instancing, and autoloads.
 - `godot-signals-groups` — event-driven architecture with signals and groups.
 - `godot-resources` — data-driven design with custom `Resource` types.
-- `godot-csharp` — the same engine concepts using C#/.NET.

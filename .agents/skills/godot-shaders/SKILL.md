@@ -18,8 +18,8 @@ with `TIME`/`UV`, expose `uniform`s, and read the screen. Targets **Godot 4.6.2*
   flash, water), 3D surface shaders (rim light, toon, scrolling UV), or screen-space
   post effects.
 
-**When *not* to use:** the cross-engine *concepts* of shading (UVs, vertex/fragment
-theory) → `shader-programming`; particles/VFX nodes → general 3D; non-shader visuals.
+**When *not* to use:** cross-engine shading theory; particles/VFX node setup; general 3D
+scene assembly; or non-shader visuals.
 
 ## Core workflow
 
@@ -122,8 +122,10 @@ $Sprite2D.material.set_shader_parameter("amount", 0.7)
   does nothing.
 - **Color uniforms without `source_color`** are treated as raw linear values and look
   wrong (washed/dark) because Godot won't sRGB-convert them.
-- **Transparency needs opt-in (3D).** For `ALPHA < 1.0` to blend, add a render mode or set
-  the material transparency; otherwise it's opaque/cut.
+- **Writing `ALPHA` moves a spatial shader to the transparent pipeline.** This enables
+  blending automatically, but transparent surfaces can have sorting limitations and do
+  not participate in every opaque-only effect. Use alpha scissor/hash outputs when those
+  tradeoffs fit the effect better.
 - **Sampling outside [0,1] UV** without `repeat_enable` clamps. Add `: repeat_enable` to
   the sampler uniform for tiling/scroll.
 - **`TIME` is seconds since start** and keeps growing — wrap with `fract()`/`mod()` for
@@ -139,6 +141,4 @@ $Sprite2D.material.set_shader_parameter("amount", 0.7)
 
 ## Related skills
 
-- `shader-programming` — engine-agnostic shader concepts (GLSL/HLSL).
-- `godot-3d-essentials` — materials, environment, and where spatial shaders live.
 - `godot-ui-control` — applying shaders to UI for effects.

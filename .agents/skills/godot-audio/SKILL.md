@@ -19,7 +19,7 @@ gameplay to the beat. Targets **Godot 4.6.2**.
   audio, or syncing events to music.
 
 **When *not* to use:** engine-agnostic audio *design* (adaptive music structure, mixing
-philosophy, ducking patterns) → `audio-design`; importing/encoding assets outside Godot.
+philosophy, ducking patterns), or importing/encoding assets outside Godot.
 
 ## Core workflow
 
@@ -116,6 +116,5 @@ func get_playback_time() -> float:
 
 ## Related skills
 
-- `audio-design` — engine-agnostic adaptive music, mixing, and ducking practice.
 - `godot-animation` — syncing animation/Tween to `get_playback_position()`.
 - `godot-ui-control` — volume sliders wired to `AudioServer`.

@@ -118,5 +118,3 @@ func pop_in(node: Control) -> void:
 
 - `godot-2d-movement` — supplies the velocity/state that selects animations.
 - `godot-ui-control` — UI that Tweens animate.
-- `godot-3d-essentials` — 3D character scenes driven by AnimationTree.
-- `game-ai` — state machines that mirror animation states.

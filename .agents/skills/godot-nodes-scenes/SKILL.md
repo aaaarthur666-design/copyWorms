@@ -57,7 +57,7 @@ func shoot(at: Vector2, dir: Vector2) -> void:
 
 ```gdscript
 @onready var label: Label = $UI/Label            # $ is sugar for get_node("UI/Label")
-@onready var health_bar: ProgressBar = %HealthBar # % = scene-unique name (rename-proof)
+@onready var health_bar: ProgressBar = %HealthBar # % = scene-unique name lookup
 
 func update() -> void:
     var optional := get_node_or_null("Maybe/Missing")  # returns null instead of erroring
@@ -104,10 +104,11 @@ func go_to_level_2() -> void:
   An autoload can't depend on the main scene existing yet.
 - **`instance()` was renamed** to `instantiate()` in Godot 4. `preload` runs at parse
   time (path must be constant); `load` runs at runtime (path can be a variable).
-- **`change_scene_to_file()` is deferred**, not immediate — Godot swaps and frees the old
-  scene at the end of the current frame. Any code after the call still runs against the _old_
-  tree, and `get_tree().current_scene` isn't the new scene until next frame. Don't read the new
-  scene's nodes on the same line; do it from the new scene's `_ready()`.
+- **Scene changes have a two-phase handoff.** `change_scene_to_file()` immediately removes
+  the outgoing scene from the tree, so its `get_tree()` and `current_scene` become `null`.
+  At the end of the frame Godot frees the old scene and adds the new one. Await
+  `get_tree().scene_changed` from an Autoload, or initialize from the new scene's `_ready()`,
+  before reading the new scene.
 
 ## References
 
@@ -119,4 +120,3 @@ func go_to_level_2() -> void:
 - `godot-gdscript` — language, lifecycle, and `@onready`.
 - `godot-signals-groups` — decouple instanced scenes from their spawner.
 - `godot-resources` — share data between instances without duplicating it.
-- `save-systems` — persist scene/game state across runs.

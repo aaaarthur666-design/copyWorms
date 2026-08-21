@@ -30,7 +30,7 @@ Do not copy the architecture report into this Skill or create another architectu
 
 - Apply this Project Skill first and keep it active for the entire task. A specialized Skill supplements this gate; it never replaces the project context, version baseline, authorization classification, or verification requirements.
 - Select the smallest set of specialized Skills whose descriptions match the actual artifact and operation. Load more than one only when the task genuinely crosses domains, such as UI layout plus animation or scene composition plus event architecture.
-- Resolve overlap by the primary decision being made: language syntax belongs to the language Skill; scene-tree composition to nodes/scenes; communication design to signals/groups; kinematic controller logic to movement; general collision, forces, Areas, and raycasts to physics; tile authoring to tilemap; build production to export; network replication to multiplayer.
+- Resolve overlap by the primary decision being made: language syntax belongs to the language Skill; scene-tree composition to nodes/scenes; communication design to signals/groups; kinematic controller logic to movement; general collision, forces, Areas, and raycasts to physics; build production to export. Pixelwork map work stays under this Project Skill and must inspect the custom runtime; online networking has no approved project Skill.
 - Honor the inclusion and exclusion boundaries in each specialized Skill description before reading its body. If no description is a clear match, continue under this Project Skill and inspect the repository instead of forcing a nearby Skill.
 - Skill selection never grants write permission. Continue to use the authorization class and protected-content rules below.
 
@@ -85,7 +85,7 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Treat project-scoped loading as a Codex client boundary, not server-side project isolation. Before every MCP write, confirm the editor state and session list identify HackathonGame, its project path, and the intended current scene; explicitly activate the correct session when more than one exists.
 - Under Godot AI 3.1.5, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support.
 - Delete isolated MCP test artifacts after validation unless the user explicitly designates them as versioned regression fixtures; before deletion, navigate the editor away from the target scene and confirm no formal dependency exists.
-- Treat unavailable Related Skill names in copied third-party Skills as conceptual pointers only. Do not install, invoke, or rely on them without an explicit request and source review.
+- Keep cross-Skill references callable: name another Skill only when it is bundled with the repository or discoverable in the current environment. Express unsupported domains as ordinary prose; if a missing route is found, repair or report it instead of auto-installing or pretending to invoke it.
 - Do not describe loopback MCP as fully offline: inspect Godot AI telemetry and update-check behavior whenever network egress or privacy is in scope.
 
 ## Implement narrow, coherent changes

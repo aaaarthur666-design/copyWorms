@@ -4,7 +4,7 @@ description: >
   Implement or debug Godot 4.6.2 CharacterBody2D movement using velocity,
   move_and_slide(), floor/wall checks, gravity, jump, slopes, or top-down motion.
   Use for 2D kinematic controllers; use godot-physics instead for RigidBody, Area,
-  raycast, or layer/mask work, and godot-tilemap for tile authoring.
+  raycast, or layer/mask work. Map authoring is outside this Skill's scope.
 ---
 
 # Godot 2D Movement (4.x)
@@ -20,8 +20,8 @@ Build responsive 2D character controllers with `CharacterBody2D` and the argumen
   `is_on_floor()` is always false.
 
 **When *not* to use:** dynamic rigid bodies, areas, raycasts, collision layers →
-`godot-physics`; tile-based levels → `godot-tilemap`; full platformer game template →
-the `platformer` genre skill; engine-agnostic feel tuning → `physics-tuning`.
+`godot-physics`; map authoring; full platformer templates; or engine-agnostic feel
+tuning.
 
 ## Core workflow
 
@@ -143,7 +143,4 @@ func _physics_process(delta: float) -> void:
 ## Related skills
 
 - `godot-physics` — collision layers/masks, areas, raycasts, rigid bodies.
-- `godot-tilemap` — building the levels this character walks on.
 - `godot-animation` — driving sprite/skeletal animation from movement state.
-- `camera-systems` — follow camera, deadzone, and look-ahead that track this character.
-- `platformer` / `input-systems` — full genre template and rebindable input.

@@ -3,8 +3,8 @@ name: godot-export
 description: >
   Configure or troubleshoot Godot 4.6.2 exports with matching export templates,
   export_presets.cfg, headless CLI or CI builds, Web headers, mobile signing, or
-  dedicated-server builds. Use for producing builds; use godot-multiplayer for
-  server networking code and publishing Skills for storefront release workflows.
+  dedicated-server builds. Use for producing builds; server networking code,
+  storefront publishing, and upload workflows are out of scope.
 ---
 
 # Godot Export & Builds (4.x)
@@ -18,8 +18,8 @@ handle the web/dedicated-server gotchas. Targets **Godot 4.6.2**.
   export presets, exporting from the editor or headless CLI (CI), or troubleshooting web
   (HTML5) and dedicated-server exports.
 
-**When *not* to use:** storefront publishing flows → `steam-publish`/`itch-publish`; the
-networking code of a server → `godot-multiplayer` (this skill covers building it headless).
+**When *not* to use:** storefront publishing or upload workflows, or server networking
+code (this Skill only covers producing the build).
 
 ## Core workflow
 
@@ -114,9 +114,3 @@ func _ready() -> void:
 - For the `export_presets.cfg` structure, all useful CLI flags, custom feature tags,
   PCK/expansion patching, encryption, and per-platform setup (Android keystore, macOS
   signing, web headers), read `references/presets-and-cli.md`.
-
-## Related skills
-
-- `godot-multiplayer` — the dedicated-server code you export headless.
-- `steam-publish` / `itch-publish` — getting the build to players.
-- `prototype-fast` / `game-jam` — quick web/desktop builds for sharing.
