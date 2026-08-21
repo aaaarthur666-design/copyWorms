@@ -30,7 +30,7 @@ push.log
 .idea/
 .vscode/
 .codebuddy/
-.agents/
+# `.agents/skills/` contains versioned Codex project Skills.
 
 # --- 操作系统 ---
 .DS_Store

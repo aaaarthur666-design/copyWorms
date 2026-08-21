@@ -1,0 +1,7 @@
+interface:
+  display_name: "HackathonGame Project"
+  short_description: "Mandatory project guidance for HackathonGame"
+  default_prompt: "Use $hackathongame-project to handle this HackathonGame repository task under its project rules."
+
+policy:
+  allow_implicit_invocation: true
