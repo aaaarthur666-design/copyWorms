@@ -1,728 +1,369 @@
 # HackathonGame 技术架构报告
 
-> 目标读者：关卡、玩法、系统、工具和资源协作者
-> 更新日期：2026-06-28
-> 引擎版本：Godot 4.6，`GL Compatibility`
-> 文档原则：以当前仓库实际文件为准，覆盖主流程、支撑系统、数据配置、资源组织与部署镜像
+> 唯一架构文档
+>
+> 更新日期：2026-08-21
+>
+> 目标引擎：Godot 4.6.2，GL Compatibility
+>
+> 文档依据：当前仓库静态扫描、关键链路检查与主场景 headless 启动验证
 
-## 0. 如何使用本文档
+## 1. 项目定位与当前规模
 
-这份文档的目标不是“描述项目很大”，而是让协作者能按图索骥地找到入口、调用接口、修改对应模块。
+本项目是一款 2D 横版动作叙事游戏，核心主题为“岭南文化 × 赛博未来 × 梦境撕裂”。游戏已经具备完整主线、玩家与敌人战斗系统、四阶段 Boss、剧情交互、数据配置、HUD、音频和像素地图运行时。
 
-### 0.1 阅读顺序
+以 `LevelModule/Backup/` 之外的当前文件统计：
 
-如果你是第一次接手这个项目，建议按下面顺序读：
+| 类型 | 数量 |
+|---|---:|
+| GDScript (`.gd`) | 83 |
+| 场景 (`.tscn`) | 38 |
+| Resource 配置 (`.tres`) | 20 |
+| Shader (`.gdshader`) | 8 |
 
-1. 先看第 3 章，理解运行时链路
-2. 再看第 4 章，理解全局单例和允许的调用方式
-3. 然后看第 5 到第 8 章，理解关卡、角色、敌人、Boss 和核心玩法
-4. 再看第 9 到第 16 章，理解 UI、工具、配置、音频、shader、资源和部署
-5. 最后看第 17 到第 20 章，理解事件契约、扩展任务、架构判断和结论
+项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。
 
-### 0.2 常用调用速查
+## 2. 仓库分层
 
-| 场景 | 先读章节 | 关键文件 | 主要调用方式 |
-|---|---|---|---|
-| 启动正式游戏 | 3、16 | `UI/TitleScreen.gd`、`Global/MainEntry.gd` | `SceneTransitionManager.request_scene_change("res://Global/MainEntry.tscn", self)` |
-| 关卡完成切换 | 3、5、17 | `LevelModule/Formal/*.gd`、`Global/MainEntry.gd` | `EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"next_level": "res://..."})` |
-| 从检查点重开 | 4、16 | `Global/GameManager.gd`、`Global/SceneTransitionManager.gd` | `GameManager.restart_from_checkpoint()` |
-| 对话/过场屏蔽输入 | 4、17 | `Global/InputManager.gd`、关卡脚本 | `InputManager.block_input()` / `unblock_input()` |
-| 角色状态同步到 HUD | 4、17 | `UI/HUD.gd`、`PlayerModule/Formal/PlayerBase.gd` | `EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {...})` |
-| 新增敌人 | 7、11、18 | `EnemyModule/Formal/`、`DataConfig/Enemy/` | `LevelBase.spawn_enemy()`（敌人 `_ready()` 后自动注册） |
-| 新增关卡 | 5、11、18 | `LevelModule/Formal/`、`DataConfig/Level/` | 继承 `LevelBase`，在 `_on_ready()` 中装配 |
-| 新增 UI 页面 | 9、16、18 | `UI/`、`Global/SceneTransitionManager.gd` | `SceneTransitionManager.request_scene_change()` 或叠层 `CanvasLayer` |
-| 新增事件 | 4、17、18 | `Global/GlobalDefine.gd`、`Global/EventBus.gd` | 先定义 `GlobalDefine.EventName`，再 `subscribe/emit` |
+```text
+project.godot
+├─ Global/               全局状态、事件、输入、转场、音频
+├─ LevelModule/
+│  ├─ Formal/            正式关卡、FSM、Builder、关卡数据
+│  ├─ Backup/            历史备份；不应成为正式运行依赖
+│  └─ Scenes/            Pixelwork 地图及运行时脚本
+├─ PlayerModule/Formal/  玩家基类、三种角色形态、相机
+├─ EnemyModule/Formal/   敌人基类、普通敌人、花旦 Boss
+├─ DataConfig/           玩家、敌人、关卡、技能 Resource
+├─ UI/                   标题页、HUD、按键设置
+├─ Tools/                弹体、交互物、伤害、代码雨等复用组件
+├─ Assets/               图像、动画、音频、视频、UI 素材
+└─ Resources/            共享资源
+```
 
-### 0.3 调用原则
+依赖方向应保持为：
 
-- 跨模块通信优先走 `EventBus`，不要直接持有别的模块节点引用
-- 场景切换优先走 `SceneTransitionManager`，不要在普通关卡里直接 `change_scene_to_file()`
-- 游戏操作输入优先走 `InputManager`，不要在多数节点里各自监听 `_input()`
-- 关卡初始装配优先走 `LevelBase`，不要把相机、玩家、敌人初始化散落到 `MainEntry`
-- 可调参数优先下沉到 `DataConfig/`，不要把平衡值继续写死在脚本里
+```mermaid
+flowchart TD
+    UI[UI / 输入] --> INFRA[Global 基础设施]
+    LEVEL[关卡 / FSM] --> INFRA
+    PLAYER[玩家] --> INFRA
+    ENEMY[敌人] --> INFRA
+    LEVEL --> PLAYER
+    LEVEL --> ENEMY
+    PLAYER --> CONFIG[DataConfig]
+    ENEMY --> CONFIG
+    LEVEL --> CONFIG
+    LEVEL --> MAP[Pixelwork 地图运行时]
+```
+
+跨模块通信优先经过 `EventBus` 和 `GameManager`。关卡可以装配玩家、敌人和 UI，但玩家或敌人不应反向依赖具体关卡脚本。
+
+## 3. 主流程与场景生命周期
+
+### 3.1 主线顺序
 
 ```mermaid
 flowchart LR
-    In[用户输入 / 关卡事件] --> IM[InputManager / EventBus]
-    IM --> LG[关卡 FSM / LevelBase]
-    LG --> GM[GameManager]
-    GM --> UI[HUD / TitleScreen / 设置界面]
-    GM --> TR[SceneTransitionManager]
-    GM --> AU[MusicManager / SFXManager]
+    T[TitleScreen] --> M[MainEntry]
+    M --> L1[Level_01]
+    L1 --> L2[Level_02]
+    L2 --> L201[Level_02_01]
+    L201 --> L202[Level_02_02]
+    L202 --> L203[Level_02_03]
+    L203 --> L3[Level_03]
+    L3 --> L4[Level_04]
+    L4 --> L5[Level_05]
+    L5 --> LF[Level_final]
+    LF --> T
 ```
 
-## 1. 项目概况
+`TitleScreen` 通过 `SceneTransitionManager` 进入 `MainEntry`。`MainEntry` 实例化 `Level_01`，订阅 `LEVEL_COMPLETE`，并在前半段流程中以替换子节点的方式承载关卡。
 
-本项目是一个 2D 横版动作叙事游戏，主题是“岭南文化 × 赛博未来 × 梦境撕裂”。当前仓库已经不只是单纯的演示原型，而是形成了完整的可运行主线、基础设施、数据配置层和一组复用工具。
+当前转场模型并未完全统一：
 
-当前主流程由标题页进入正式关卡，经过 `Level_01` 到 `Level_05`，再进入 `Level_final`，形成闭环。项目同时保留了若干 `SelfTest`、备份场景和编辑器辅助资源，用来支持调试和内容迭代。
+- `Level_03` 在 `MainEntry` 托管时发送 `LEVEL_COMPLETE`，独立运行时直接切场景。
+- `Level_04` 当前直接请求切换到 `Level_05`。
+- `Level_05` 当前直接请求切换到 `Level_final`。
+- 因此从 `Level_04` 离开后会替换整棵场景树，`MainEntry` 不再继续托管后半段流程。
 
-## 2. 仓库结构总览
+这是现状描述，不是推荐的新关卡模板。后续应统一为一种主线转场模式，避免两种生命周期并存。
 
-当前根目录的关键内容如下：
+### 3.2 Level 02 的梦境分支
 
-- `Global/`：全局单例、事件总线、输入、转场、音频、状态管理
-- `LevelModule/`：关卡基类、正式关卡、FSM、场景构建器、UI 构建器、shader
-- `PlayerModule/`：玩家基类、三个皮肤版本、相机
-- `EnemyModule/`：普通敌人、Boss 花旦、Boss 剑气
-- `UI/`：标题页、HUD、按键设置页
-- `Tools/`：弹体、特效、代码雨、伤害计算等通用工具
-- `DataConfig/`：玩家、敌人、关卡、技能的资源配置
-- `Assets/`：贴图、音频、视频、UI 素材
-- `Resources/`：少量共享资源
-- `.edgeone/assets/`：部署镜像和导出相关文件的同步副本
-- `.godot/`：Godot 编辑器缓存与导入产物
-
-项目主入口由 `project.godot` 配置为 `UI/TitleScreen.tscn`，运行模式固定为 1280x720，`canvas_items` 拉伸，渲染后端为 `GL Compatibility`。
-
-## 3. 运行时架构
+`Level_02_03` 是关键的数据分岔点：
 
 ```mermaid
-flowchart LR
-    A[TitleScreen] --> B[MainEntry]
-    B --> C[Level_01]
-    C --> D[Level_02]
-    D --> E[Level_02_01]
-    E --> F[Level_02_02]
-    F --> G[Level_02_03]
-    G --> H[Level_03]
-    H --> I[Level_04]
-    I --> J[Level_05]
-    J --> K[Level_final]
-    K --> A
-
-    B --> GM[Global / Autoload]
-    C --> GM
-    D --> GM
-    E --> GM
-    F --> GM
-    G --> GM
-    H --> GM
-    I --> GM
-    J --> GM
-    K --> GM
-
-    GM --> UI[HUD / TitleScreen / KeybindSettingsScreen]
-    GM --> SYS[MusicManager / SFXManager / SceneTransitionManager]
-    GM --> DEV[Godot MCP Pro]
+flowchart TD
+    CHAT[终端交互] --> MEMORY[/memory]
+    MEMORY --> F1[复战区域 01]
+    MEMORY --> F2[复战区域 02]
+    F1 --> BACK[返回现实房间]
+    F2 --> BACK
+    BACK --> CONFIG[/config]
+    CONFIG --> FLAGS[GameManager.dream_runtime_flags]
+    FLAGS --> L3[Level_03 应用能力配置]
 ```
 
-### 3.1 入口链路
+`/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 写入 `GameManager.dream_runtime_flags`。`Level_03` 读取这些标记，应用跳跃能力、伤害减免及外部信号相关规则。
 
-- `TitleScreen` 是应用主入口
-- `MainEntry` 是正式流程承载节点
-- `MainEntry` 负责加载正式关卡、接收 `LEVEL_COMPLETE`、做统一转场
-- 关卡切换不再依赖手工拼接场景树，而是由主流程托管
+这条 Dictionary 数据链跨越场景边界，键名目前没有编译期检查，是后续配置类型化的重点。
 
-### 3.2 关卡基类链路
+## 4. 全局基础设施
 
-- `LevelBase` 提供关卡初始化模板
-- 每个正式关卡通常由主控脚本、场景节点、FSM、场景构建器、UI 构建器组成
-- 玩家由关卡自动生成或在主流程中继承，不依赖手工重复布置
-- 关卡完成后通过 `EventBus` 广播 `LEVEL_COMPLETE`
+`project.godot` 当前注册 8 个 Autoload：
 
-### 3.3 正式模式与自测模式
-
-`GameManager` 会根据当前场景路径检测运行模式：
-
-- 路径包含 `SelfTest` 时进入 `SELF_TEST`
-- 其余场景进入 `FORMAL`
-
-这意味着本仓库同时保留了“正式游戏链路”和“局部验证链路”，并且运行时会自动区分。
-
-## 4. 全局单例层
-
-`project.godot` 里当前启用的 Autoload 如下：
-
-| 单例 | 作用 |
+| 单例 | 核心职责 |
 |---|---|
-| `GlobalDefine` | 运行模式、状态枚举、碰撞层、事件名常量 |
-| `EventBus` | 跨模块事件广播与订阅 |
-| `GameManager` | 玩家、敌人、关卡、暂停、检查点、Boss 目标等全局状态 |
-| `InputManager` | 输入分发、动作屏蔽、全局屏蔽 |
-| `KeybindManager` | 按键配置持久化 |
-| `MusicManager` | BGM 播放、淡入淡出、暂停联动 |
-| `SFXManager` | 音效播放、池化与防抖 |
-| `SceneTransitionManager` | 统一场景切换、检查点重启、清理跨场景状态 |
-| `MCPScreenshot` | Godot MCP Pro 截图服务 |
-| `MCPInputService` | Godot MCP Pro 输入服务 |
-| `MCPGameInspector` | Godot MCP Pro 运行时检查服务 |
+| `GlobalDefine` | 运行模式、状态、事件名、碰撞层等常量 |
+| `EventBus` | 跨模块事件订阅、广播和延迟广播 |
+| `GameManager` | 玩家、敌人、关卡、检查点、暂停和跨关卡状态 |
+| `InputManager` | 游戏动作分发、动作屏蔽和全局输入锁 |
+| `KeybindManager` | 按键映射读取、修改和持久化 |
+| `MusicManager` | BGM 播放、淡入淡出及暂停联动 |
+| `SFXManager` | 音效播放、实例管理和防抖 |
+| `SceneTransitionManager` | 切场景、检查点重启和转场清理 |
 
-### 4.1 `GlobalDefine`
+### 4.1 运行模式
 
-集中定义：
+`GameManager` 根据当前场景路径区分正式模式和 `SelfTest` 模式。正式主线与局部测试场景共享核心模块，但测试场景不得写入正式场景链路或成为正式资源依赖。
 
-- `RunMode`
-- `PlayerState`
-- `EnemyState`
-- `DamageType`
-- `Collision`
-- `EventName`
+### 4.2 全局状态边界
 
-碰撞层目前统一为：
+允许跨场景保留的状态应集中在 `GameManager`，例如：
 
-- `TERRAIN = 1`
-- `ENEMY = 2`
-- `PLAYER = 4`
-- `INTERACT = 8`
-
-### 4.2 `GameManager`
-
-`GameManager` 负责全局状态与跨关卡引用：
-
-- `player_ref`
-- `current_level`
+- `player_ref`、`current_level`
 - `enemy_list`
+- 暂停、游戏结束、对话状态
+- 检查点状态
 - `dream_runtime_flags`
-- `boss_target`
-- 检查点场景路径、阶段和附加数据
 
-它还负责：
+任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。
 
-- 全局字体注入
-- 运行模式检测
-- 玩家和敌人注册/注销
-- 暂停与恢复
-- 游戏结束广播
-- 检查点重启入口
+## 5. 核心数据流
 
-运行模式检测需要容忍启动和切场过程中的空树状态：当 `SceneTree` 或 `current_scene` 还不可用时，`GameManager` 默认回到 `FORMAL`，避免 Autoload 初始化早于主场景挂载时出现空实例访问。
+### 5.1 输入到战斗
 
-### 4.3 `InputManager`
+```mermaid
+flowchart LR
+    INPUT[Godot InputMap] --> IM[InputManager]
+    IM --> PFSM[玩家 FSM]
+    PFSM --> ATTACK[攻击判定]
+    ATTACK --> DC[DamageCalculator]
+    DC --> TAKE[Enemy.take_damage]
+    TAKE --> BUS[EventBus]
+    BUS --> HUD[HUD / 关卡逻辑]
+```
 
-输入层已经不再依赖各关卡自己散落监听，而是集中处理：
+玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。伤害由通用计算器和目标配置共同决定，结果再通过事件同步到 HUD、关卡目标和特效。
 
-- `game_action` 信号分发
-- 全局输入屏蔽
-- 单动作屏蔽
-- 强制解除所有屏蔽
-- GUI 悬停相关判断
+### 5.2 敌人生命周期
 
-### 4.4 `SceneTransitionManager`
+```mermaid
+flowchart LR
+    SPAWN[关卡实例化] --> READY[EnemyBase._ready]
+    READY --> REGISTER[GameManager.register_enemy]
+    REGISTER --> AI[敌人状态机]
+    AI --> DEAD[DEAD 状态]
+    DEAD --> UNREGISTER[注销并释放]
+```
 
-这是当前项目的统一转场入口，主要职责是：
+敌人基类已经在 `_ready()` 自动注册。任何生成器在 `add_child()` 后再次手工注册，都会造成同一实例重复出现在 `enemy_list`。
 
-- 切换前清理玩家、敌人、输入屏蔽、暂停、焦点和音乐状态
-- 提供整树场景切换
-- 提供检查点重启
-- 通过 `is_transitioning` 避免重复切换
+### 5.3 场景切换
 
-转场清理采用防御式写法：先取 `tree = get_tree()` 并判空，再访问 `tree.current_scene`。涉及 `current_scene` 的局部变量显式标注为 `Node`，避免 GDScript 无法从 `current_scene` 推断类型。即使没有 `SceneTree`，清理流程仍会重置 `GameManager`、`InputManager` 和音频暂停状态，只跳过需要场景树的暂停、焦点和场景替换 API。
+```mermaid
+flowchart LR
+    REQUEST[关卡完成 / 重启请求] --> CLEAN[prepare_for_level_exit]
+    CLEAN --> GLOBAL[清理全局临时状态]
+    GLOBAL --> TRANSITION[SceneTransitionManager]
+    TRANSITION --> NEXT[下一场景]
+```
 
-## 5. 关卡系统
+转场必须恢复暂停、输入、音乐、玩家和敌人引用，并清理只属于当前场景的对话或 UI 状态。遗漏的全局布尔值会污染下一关。
 
-### 5.1 关卡目录现状
+### 5.4 地图数据
 
-正式关卡位于：
+Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行时脚本读取，再生成地图层、碰撞和关卡节点。地图源数据与运行时装配脚本必须同步维护；只替换图片而不更新碰撞数据，会产生视觉和物理边界不一致。
 
-- `LevelModule/Formal/Level_01.gd`
-- `LevelModule/Formal/Level_02.gd`
-- `LevelModule/Formal/Level_02_01.gd`
-- `LevelModule/Formal/Level_02_02.gd`
-- `LevelModule/Formal/Level_02_03.gd`
-- `LevelModule/Formal/Level_03.gd`
-- `LevelModule/Formal/Level_04.gd`
-- `LevelModule/Formal/Level_05.gd`
-- `LevelModule/Formal/Level_final.gd`
+## 6. 关卡架构
 
-补充文件还包括：
+正式关卡通常由以下部分组成：
 
-- `Level_01_FSM.gd`
-- `Level_02_FSM.gd`
-- `Level_03_FSM.gd`
-- `Level_04_FSM.gd`
-- `Level_01_SceneBuilder.gd`
-- `Level_02_SceneBuilder.gd`
-- `Level_03_SceneBuilder.gd`
-- `Level_04_SceneBuilder.gd`
-- `Level_01_UIBuilder.gd`
-- `Level_02_UIBuilder.gd`
-- `Level_03_UIBuilder.gd`
-- `Level_04_UIBuilder.gd`
-- `InteractiveObject.gd`
-- `Ladder.gd`
-- `LevelBase.gd`
-
-### 5.2 关卡初始化约定
-
-`LevelBase` 是正式关卡的统一基类，流程如下：
-
-1. 应用关卡配置
-2. 初始化相机逻辑
-3. 生成玩家
-4. 生成敌人
-5. 安装触发器
-6. 记录当前关卡到 `GameManager.current_level`
-7. 广播 `LEVEL_LOADED`
-8. 进入子类 `_on_ready()`
-
-关卡退出时，若子类实现了 `prepare_for_level_exit()`，转场管理器会优先调用它清理自身状态。
-
-### 5.3 关卡内容分工
+- 主场景 `.tscn`
+- 主控脚本 `.gd`
+- FSM 或阶段枚举
+- SceneBuilder / UIBuilder
+- `LevelConfig` 或关卡专用数据资源
+- Pixelwork 地图运行时（部分关卡）
 
 | 关卡 | 主要职责 |
 |---|---|
-| `Level_01` | 起始教学、基础交互、HUD 接入、FSM 结构落地 |
-| `Level_02` | 主线过渡关卡，拆分出多个子段 |
-| `Level_02_01` | 老街分段与白屏出口 |
-| `Level_02_02` | 梯子/空间连接谜题 |
-| `Level_02_03` | 断崖、现实房间、IDE 对话、终局前过渡 |
-| `Level_03` | 觉醒、战斗、世界异化与记忆收集 |
-| `Level_04` | 维度侵蚀、空间崩塌、双世界切换 |
-| `Level_05` | 双世界撕裂、侵蚀增长、Boss 战 |
-| `Level_final` | 终局叙事和收束 |
+| `Level_01` | 教学、基础交互和叙事引导 |
+| `Level_02`～`Level_02_03` | 多段梦境流程、终端、记忆复战和配置注入 |
+| `Level_03` | 应用跨关卡配置、城市场景、能力变化和战斗推进 |
+| `Level_04` | 维度侵蚀、空间崩塌和世界切换 |
+| `Level_05` | 双世界、双角色独立血量、侵蚀值和花旦 Boss |
+| `Level_final` | 终局展示并返回标题页 |
 
-### 5.4 特殊关卡资产
+复杂度较高的脚本包括：
 
-仓库中保留了多个拼图和历史分段资源，例如：
+| 文件 | 当前行数 |
+|---|---:|
+| `Level_02_03.gd` | 1969 |
+| `Level_05.gd` | 1419 |
+| `Level_03.gd` | 1317 |
+| `Level_04.gd` | 1311 |
+| `Enemy_BossHuadan.gd` | 1163 |
 
-- `LevelModule/Scenes/PixelworkMapStitch/`
-- `LevelModule/Backup/`
-- `LevelModule/SelfTest/`
+这些文件同时承担阶段状态、生成、剧情、UI 和转场，后续优先按“阶段控制器 + 配置资源 + Builder”拆分。
 
-这些资源说明项目已经进入“手写逻辑 + 生成资产 + 场景拼装”的混合阶段，而不是单一手绘关卡阶段。
+## 7. 玩家、敌人与 Boss
 
-## 6. 玩家系统
+### 7.1 玩家
 
-### 6.1 玩家主结构
+`PlayerBase` 负责通用生命、受伤、死亡、状态切换、输入接入和事件同步。三个正式形态在基类之上扩展：
 
-玩家基类位于：
+- `Player_Warrior`
+- `Player_Warrior_Cyber`
+- `Player_Warrior_Lingnan`
 
-- `PlayerModule/Formal/PlayerBase.gd`
+`SmoothCamera` 负责跟随与关卡边界。形态切换时需要同步位置、方向、摄像机限制、能力标记和对应生命值。
 
-当前可见的正式皮肤场景：
+### 7.2 普通敌人
 
-- `PlayerModule/Formal/Player_Warrior.tscn`
-- `PlayerModule/Formal/Player_Warrior_Cyber.tscn`
-- `PlayerModule/Formal/Player_Warrior_Lingnan.tscn`
+`EnemyBase` 提供感知、追踪、攻击、受伤、死亡和全局注册。具体敌人通过 `EnemyConfig` 和子类行为扩展。玩家范围攻击会遍历 `GameManager.enemy_list`，因此列表必须满足实例唯一性。
 
-### 6.2 玩家能力与相机
+### 7.3 花旦 Boss
 
-玩家系统当前包含：
+花旦 Boss 使用独立多阶段逻辑，包含阶段转换、攻击模式、剑气、灯笼/演出和死亡收束。Boss 继承通用敌人语义，但对阶段和死亡流程有重写；修改基类生命周期时必须同时检查 Boss 重写。
 
-- 移动
-- 跳跃
-- 冲刺
-- 普攻
-- 技能
-- 受击
-- 死亡
+## 8. UI、音频与视觉层
 
-普通起跳会复用现有 `is_invincible` / `invincible_timer` 机制获得 `0.18s` 短无敌帧。该无敌帧通过 `maxf(invincible_timer, duration)` 叠加，不会缩短冲刺、受击等路径已经授予的更长无敌时间。
+### 8.1 HUD
 
-相机不再由关卡手动创建，而是作为 `SmoothCamera` 直接挂在玩家预制体里。这样做的好处是：
+`UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，负责常驻战斗信息、暂停界面及部分关卡特效。HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点。
 
-- 切换角色时相机跟随关系稳定
-- 关卡层不再重复维护 Camera2D
-- Boss 战和特殊段落可以只调整限制边界而不重构相机节点
+### 8.2 音频
 
-### 6.3 皮肤切换
+`MusicManager` 管理 BGM，`SFXManager` 管理短音效。关卡配置可保存音频路径，但运行时加载前应检查资源存在性，避免缺失资源直接产生错误日志。
 
-`Level_05` 中有双世界/双角色玩法，玩家皮肤在 `Cyber` 和 `Lingnan` 间切换。切换时会继承位置、朝向、摄像机限制和对应血量，并重新广播 `HEALTH_CHANGED`。
+### 8.3 Shader 与工具
 
-## 7. 敌人系统
+项目包含代码雨、侵蚀、警告屏障、弹体和其他视觉工具。Shader 或材质在 headless/dummy 渲染器下的结果不能完全代表图形后端，涉及画面效果的修复必须再做一次可视化检查。
 
-### 7.1 普通敌人
+## 9. 配置与资源边界
 
-当前仓库中的敌人场景包括：
+`DataConfig/` 使用 `.tres` 将部分平衡参数与脚本分离：
 
-- `Enemy_Slime`
-- `Enemy_CyberWolf`
-- `Enemy_CyberBull`
-- `Enemy_LanternGhost`
-- `Enemy_PaperEffigy`
+- `PlayerConfig`：生命、移动、跳跃、攻击等
+- `EnemyConfig`：生命、速度、感知、伤害等
+- `LevelConfig` / 关卡数据：出生点、相机范围、流程文本、下一关路径等
+- 技能配置：冷却、伤害和技能参数
 
-敌人基类是 `EnemyModule/Formal/EnemyBase.gd`，用于统一：
+原则：
 
-- 受击
-- 死亡
-- 击退/硬直
-- 配置资源读取
+1. 数值平衡优先进入 Resource，不继续散落在关卡脚本中。
+2. 正式场景只能引用正式配置路径。
+3. `Backup/` 只保存历史参考，不得与正式资源共用 UID。
+4. 所有资源路径大小写必须与磁盘文件名完全一致，以保证 Windows、Web 和 Linux 行为一致。
+5. 资源可选时先用 `ResourceLoader.exists()` 检查；资源必需时应在启动验证中明确失败。
 
-### 7.2 Boss 花旦
+## 10. 已确认问题与修复边界
 
-Boss 位于：
+### 10.1 可直接修复的代码问题
 
-- `EnemyModule/Formal/Enemy_BossHuadan.gd`
-- `EnemyModule/Formal/Enemy_BossHuadan.tscn`
+以下问题不需要新增美术、音频、文案或策划数值：
 
-Boss 的弹体和相关技能资源位于：
+| 优先级 | 问题 | 影响 |
+|---|---|---|
+| P0 | 敌人在 `_ready()` 自动注册后又被部分生成器手工注册 | 范围攻击可能对同一实例重复结算，注销后残留条目 |
+| P0 | `Level_03` 通过受伤后回血实现减伤 | 致死攻击可能先进入死亡/失败状态，再被延迟回血 |
+| P0 | 转场清理未复位对话状态 | 下一关敌人可能持续无法锁定玩家 |
+| P0 | `EnemyBase` 与 Boss 在设置 `is_dead` 后才切换 `DEAD` | 状态切换被自身早退条件拦截 |
+| P1 | `EventBus` 的延迟调用无法兑现同步错误隔离语义 | 调用结果不可信，退出清理可能重复绑定 |
+| P1 | 输入屏蔽只使用全局计数，没有所有者 | 一个模块可能误解除另一个模块的输入锁 |
+| P1 | HUD 使用 `current_scene` 判断正式关卡 | `MainEntry` 托管时关卡专属效果判断错误 |
+| P1 | 敌人资源目录存在大小写不一致引用 | Windows 可运行，但 Web/Linux 导出存在加载失败风险 |
 
-- `EnemyModule/Formal/SwordEnergy.gd`
-- `EnemyModule/Formal/SwordEnergy.tscn`
+### 10.2 需要架构决策但不需要新资产
 
-花旦是当前战斗复杂度最高的敌人，具备多阶段行为、悬停、远程剑气、近战连击、规避和换阶段参数变化。
+| 问题 | 需要决定的事项 |
+|---|---|
+| 主线存在两种转场模型 | 统一由 `MainEntry` 托管，或明确从某关开始整树切换 |
+| `Backup/` 与正式配置存在 UID/路径耦合 | 先迁移正式引用，再隔离或移除备份资源 |
+| `dream_runtime_flags` 使用字符串 Dictionary | 是否改为强类型 Resource 或专用数据对象 |
+| 大型关卡脚本职责过多 | 确定按阶段、系统还是场景区域拆分 |
 
-### 7.3 Boss 行为约束
+### 10.3 需要资产或人工验证
 
-当前实现中保留的关键约束是：
+| 问题 | 外部条件 |
+|---|---|
+| `Assets/UI/skill_icon.png` 缺失 | 需要补图；代码只能安全降级为文本 |
+| `Level02Data.tres` 的三条音频路径缺失 | 需要提供音频或人工选择替代资源 |
+| `WarningBarrier` 材质在 dummy 渲染器报错 | 需要图形环境进行视觉 QA |
+| Git 对象体积较大 | 历史清理或 Git LFS 迁移需要团队协作决定 |
 
-- Boss 由 `GameManager.boss_target` 辅助追踪
-- Boss 战场景中剑气弹体可自动瞄准玩家
-- Boss 的主要伤害来源是剑气和近战 hitbox，不依赖接触伤害
+## 11. 开发与扩展约定
 
-## 8. 关卡 05 专项架构
+### 11.1 新增关卡
 
-`Level_05` 是当前关卡里最复杂的一层，承担三件事：
+1. 继承 `LevelBase` 或沿用正式关卡初始化协议。
+2. 将阶段流转放入 FSM，将节点构建放入 Builder。
+3. 通过配置资源提供出生点、相机边界、文本和下一关路径。
+4. 使用统一的主线转场协议。
+5. 为转场实现输入、暂停、音频、对话和全局引用清理。
 
-1. 双世界视觉撕裂
-2. 侵蚀值持续增长
-3. Boss 花旦战斗与后续终局转场
+### 11.2 新增敌人
 
-### 8.1 双世界结构
+1. 继承 `EnemyBase`。
+2. 新增独立 `EnemyConfig`。
+3. 生成后依赖基类自动注册，不再手工注册。
+4. 死亡时只执行一次状态切换、注销和释放。
+5. 验证单体伤害、范围伤害、暂停与转场行为。
 
-`Level_05` 里分为：
+### 11.3 新增事件
 
-- `TopSprite`
-- `BotSprite`
-- `CyberCollisions`
-- `LingnanCollisions`
-- `Bg5`
-- `Bg5Collisions`
+1. 在 `GlobalDefine.EventName` 定义事件常量。
+2. 明确 payload 字段和类型。
+3. 使用 `EventBus.subscribe()` / `emit()`。
+4. 节点退出时确保连接和订阅被清理。
+5. 不在业务脚本里散落字符串事件名。
 
-这个关卡使用 `PixelTearing`、`edge_tear`、`glitch_effect`、`erosion_vignette`、`memory_echo_effect` 等 shader 和视觉层，表现世界撕裂和侵蚀。
+### 11.4 新增资源
 
-### 8.2 双角色血量
+1. 使用 `res://` 规范路径并保持大小写一致。
+2. 确认导入文件和源文件同时存在。
+3. 不复用备份资源 UID。
+4. 在目标 Godot 版本中重新导入并验证场景。
+5. 音画资产必须进行人工试听或视觉确认。
 
-Boss 段的玩家采用双角色独立血量策略：
+## 12. 当前验证基线
 
-- Cyber 角色一套血量
-- Lingnan 角色一套血量
+本次扫描确认：
 
-切换皮肤时不会把血量回满，而是保留对应角色的独立状态。这是 `Level_05` 的核心战斗规则之一。
+- 主要 GDScript 均可解析，未发现语法错误。
+- 标题页和主线主要场景均可实例化并完成 `_ready()`。
+- Godot 4.6.2 headless 启动主场景成功。
+- 项目目前没有自动化单元测试或持续集成基线。
+- 标题页仍有无效 UID 回退到文本路径的警告。
+- 强制短时退出会出现资源仍在使用的退出日志，不等同于正常游玩崩溃。
 
-### 8.3 侵蚀值系统
+每轮结构性修改至少执行：
 
-侵蚀值会随时间增长，击杀敌人可降低。侵蚀值达到上限后触发游戏结束。对话期间、进入 `bg5` 后，以及花旦 Boss 死亡后都会暂停自然增长。
+1. `git diff --check`
+2. Godot 4.6.2 headless 主场景启动
+3. 受影响关卡独立实例化
+4. 正式主线相邻场景转场验证
+5. 涉及 shader、动画、音频时追加人工画面或试听检查
 
-花旦死亡时，`Level_05` 通过 `_erosion_growth_locked` 锁住后续自然增长；这只影响 `EROSION_RATE` 驱动的自动增加，不改变侵蚀条显示、击杀敌人降低侵蚀值、Boss 死亡后的灯笼和终局转场流程。
+## 13. 当前工作顺序建议
 
-### 8.4 Boss 区域与 bg5 区域
+1. 先修复第 10.1 节的 P0 纯代码问题。
+2. 再处理 P1 的事件、输入、HUD 和跨平台路径问题。
+3. 决定并统一主线转场模型。
+4. 迁移正式场景对备份资源的引用，再治理 UID。
+5. 补齐缺失 UI 与音频资产。
+6. 为主线、伤害结算、转场清理和敌人注册建立最小自动化回归测试。
 
-`Level_05` 还包含两段后续流程：
-
-- Boss 区域
-- Boss 击杀后的 `bg5` 区域和灯笼对话段
-
-这说明 `Level_05` 不只是一个 Boss 关，而是一个组合型关卡容器。
-
-## 9. UI 系统
-
-### 9.1 当前 UI 场景
-
-- `UI/TitleScreen.tscn`
-- `UI/HUD.tscn`
-- `UI/KeybindSettingsScreen.tscn`
-
-### 9.2 UI 职责
-
-- `TitleScreen`：开始菜单和正式流程入口
-- `HUD`：血条、状态提示、可能的调试性显示
-- `KeybindSettingsScreen`：按键配置界面
-
-### 9.3 统一风格
-
-`UI/GameUIStyle.gd` 负责项目 UI 主题风格。`GameManager` 在启动时还会注入像素字体，保证大部分文本节点使用统一字形。
-
-## 10. 工具层
-
-`Tools/` 目录提供了很多跨模块复用能力：
-
-- `CodeRain.gd`：代码雨渲染
-- `DamageCalculator.gd`：伤害计算
-- `FireballProjectile.gd`：火球弹体
-- `PixelGlitch.gd`：像素故障特效
-- `SlashEffect.gd`：刀光特效
-- `SwordQiProjectile.gd`：剑气弹体
-- `WarningBarrier.gd`：警告屏障
-
-这些工具层脚本说明本项目并没有把攻击、特效、弹体逻辑硬塞进关卡脚本，而是提取出了可复用的战斗和视觉组件。
-
-## 11. 数据配置层
-
-`DataConfig/` 目录是项目从“脚本直接写死参数”过渡到“资源配置驱动”的标志。
-
-### 11.1 玩家配置
-
-- `DataConfig/Player/PlayerConfig.gd`
-- `DataConfig/Player/WarriorConfig.tres`
-
-### 11.2 敌人配置
-
-- `DataConfig/Enemy/EnemyConfig.gd`
-- `DataConfig/Enemy/SlimeConfig.tres`
-- `DataConfig/Enemy/StreetSlimeConfig.tres`
-- `DataConfig/Enemy/CyberBullConfig.tres`
-- `DataConfig/Enemy/LanternGhostConfig.tres`
-- `DataConfig/Enemy/PaperEffigyConfig.tres`
-- `DataConfig/Enemy/SecurityConfig.tres`
-- `DataConfig/Enemy/ShadowConfig.tres`
-- `DataConfig/Enemy/CleanerConfig.tres`
-
-### 11.3 关卡配置
-
-- `DataConfig/Level/LevelConfig.gd`
-- `DataConfig/Level/Level01Config.tres`
-- `DataConfig/Level/Level02Config.tres`
-- `DataConfig/Level/Level03Config.tres`
-- `DataConfig/Level/Level04Config.tres`
-- `DataConfig/Level/Level05Config.tres`
-- `DataConfig/Level/Level01Data.gd`
-- `DataConfig/Level/Level02Data.gd`
-- `DataConfig/Level/Level03Data.gd`
-- `DataConfig/Level/Level04Data.gd`
-
-### 11.4 技能配置
-
-- `DataConfig/Skill/SkillConfig.gd`
-- `DataConfig/Skill/SlashConfig.tres`
-
-这套配置层的意义是把角色、敌人、关卡、技能的大部分可调参数从脚本中剥离出来，降低后续平衡改动成本。
-
-## 12. 音频系统
-
-音频资源位于：
-
-- `Assets/Music/`
-- `Assets/Sound/`
-
-当前仓库中的音频管理层是：
-
-- `MusicManager`
-- `SFXManager`
-
-它们负责：
-
-- BGM 播放和切换
-- 淡入淡出
-- 暂停联动
-- 音效池化
-- 重复音效防抖
-
-## 13. 视觉特效与 shader
-
-`LevelModule/Formal/` 下有一组专门的 shader：
-
-- `PixelTearing.gdshader`
-- `edge_tear.gdshader`
-- `erosion_vignette.gdshader`
-- `glitch_effect.gdshader`
-- `memory_echo_effect.gdshader`
-- `wall_barrier.gdshader`
-- `warning_barrier.gdshader`
-
-这意味着项目的视觉表现不是靠单一贴图堆叠，而是由：
-
-- 地图拼接
-- UI 图层
-- 特效工具
-- shader 扭曲
-
-共同构成。
-
-## 14. 资源与素材层
-
-### 14.1 图像与动画
-
-`Assets/` 下包含：
-
-- 角色图像
-- Boss 图像
-- UI 图像
-- 背景图
-- 特效图
-
-### 14.2 音频
-
-`Assets/Music/` 和 `Assets/Sound/` 下分别存放 BGM 和音效。
-
-### 14.3 视频
-
-项目还包含 `Assets/视频演出.ogv`，说明主线里已经有视频型叙事资产。
-
-### 14.4 编辑器缓存
-
-`.godot/` 目录是 Godot 自动生成的导入和缓存内容，不属于业务代码，但会影响编辑器本地开发体验。
-
-## 15. 编辑器与 MCP 集成
-
-项目已启用 Godot MCP Pro 插件：
-
-- `addons/godot_mcp/`
-
-并在 `project.godot` 中注册了：
-
-- `MCPScreenshot`
-- `MCPInputService`
-- `MCPGameInspector`
-
-这层集成不参与游戏运行逻辑，但对调试、截图、输入模拟、场景检查很重要。
-
-本地开发环境已安装 Godot Engine 4.7 CLI，可使用 `godot_console` 执行命令行解析和启动检查。项目配置仍声明 `Godot 4.6` 与 `GL Compatibility`，因此用 4.7 CLI 验证时需要把它视为兼容性检查，而不是严格等同于目标引擎版本。
-
-当前命令行检查可以启动到标题页，但会报告 `project.godot` 中 3 个 Godot MCP Autoload 对应脚本缺失；这是编辑器协作插件文件缺失问题，不是主游戏链路脚本解析失败。若要让 CLI 日志完全干净，需要恢复 `addons/godot_mcp/` 下的服务脚本，或在无 MCP 的环境中移除这 3 个 Autoload 引用。
-
-## 16. 部署与导出现状
-
-当前仓库里能看到两类部署相关内容：
-
-- `project.godot` 中的 Web 导出设置
-- `.edgeone/assets/` 中的部署镜像文件
-
-这说明项目已经开始把 Web 发布、静态资源和导出配置纳入仓库管理，不过当前根目录并没有把 Docker/Nginx 文件作为核心源码的一部分展示出来，因此这里不把它们写成“主代码依赖”，只把它们当作部署侧产物处理。
-
-## 17. 事件、输入、碰撞约定
-
-### 17.1 主要事件
-
-当前最常见的全局事件包括：
-
-- `GAME_START`
-- `GAME_PAUSE`
-- `GAME_RESUME`
-- `GAME_OVER`
-- `LEVEL_LOADED`
-- `LEVEL_COMPLETE`
-- `PLAYER_SPAWNED`
-- `PLAYER_DIED`
-- `PLAYER_HURT`
-- `PLAYER_ATTACK_HIT`
-- `ENEMY_SPAWNED`
-- `ENEMY_DIED`
-- `ENEMY_HURT`
-- `INTERACTIVE_OBJECT_TRIGGERED`
-- `HEALTH_CHANGED`
-
-### 17.2 主要输入动作
-
-`project.godot` 当前定义的输入动作包括：
-
-- `ui_accept`
-- `ui_left`
-- `ui_right`
-- `ui_up`
-- `ui_down`
-- `ui_pause`
-- `player_jump`
-- `player_attack`
-- `player_dash`
-- `player_skill`
-- `player_up`
-- `player_down`
-
-### 17.3 碰撞层
-
-碰撞层已经收敛到 `GlobalDefine.Collision`，避免在关卡或角色脚本里手写数字。
-
-## 18. 常见扩展任务与接入方式
-
-### 18.1 新增关卡
-
-建议顺序：
-
-1. 在 `DataConfig/Level/` 新建或复制一个关卡配置资源
-2. 在 `LevelModule/Formal/` 新建关卡脚本和场景
-3. 继承 `LevelBase`
-4. 在 `_on_ready()` 中装配关卡特有对象
-5. 需要过关时广播 `EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {...})`
-
-如果新关卡要接主线，优先让 `MainEntry` 托管切换；如果是标题页、终局页或独立调试页，直接使用 `SceneTransitionManager.request_scene_change()`。
-
-### 18.2 新增敌人
-
-建议顺序：
-
-1. 在 `DataConfig/Enemy/` 建立敌人配置资源
-2. 在 `EnemyModule/Formal/` 添加敌人脚本和场景
-3. 让敌人继承 `EnemyBase`
-4. 在关卡场景构建器或子关卡里实例化并 `add_child`
-5. 敌人基类 `_ready()` 会自动执行 `GameManager.register_enemy(self)`
-6. 通过 `EventBus` 触发受击、死亡和统计事件
-
-如果敌人需要出现在多个关卡，优先做成资源配置驱动，而不是把参数写死在关卡脚本中。
-
-### 18.3 新增玩家能力或皮肤
-
-建议顺序：
-
-1. 先确认能力是属于所有皮肤，还是只属于某个皮肤
-2. 共有能力放在 `PlayerBase`
-3. 皮肤专属能力放在各自皮肤脚本
-4. 若能力改变血量、状态或 HUD 显示，记得广播 `HEALTH_CHANGED` 或相关事件
-
-如果要新增皮肤，优先沿用现有 `SmoothCamera` 和 `GameManager.register_player()` 的接入方式。
-
-### 18.4 新增 UI 页面
-
-建议顺序：
-
-1. 先确定它是“独立场景切换页”还是“叠层 UI”
-2. 独立场景切换页走 `SceneTransitionManager.request_scene_change()`
-3. 叠层 UI 走 `CanvasLayer + Control`
-4. 需要暂停输入时，使用 `InputManager.block_input()`
-5. 需要退出时，调用对应的 `unblock_input()` 或在 `prepare_for_level_exit()` 中统一清理
-
-### 18.5 新增事件
-
-建议顺序：
-
-1. 在 `Global/GlobalDefine.gd` 的 `EventName` 里先定义事件常量
-2. 在发送方使用 `EventBus.emit()` 或 `emit_deferred()`
-3. 在接收方使用 `EventBus.subscribe()`
-4. 节点退出后依赖 `tree_exited` 自动清理，必要时显式 `unsubscribe_all()`
-
-不要直接写字符串事件名散落在脚本里，这会让后续重构成本上升。
-
-### 18.6 新增输入动作
-
-建议顺序：
-
-1. 先在 `project.godot` 的 `[input]` 中定义动作
-2. 再决定它是“全局快捷键”还是“游戏动作”
-3. 游戏动作优先接入 `InputManager.game_action`
-4. 方向键和跳跃这类需要连续值的输入，保留每帧轮询逻辑
-
-### 18.7 新增转场
-
-建议顺序：
-
-1. 能用 `MainEntry` 托管切换的主线关卡，优先走 `LEVEL_COMPLETE`
-2. 需要整树替换的场景，使用 `SceneTransitionManager.request_scene_change()`
-3. 需要回到检查点的场景，使用 `GameManager.restart_from_checkpoint()`
-4. 涉及暂停、输入屏蔽、音乐暂停、焦点时，确保 `prepare_for_level_exit()` 可被调用
-
-## 19. 当前架构判断
-
-### 19.1 已完成的部分
-
-- 入口和正式流程已分离
-- 基础设施层已经齐备
-- 关卡主线已经闭环
-- 玩家、敌人、Boss、UI、音频、转场都有统一职责
-- 数据配置层已经建立
-- 视觉特效与 shader 体系已经成型
-
-### 19.2 仍需持续约束的部分
-
-- 关卡脚本数量多，依赖约定较强
-- `Level_02` 系列存在子段和历史结构，维护时要注意主线边界
-- `Level_03`、`Level_04`、`Level_05` 的状态机与场景构建仍然耦合较深
-- 转场、输入屏蔽、HUD、音频状态需要在每个关卡里显式维持
-- `SelfTest`、备份和正式目录并存，后续必须继续保持目录边界清晰
-
-## 20. 结论
-
-当前项目已经具备一个完整 Godot 2D 动作叙事游戏的标准分层：
-
-1. 入口层
-2. 关卡层
-3. 角色层
-4. 敌人层
-5. 数据配置层
-6. UI 层
-7. 工具层
-8. 音频层
-9. 特效层
-10. 编辑器协作层
-
-接下来的重点不再是“有没有架构”，而是“如何继续保持边界清晰、减少关卡脚本耦合、把可调参数继续下沉到配置资源中”。
+这份文件是仓库唯一架构文档。架构、主线流程、全局契约或风险状态发生变化时，应直接更新本文件，避免再创建并行版本。

@@ -30,7 +30,6 @@ push.log
 .idea/
 .vscode/
 .codebuddy/
-.godot-mcp/
 .agents/
 
 # --- 操作系统 ---
