@@ -19,7 +19,9 @@
 *.aab
 
 # --- 工具 / 部署产物（非项目源码） ---
-addons/
+/addons/*
+!/addons/godot_ai/
+!/addons/godot_ai/**
 godot-editor/
 .edgeone
 generated/
@@ -31,6 +33,7 @@ push.log
 .vscode/
 .codebuddy/
 # `.agents/skills/` contains versioned Codex project Skills.
+# `.codex/` contains versioned, project-scoped Codex/MCP policy.
 
 # --- 操作系统 ---
 .DS_Store

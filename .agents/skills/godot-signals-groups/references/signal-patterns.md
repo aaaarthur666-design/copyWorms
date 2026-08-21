@@ -34,20 +34,18 @@ func set_stat(stat: String, value: int) -> void:
     stat_changed.emit(stat, old, value)
 ```
 
-Typed parameters are documentation and let the editor's connection dialog show argument
-names. They are not strictly enforced at runtime but emitting the wrong count errors.
+Typed parameters document the intended payload and let the editor's connection dialog
+show argument names. Godot checks the emitted argument count; do not rely on the signal
+declaration alone to validate runtime `Variant` values.
 
 ## Awaiting a signal with a timeout
 
-`await` has no built-in timeout. Race the signal against a timer:
-
-```gdscript
-func wait_for_signal_or_timeout(obj: Object, sig: String, seconds: float) -> bool:
-    var timer := get_tree().create_timer(seconds)
-    # Whichever emits first resumes; check which one.
-    var got = await Signal(obj, sig)  # for a fixed signal, prefer obj.signal_name
-    return true
-```
+`await` has no built-in timeout. Merely creating a `SceneTreeTimer` before awaiting
+another signal does not race them: execution still resumes only from the signal being
+awaited. When an immediate signal-or-timeout result is required, connect the concrete
+signal and `SceneTreeTimer.timeout` to a small coordinator with `CONNECT_ONE_SHOT`, let
+the first callback settle the result, then disconnect the losing callback. Match the
+concrete signal's callback signature instead of hiding it behind an unchecked string.
 
 For most gameplay, awaiting `animation_finished`, `timeout`, or `tween_finished`
 directly is cleaner.

@@ -115,8 +115,9 @@ func open_chest() -> void:
   name share membership. Namespace group names if that matters.
 - **`call_group` silently ignores nodes lacking the method.** Typos in the method name
   fail quietly — prefer a typed signal when the contract matters.
-- **Signal args must match.** Emitting with the wrong arg count/types raises an error;
-  declare typed params and emit exactly those.
+- **Signal args must match.** Emitting with the wrong argument count raises an error.
+  Typed parameters document the intended payload, but do not replace validation of
+  runtime `Variant` data; emit the declared count and expected value kinds.
 
 ## References
 
@@ -127,4 +128,3 @@ func open_chest() -> void:
 
 - `godot-gdscript` — signal/`await` syntax fundamentals.
 - `godot-nodes-scenes` — autoloads for global event buses.
-- `game-ai` — state machines that often drive and consume these events.

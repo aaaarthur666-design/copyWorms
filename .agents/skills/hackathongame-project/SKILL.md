@@ -55,7 +55,7 @@ After the mandatory sources, inspect only the evidence needed for the request:
 - Level 02 memory/replay flow: also read `FUZHAN_WORK_MEMORY.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
 - Pixelwork maps: inspect both source/generated map data and the matching runtime assembly or collision code.
 - UI, shader, animation, or audio: inspect the scene/resource chain and plan real visual or listening verification.
-- Skill or MCP work: inspect the relevant `SKILL.md`, `agents/openai.yaml`, `.codex/config.toml`, and upstream source/version. Do not touch game content during setup tests.
+- Skill or MCP work: inspect the relevant `SKILL.md`, `agents/openai.yaml`, `.codex/config.toml`, `.codex/README.md`, and upstream source/version. Do not touch game content during setup tests.
 
 Use `README.md` for product identity only, not as proof of current implementation.
 
@@ -80,6 +80,13 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Do not hand-edit `.godot/`, import caches, `.import` files, or unclear UIDs.
 - Review the source, version, scripts, and declared dependencies before installing a third-party Skill, plugin, MCP server, or package.
 - Keep project MCP connections loopback-only and project-scoped when practical. Never store secrets in the repository.
+- Treat `.codex/config.toml` as this repository's shared project policy. Do not add the project server to a user-level Codex config unless the user explicitly requests a cross-project setup.
+- Treat MCP allowlists as client-specific and tool-based, not as a server-wide or path-based sandbox. Confirm each active client has the intended allowlist, and continue to enforce protected paths and current-task authorization independently.
+- Treat project-scoped loading as a Codex client boundary, not server-side project isolation. Before every MCP write, confirm the editor state and session list identify HackathonGame, its project path, and the intended current scene; explicitly activate the correct session when more than one exists.
+- Under Godot AI 3.1.5, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support.
+- Delete isolated MCP test artifacts after validation unless the user explicitly designates them as versioned regression fixtures; before deletion, navigate the editor away from the target scene and confirm no formal dependency exists.
+- Treat unavailable Related Skill names in copied third-party Skills as conceptual pointers only. Do not install, invoke, or rely on them without an explicit request and source review.
+- Do not describe loopback MCP as fully offline: inspect Godot AI telemetry and update-check behavior whenever network egress or privacy is in scope.
 
 ## Implement narrow, coherent changes
 
@@ -96,7 +103,7 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 Always preserve the initial working-tree status, capture the final status with the same `git --no-optional-locks status --short` command, inspect the final diff, run `git diff --check`, and compare the final status with the baseline. Separate pre-existing or concurrent changes from changes made for the task; do not claim another actor's change or use a clean diff alone as proof that no write occurred.
 
 - AGENTS, Skill, or documentation changes: validate structure/metadata where a validator exists; check discovery paths, references, placeholders, and working-tree scope.
-- MCP configuration: validate TOML, restart or start a new Codex task, confirm the expected server/tool allowlist, then perform read-only smoke tests.
+- MCP configuration: validate TOML and project scope, restart or start a new Codex task, confirm the expected server/tool allowlist for the active client, then perform read-only smoke tests. Report bundled operations and unsupported writes explicitly.
 - GDScript, scene, or Resource changes: use the exact Godot 4.6.2 executable for a headless main-scene start and affected-scene instantiation.
 - Lifecycle, transition, or global-state changes: also verify adjacent mainline transitions and cleanup of input, pause, dialogue, music, player, enemy, and temporary state.
 - Shader, animation, audio, and visual layout: add real graphics-backend or human visual/listening verification; headless checks are insufficient.

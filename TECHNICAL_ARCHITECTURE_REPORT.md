@@ -12,7 +12,7 @@
 
 本项目是一款 2D 横版动作叙事游戏，核心主题为“岭南文化 × 赛博未来 × 梦境撕裂”。游戏已经具备完整主线、玩家与敌人战斗系统、四阶段 Boss、剧情交互、数据配置、HUD、音频和像素地图运行时。
 
-以 `LevelModule/Backup/` 之外的当前文件统计：
+以下规模只统计游戏内容，排除 `LevelModule/Backup/`、`addons/godot_ai/` 和 Agent/MCP 工具文件：
 
 | 类型 | 数量 |
 |---|---:|
@@ -27,6 +27,8 @@
 
 ```text
 project.godot
+├─ .agents/ / .codex/   Agent 规则、Skills 与项目级 MCP 策略
+├─ addons/godot_ai/     Godot AI 编辑器插件；不属于导出后的游戏运行架构
 ├─ Global/               全局状态、事件、输入、转场、音频
 ├─ LevelModule/
 │  ├─ Formal/            正式关卡、FSM、Builder、关卡数据
@@ -111,7 +113,7 @@ flowchart TD
 
 ## 4. 全局基础设施
 
-`project.godot` 当前注册 8 个 Autoload：
+`project.godot` 当前注册 8 个游戏运行 Autoload：
 
 | 单例 | 核心职责 |
 |---|---|
@@ -123,6 +125,8 @@ flowchart TD
 | `MusicManager` | BGM 播放、淡入淡出及暂停联动 |
 | `SFXManager` | 音效播放、实例管理和防抖 |
 | `SceneTransitionManager` | 切场景、检查点重启和转场清理 |
+
+Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。MCP 的项目作用域、权限和协作规则以 `.codex/README.md` 为准。
 
 ### 4.1 运行模式
 
@@ -291,7 +295,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 | 问题 | 需要决定的事项 |
 |---|---|
 | 主线存在两种转场模型 | 统一由 `MainEntry` 托管，或明确从某关开始整树切换 |
-| `Backup/` 与正式配置存在 UID/路径耦合 | 先迁移正式引用，再隔离或移除备份资源 |
+| `Backup/` 与正式配置存在 UID/路径耦合；当前编辑器审计记录 2 条 UID 重复和 22 条无效 UID 回退 | 先迁移正式引用，再隔离或移除备份资源，并逐项重新生成明确归属的 UID |
 | `dream_runtime_flags` 使用字符串 Dictionary | 是否改为强类型 Resource 或专用数据对象 |
 | 大型关卡脚本职责过多 | 确定按阶段、系统还是场景区域拆分 |
 
@@ -346,7 +350,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 - 标题页和主线主要场景均可实例化并完成 `_ready()`。
 - Godot 4.6.2 headless 启动主场景成功。
 - 项目目前没有自动化单元测试或持续集成基线。
-- 标题页仍有无效 UID 回退到文本路径的警告。
+- GUI 编辑器审计记录 24 条既有 UID 警告：2 条 UID 重复、22 条无效 UID 回退，涉及备份、正式关卡、DataConfig 与 UI；这些警告不是 MCP 引入的。
 - 强制短时退出会出现资源仍在使用的退出日志，不等同于正常游玩崩溃。
 
 每轮结构性修改至少执行：
