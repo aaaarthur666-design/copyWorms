@@ -1,169 +1,110 @@
-织梦者 — Dreamweaver
-Godot 4.6 2D 横向叙事探索动作游戏 | 黑客松项目
-岭南文化 × 赛博未来 × 梦境撕裂
+# 织梦者（Dreamweaver）
 
-🎮 游戏简介
-织梦者 是一款以「岭南文化」与「赛博朋克」碰撞融合为主题的 2D 动作叙事游戏。玩家扮演一名剑客，穿梭于被数字侵蚀撕裂的梦境世界，在岭南旧梦与赛博蜃境之间切换，迎战越来越强的敌人，最终直面花旦 Boss 守护梦境核心。
+> HackathonGame · Godot 4.6.2 · 2D 横版动作叙事游戏
+> 岭南文化 × 赛博未来 × 梦境撕裂
 
-世界观
-一场数据入侵正在吞噬梦境。梦境深处的记忆碎片被数字化侵蚀，古老的街巷与赛博城市交替闪现——你需要找到侵蚀的源头，并斩断它。
+## 游戏简介
 
-🎯 核心特性
+《织梦者》是一款以岭南文化与赛博朋克碰撞融合为主题的 2D 动作叙事游戏。玩家扮演一名剑客，穿梭于被数字侵蚀撕裂的梦境世界，在岭南旧梦与赛博蜃境之间推进剧情、战斗并追查侵蚀源头，最终面对花旦 Boss。
 
-🎨 双世界切换 — 岭南古风与赛博未来两种风格的自由切换，像素地图拼接渲染
+## 核心特色
 
-⚔️ 多样化敌人 AI — 5 种不同敌人类型，包含漂浮、冲撞、远程、召唤等行为模式
+- 双世界叙事：岭南古风与赛博未来交错呈现。
+- 横版探索与战斗：移动、跳跃、近战、技能、敌人 AI 与 Boss 多阶段战斗。
+- Pixelwork 地图运行时：由项目专用数据和脚本拼接地图层、碰撞与关卡节点。
+- 剧情交互：终端、记忆复战、配置注入与跨关卡状态共同驱动流程。
+- 视觉效果：侵蚀、Glitch、RGB 色散、代码雨、警告屏障与 Shader 特效。
+- 事件驱动架构：跨模块通信以 `EventBus` 和 `GameManager` 为核心。
 
-👹 花旦 Boss 战 — 4 阶段 Boss AI，2800+ 行决策逻辑，悬停系统、剑气弹幕、近战连击
+## 技术基线
 
-📖 深度叙事 — 7 态叙事状态机，多角色对话系统，可交互式 IDE 自由对话
+| 项目 | 当前基线 |
+|---|---|
+| 引擎 | Godot 4.6.2 |
+| 渲染器 | GL Compatibility |
+| 脚本语言 | GDScript |
+| 基准视口 | 1280×720，`canvas_items` 拉伸 |
+| 主场景 | `res://UI/TitleScreen.tscn` |
+| 架构 | 事件驱动、状态机、Builder 与 Resource 配置 |
+| Godot AI | 3.1.5，项目级 MCP 配置 |
 
-🌀 维度侵蚀系统 — 侵蚀值实时增长机制，shader 驱动的画面撕裂与色彩腐蚀特效
+当前游戏内容规模（排除 `LevelModule/Backup/`、Godot AI 插件及 Agent/MCP 工具文件）：
 
-🛡️ 防火墙屏障 — Glitch 特效系统，能量带流动 + 横向撕裂 + RGB 色散
+| 类型 | 数量 |
+|---|---:|
+| GDScript | 83 |
+| 场景 | 38 |
+| Resource 配置 | 20 |
+| Shader | 8 |
 
-🔧 Code-Buddy 主题 IDE — 关卡内嵌可交互代码编辑器，模拟 AI 编译
+## 主线流程
 
-🛠️ 技术栈
+`TitleScreen → MainEntry → Level_01 → Level_02 → Level_02_01 → Level_02_02 → Level_02_03 → Level_03 → Level_04 → Level_05 → Level_final → TitleScreen`
 
-技术	说明
+当前前半段由 `MainEntry` 托管，后半段存在整树切换流程。该现状及其风险以 [TECHNICAL_ARCHITECTURE_REPORT.md](TECHNICAL_ARCHITECTURE_REPORT.md) 为准。
 
-引擎	Godot 4.6 (GL Compatibility Mode)
+## 项目结构
 
-语言	GDScript
+```text
+HackathonGame/
+├─ .agents/skills/        Project Skill 与 11 个 Godot 专项 Skill
+├─ .codex/                项目级 Codex / Godot AI MCP 配置与说明
+├─ addons/godot_ai/       Godot AI 3.1.5 编辑器插件
+├─ Global/                事件、全局状态、输入、转场与音频
+├─ LevelModule/
+│  ├─ Formal/             正式关卡、FSM、Builder 与关卡数据
+│  ├─ Backup/             历史参考，不得成为正式运行依赖
+│  └─ Scenes/             Pixelwork 地图数据与运行时
+├─ PlayerModule/Formal/   玩家基类、三种角色形态与相机
+├─ EnemyModule/Formal/    敌人基类、普通敌人与花旦 Boss
+├─ DataConfig/            玩家、敌人、关卡与技能 Resource
+├─ UI/                    标题页、MainEntry、HUD 与按键设置
+├─ Tools/                 弹体、交互物、伤害与视觉工具
+├─ Assets/                图像、动画、音频、视频与 UI 素材
+├─ Resources/             共享资源
+├─ project.godot          Godot 项目入口
+└─ TECHNICAL_ARCHITECTURE_REPORT.md
+```
 
-分辨率	1280×720，canvas_items 拉伸
+## Agent、Skill 与 MCP 协作
 
-部署	Docker + Nginx (Alpine)
+仓库内的 Agent 工作必须先遵守 [AGENTS.md](AGENTS.md)，并在每个任务中首先使用项目专用入口：
 
-Web 导出	Godot Web Export (WASM + SharedArrayBuffer)
+- `hackathongame-project`：加载项目上下文、锁定 Godot 4.6.2、判断授权边界并选择验证方式。
 
-架构模式	事件驱动 (EventBus) + 状态机 (FSM)
+当前随仓库保留 11 个 Godot 专项 Skill：
 
-📁 项目结构
+- 语言与结构：`godot-gdscript`、`godot-nodes-scenes`、`godot-signals-groups`、`godot-resources`
+- 2D 行为：`godot-2d-movement`、`godot-physics`、`godot-animation`
+- 表现层：`godot-ui-control`、`godot-audio`、`godot-shaders`
+- 构建：`godot-export`
 
-黑客松正式项目文档/
-├── build/web/             # Godot Web 导出产物
-│   ├── index.html         # 入口 HTML
-│   ├── index.js           # JS 胶水层
-│   ├── index.wasm         # WebAssembly 核心
-│   ├── index.pck          # 资源包
-│   └── index.*.worklet.js # Audio Worklet
-├── Dockerfile             # Docker 构建配置
-├── nginx.conf             # Nginx 配置（含 COOP/COEP 头）
-├── entrypoint.sh          # 容器启动脚本
-├── TECHNICAL_ARCHITECTURE_REPORT.md  # 技术架构报告
-└── WORK_SESSION_SUMMARY.md           # 工作会话总结
-注意：以上仅为部署相关文件。完整游戏源码（Godot 项目）包含以下关键模块：
+本项目不为 3D 场景装配、C#/.NET、在线网络同步或 TileMap/TileSet 作者工作提供专项 Skill 路由。Pixelwork 地图任务由 Project Skill 先检查项目自定义数据和运行时，不套用通用地图作者流程。
 
-模块	路径	说明
+Godot AI MCP 使用仓库内的 `.codex/config.toml`，只在受信任的当前项目中由 Codex 自动加载；它不应复制到用户级配置。当前服务器通过 `uv`/`uvx` 启动，不依赖 Node.js 或 npm。完整的作用域、权限、会话核对、写入审批和隐私说明见 [.codex/README.md](.codex/README.md)。
 
-全局系统	Global/	EventBus、GameManager、InputManager、GlobalDefine、KeybindManager
+MCP 工具可见不代表自动获得正式内容修改权限。任何正式写入仍受 `AGENTS.md`、Project Skill、当前任务授权和会话身份核对约束。
 
-玩家系统	PlayerModule/Formal/	PlayerBase + 3 种皮肤（Warrior/Cyber/Lingnan）
+## 本地开发
 
-敌人系统	EnemyModule/Formal/	5 种敌人 + Boss 花旦 4 阶段 AI
+1. 安装 Godot 4.6.2 标准版。
+2. 使用 Godot 编辑器导入或打开仓库根目录。
+3. 确认渲染器为 GL Compatibility。
+4. 从 `project.godot` 配置的标题场景启动项目。
 
-关卡系统	LevelModule/Formal/	Level_01 ~ Level_05，关卡基类 + 场景构建器
+涉及 GDScript、场景或 Resource 的修改，应使用准确的 Godot 4.6.2 执行 headless 主场景与受影响场景验证。Shader、动画、音频和视觉布局还需要真实图形环境或人工画面/试听检查。
 
-像素地图	LevelModule/Scenes/PixelworkMapStitch/	多层拼接地图系统
+## 文档入口
 
-工具类	Tools/	剑气弹体、CodeRain 渲染、防火墙特效
+- [AGENTS.md](AGENTS.md)：仓库级工作规则、授权与保护边界。
+- [.agents/skills/hackathongame-project/SKILL.md](.agents/skills/hackathongame-project/SKILL.md)：每个项目任务的强制入口。
+- [TECHNICAL_ARCHITECTURE_REPORT.md](TECHNICAL_ARCHITECTURE_REPORT.md)：唯一架构文档、当前实现、风险与验证基线。
+- [.codex/README.md](.codex/README.md)：项目级 Godot AI / MCP 配置与协作说明。
 
-UI 系统	UI/	TitleScreen、MainEntry、HUD
+README 只用于项目介绍和开发入口；实现与架构判断以当前代码、场景、资源、`project.godot` 和技术架构报告为准。
 
-资源	Assets/	精灵图、音乐、Shader 特效
+## 许可证
 
-🎮 关卡概览
+本项目仅供学习与竞赛用途。
 
-关卡	名称	核心玩法
-
-Level_01	苏醒	7 态叙事状态机，熟悉操作，IDE 编码互动
-
-Level_02	阁楼→老街	分段式关卡链，纸扎人 + 灯笼鬼，梯子攀爬解谜
-
-Level_03	赛博蜃景	6 态空间异化，回声收集，防火墙系统
-
-Level_04	维度侵蚀	半对半空间硬切，赛博↔岭南瞬移切换
-
-Level_05	双世界撕裂	双世界 Map Stitch，侵蚀值系统，花旦 Boss 战
-
-👹 Boss：花旦（Huadan）
-
-花旦是本作的最终 Boss，拥有 4 阶段 渐进式 AI 系统：
-
-阶段	HP 范围	核心特性
-
-Phase 1	600~451	基础行为，高闪避(70%)，易打断
-
-Phase 2	450~301	霸体免疫打断，移速+10%
-
-Phase 3	300~151	🔥 跳跃悬停，3 发独立瞄准剑气，空中 10s
-
-Phase 4	150~0	🔥 近战+剑气连击，移速暴增至 350，极低闪避(15%)
-
-行为决策：每 0.3s 评估一次，包含 IDLE / APPROACH / RETREAT / RANGED / MELEE / EVADE / JUMP / HOVER 共 8 种行为，各阶段独立决策树。
-
-
-🔧 本地开发
-
-环境要求
-
-Godot 4.6（GL Compatibility Mode）
-
-使用 Godot 编辑器打开项目根目录
-
-Web 导出
-
-在 Godot 编辑器中配置 Web 导出预设
-
-确保启用 ensure_cross_origin_isolation_headers = true
-
-导出到 build/web/ 目录
-
-使用上述 Docker 方式部署
-
-注意：Godot 4 Web 导出依赖 SharedArrayBuffer，需要服务端返回 Cross-Origin-Opener-Policy 和 Cross-Origin-Embedder-Policy 头，已在内置 Nginx 配置中处理。
-
-🎨 视觉风格
-
-像素艺术: 基于像素拼接的地图系统（PixelworkMapStitch）
-
-Shader 特效: Glitch 撕裂、RGB 色散、色彩腐蚀、警告屏障
-
-CodeRain: 自绘代码雨系统（_draw() + Silkscreen 像素字体）
-
-双世界美学: 岭南古风（暖色调街巷）+ 赛博未来（终端绿霓虹）
-
-📝 变更日志
-
-最新版本 v0.12.1 主要更新：
-
-
-
-✅ CodeRain 完全重写（_draw() 实时渲染）
-
-✅ 防火墙屏障 Glitch 特效系统
-
-✅ Level_05 双世界侵蚀 + BossHuadan 花旦 4 阶段 AI
-
-✅ 剑气弹道追踪系统
-
-✅ 花旦悬停 + 3 发独立瞄准剑气
-
-✅ 近战附带剑气连击（Phase 4）
-
-✅ 全局事件驱动架构完善
-
-详细变更请参见 TECHNICAL_ARCHITECTURE_REPORT.md
-
-
-🤝 贡献
-
-本项目为黑客松竞赛作品，欢迎 Fork 和 Star！
-
-📄 许可证
-
-本项目仅供学习和竞赛用途。
-
-Made with Godot 4.6
+Made with Godot 4.6.2
