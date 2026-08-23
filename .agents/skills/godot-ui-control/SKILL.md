@@ -1,7 +1,7 @@
 ---
 name: godot-ui-control
 description: >
-  Build or debug Godot 4.6.2 UI with Control and Container nodes, anchors, offsets,
+  Build or debug Godot 4.6 UI with Control and Container nodes, anchors, offsets,
   Theme or StyleBox resources, HUD/menu layout, or keyboard/gamepad focus. Use for
   UI layout, theming, and focus; use godot-animation for UI tweens,
   and godot-signals-groups for event architecture. Full input rebinding is out of scope.
@@ -10,7 +10,7 @@ description: >
 # Godot UI / Control nodes (4.x)
 
 Lay out responsive UI with `Control` anchors and `Container` nodes, style it with a
-`Theme`, and make it navigable by keyboard and gamepad. Targets **Godot 4.6.2**.
+`Theme`, and make it navigable by keyboard and gamepad. Targets **Godot 4.6**.
 
 ## When to use
 

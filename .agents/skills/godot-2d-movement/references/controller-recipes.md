@@ -1,4 +1,4 @@
-# 2D controller recipes (Godot 4.6.2)
+# 2D controller recipes (Godot 4.6)
 
 Depth companion to `godot-2d-movement`.
 

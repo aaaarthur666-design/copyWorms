@@ -22,16 +22,10 @@
 /addons/*
 !/addons/godot_ai/
 !/addons/godot_ai/**
-godot-editor/
-.edgeone
-generated/
-AI资源库/
 push.log
 
 # --- IDE / 编辑器 ---
 .idea/
-.vscode/
-.codebuddy/
 # `.agents/skills/` contains versioned Codex project Skills.
 # `.codex/` contains versioned, project-scoped Codex/MCP policy.
 

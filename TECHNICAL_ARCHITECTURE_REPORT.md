@@ -2,9 +2,9 @@
 
 > 唯一架构文档
 >
-> 更新日期：2026-08-22
+> 更新日期：2026-08-23
 >
-> 目标引擎：Godot 4.6.2，GL Compatibility
+> 目标引擎：Godot 4.6，GL Compatibility
 >
 > 文档依据：当前仓库静态扫描、关键链路检查与主场景 headless 启动验证
 
@@ -109,7 +109,30 @@ flowchart TD
 
 `/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 写入 `GameManager.dream_runtime_flags`。`Level_03` 读取这些标记，应用跳跃能力、伤害减免及外部信号相关规则。
 
-这条 Dictionary 数据链跨越场景边界，键名目前没有编译期检查，是后续配置类型化的重点。
+复战流程的当前契约如下：
+
+- `LevelFuzhanSub01` 是进度与文本的集中来源。系统总是选择第一个未完成区域；每区收集 3 个记忆碎片、合计 6 个后才开放 `/config`。
+- `LevelFuzhanMemoryBase` 统一承担敌人生成、击杀计数、掉落、叙事冻结、死亡保护和返回现实。每击杀 10 个敌人产生一个待收集物，同一时间只保留一个待收集掉落。
+- 收集展示、叙事或玩家死亡期间会冻结敌人和生成计时器。死亡会把生命值保护在 1、保留已收集进度并带失败原因返回现实房间，不显示常规 Game Over。
+- `Level_02_03` 消费返回原因、恢复现实房间和终端状态；`/config` 完成重编译后才把能力键写入 `GameManager.dream_runtime_flags`，随后继续到 `Level_03`。
+- 返回链兼容两种生命周期：存在 `MainEntry` 托管时发送 `LEVEL_COMPLETE`，否则由 `SceneTransitionManager` 直接切换。
+
+| 所属 | 关键状态或参数 |
+|---|---|
+| 复战进度 | `memory_recovery_started`、`memory_current_area`、`fuzhan_01_collected`、`fuzhan_02_collected`、`fuzhan_01_complete`、`fuzhan_02_complete`、`memory_fragments`、`core_memory_anchor_stabilized` |
+| 返回现实 | `level0203_resume_reality`、`memory_return_reason` |
+| 重编译结果 | `player_damage_reduction`、`base_jump_height`、`allow_external_signal`、`dream_version`；核心稳定后另写入 `core_area = "herbal_tea_shop"` |
+
+| 区域 | 玩家出生点 | 相机边界 / 缩放 | 敌人生成 | 掉落范围 | 上限 / 间隔 |
+|---|---|---|---|---|---|
+| 01 | `(2264, 544)` | `L0 R5328 T-500 B640` / `1.0` | `x=260..5100, y=540` | `x=200..5200, y=560` | `4 / 3s` |
+| 02 | `(1816, 512)` | `L0 R4474 T56 B616` / `1.5` | `x=220..4300, y=540` | `x=1800..4300, y=360..536` | `4 / 3s` |
+
+掉落会依据相机安全边距和区域配置再次夹取，并在加入 `DynamicActors` 后校验全局坐标。六种掉落按固定索引推进：月饼、虾饺、木棉、醒狮、烧卖、蒲葵扇；展示由 `DropItem` 与岭南掉落档案界面负责。
+
+当前 `Level_02_03.tscn` 的 `level_data` 仍实际绑定到 `LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres`。这是已确认的运行依赖风险：修改正式数据资源前必须先核对场景的 `ext_resource` 和运行时 `level_data.resource_path`，不得仅凭目录名称判断生效资源。
+
+这条 Dictionary 数据链跨越场景边界，键名目前没有编译期检查，是后续配置类型化的重点。以上内容是复战流程的架构基线；剧情台词仍以 `Level_fuzhan_sub01.gd` 和当前正式脚本为准。
 
 ## 4. 全局基础设施
 
@@ -126,7 +149,7 @@ flowchart TD
 | `SFXManager` | 音效播放、实例管理和防抖 |
 | `SceneTransitionManager` | 切场景、检查点重启和转场清理 |
 
-Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.1.5，项目目标引擎继续明确锁定为 Godot 4.6.2，不随上游版本自动迁移。MCP 的项目作用域、权限和协作规则以 `.codex/README.md` 为准。
+Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.1.5，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。MCP 的项目作用域、权限和协作规则以 `.codex/README.md` 为准。
 
 ### 4.1 运行模式
 
@@ -189,6 +212,8 @@ flowchart LR
 ### 5.4 地图数据
 
 Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行时脚本读取，再生成地图层、碰撞和关卡节点。地图源数据与运行时装配脚本必须同步维护；只替换图片而不更新碰撞数据，会产生视觉和物理边界不一致。
+
+项目不再包含 `AI资源库` 或 `addons/npc_library_tool`。现有 Pixelwork 运行时脚本仍保留对 `NpcLibraryRuntimeGate` 的可选探测；插件缺失时会发出提示并退回完整地图加载，不构成启动时的硬依赖。若后续清理生成代码，必须先验证所有相关地图的加载、碰撞与性能表现。
 
 ## 6. 关卡架构
 
@@ -348,7 +373,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 - 主要 GDScript 均可解析，未发现语法错误。
 - 标题页和主线主要场景均可实例化并完成 `_ready()`。
-- Godot 4.6.2 headless 启动主场景成功。
+- 本机 Godot 4.6 headless 启动主场景成功。
 - 项目目前没有自动化单元测试或持续集成基线。
 - GUI 编辑器审计记录 24 条既有 UID 警告：2 条 UID 重复、22 条无效 UID 回退，涉及备份、正式关卡、DataConfig 与 UI；这些警告不是 MCP 引入的。
 - 强制短时退出会出现资源仍在使用的退出日志，不等同于正常游玩崩溃。
@@ -356,7 +381,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 每轮结构性修改至少执行：
 
 1. `git diff --check`
-2. Godot 4.6.2 headless 主场景启动
+2. 本机 Godot 4.6 headless 主场景启动
 3. 受影响关卡独立实例化
 4. 正式主线相邻场景转场验证
 5. 涉及 shader、动画、音频时追加人工画面或试听检查

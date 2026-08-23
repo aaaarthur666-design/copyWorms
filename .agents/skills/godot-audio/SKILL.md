@@ -1,7 +1,7 @@
 ---
 name: godot-audio
 description: >
-  Play, route, mix, or synchronize audio in Godot 4.6.2 with AudioStreamPlayer
+  Play, route, mix, or synchronize audio in Godot 4.6 with AudioStreamPlayer
   variants, audio buses, AudioServer, effects, dB volume, or beat timing. Use for
   Godot audio implementation; do not use for external asset encoding or
   engine-agnostic music and sound design.
@@ -10,7 +10,7 @@ description: >
 # Godot Audio (4.x)
 
 Play SFX and music, route them through buses, control volume in decibels, and time
-gameplay to the beat. Targets **Godot 4.6.2**.
+gameplay to the beat. Targets **Godot 4.6**.
 
 ## When to use
 

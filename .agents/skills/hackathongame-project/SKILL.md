@@ -1,6 +1,6 @@
 ---
 name: hackathongame-project
-description: "Use for every task performed in the HackathonGame Godot 4.6.2 repository: load its mandatory project context, enforce the project version, classify authorization, trace impact, choose safe tools, and apply project-specific verification before analysis, configuration, testing, review, or edits. Do not use outside this repository."
+description: "Use for every task performed in the HackathonGame Godot 4.6 repository: load its mandatory project context, enforce the project version, classify authorization, trace impact, choose safe tools, and apply project-specific verification before analysis, configuration, testing, review, or edits. Do not use outside this repository."
 ---
 
 # HackathonGame Project Gate
@@ -21,10 +21,10 @@ Do not copy the architecture report into this Skill or create another architectu
 
 ## Enforce engine-version precedence
 
-- Treat `project.godot` and the root instructions as authoritative for the engine, scripting language, and renderer. This repository targets exactly Godot 4.6.2, GDScript, and GL Compatibility.
+- Treat `project.godot` and the root instructions as authoritative for the engine, scripting language, and renderer. This repository targets exactly Godot 4.6, GDScript, and GL Compatibility.
 - The repository target overrides version assumptions and examples in generic or third-party Skills. Never upgrade the project, switch renderers or languages, or apply newer-version behavior merely because another Skill suggests it.
-- Before using a version-sensitive API, property, command-line option, serialization form, import/export setting, or editor workflow, verify it against the Godot 4.6 documentation or the exact 4.6.2 runtime/class reference.
-- If guidance depends on a newer engine version, translate it to a verified 4.6.2-supported alternative. If compatibility cannot be verified, report the incompatibility and stop before applying that guidance; do not guess.
+- Before using a version-sensitive API, property, command-line option, serialization form, import/export setting, or editor workflow, verify it against the Godot 4.6 documentation or the exact 4.6 runtime/class reference.
+- If guidance depends on a newer engine version, translate it to a verified 4.6-supported alternative. If compatibility cannot be verified, report the incompatibility and stop before applying that guidance; do not guess.
 
 ## Route supporting Skills
 
@@ -52,7 +52,7 @@ After the mandatory sources, inspect only the evidence needed for the request:
 - Scene lifecycle or progression: `project.godot`, `UI/TitleScreen.tscn`, `UI/MainEntry.*`, the affected level scenes/scripts, `Global/SceneTransitionManager.gd`, and cleanup paths.
 - Global state, events, input, or audio: the relevant files under `Global/`, their subscribers/callers, and affected HUD or level consumers.
 - Player, enemy, or combat behavior: the applicable base class, concrete override, `DataConfig/` resources, spawning path, event consumers, and Boss overrides when lifecycle semantics are involved.
-- Level 02 memory/replay flow: also read `FUZHAN_WORK_MEMORY.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
+- Level 02 memory/replay flow: read section 3.2 of `TECHNICAL_ARCHITECTURE_REPORT.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
 - Pixelwork maps: inspect both source/generated map data and the matching runtime assembly or collision code.
 - UI, shader, animation, or audio: inspect the scene/resource chain and plan real visual or listening verification.
 - Skill or MCP work: inspect the relevant `SKILL.md`, `agents/openai.yaml`, `.codex/config.toml`, `.codex/README.md`, and upstream source/version. Do not touch game content during setup tests.
@@ -104,7 +104,7 @@ Always preserve the initial working-tree status, capture the final status with t
 
 - AGENTS, Skill, or documentation changes: validate structure/metadata where a validator exists; check discovery paths, references, placeholders, and working-tree scope.
 - MCP configuration: validate TOML and project scope, restart or start a new Codex task, confirm the expected server/tool allowlist for the active client, then perform read-only smoke tests. Report bundled operations and unsupported writes explicitly.
-- GDScript, scene, or Resource changes: use the exact Godot 4.6.2 executable for a headless main-scene start and affected-scene instantiation.
+- GDScript, scene, or Resource changes: use the exact Godot 4.6 executable for a headless main-scene start and affected-scene instantiation.
 - Lifecycle, transition, or global-state changes: also verify adjacent mainline transitions and cleanup of input, pause, dialogue, music, player, enemy, and temporary state.
 - Shader, animation, audio, and visual layout: add real graphics-backend or human visual/listening verification; headless checks are insufficient.
 

@@ -1,7 +1,7 @@
 ---
 name: godot-animation
 description: >
-  Create or debug Godot 4.6.2 AnimationPlayer clips, AnimationTree state machines
+  Create or debug Godot 4.6 AnimationPlayer clips, AnimationTree state machines
   and blend spaces, AnimatedSprite2D playback, or create_tween() sequences. Use for
   animation playback, blending, and tweens; use godot-2d-movement for movement logic,
   godot-ui-control for layout, and godot-shaders for shader-driven effects.
@@ -10,7 +10,7 @@ description: >
 # Godot Animation (4.x)
 
 Choose and drive the right animation tool: `AnimationPlayer` (clips), `AnimationTree`
-(blending/state machines), or `Tween` (short procedural moves). Targets **Godot 4.6.2**.
+(blending/state machines), or `Tween` (short procedural moves). Targets **Godot 4.6**.
 
 ## When to use
 

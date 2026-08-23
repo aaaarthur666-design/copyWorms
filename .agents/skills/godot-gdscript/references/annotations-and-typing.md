@@ -1,4 +1,4 @@
-# GDScript annotations & typing reference (Godot 4.6.2)
+# GDScript annotations & typing reference (Godot 4.6)
 
 Depth companion to `godot-gdscript`. All annotations start with `@` in GDScript 2.0.
 

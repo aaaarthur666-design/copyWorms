@@ -1,4 +1,4 @@
-# Scene tree & instancing reference (Godot 4.6.2)
+# Scene tree & instancing reference (Godot 4.6)
 
 Depth companion to `godot-nodes-scenes`.
 

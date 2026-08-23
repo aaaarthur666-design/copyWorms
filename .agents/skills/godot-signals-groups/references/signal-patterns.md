@@ -1,4 +1,4 @@
-# Signal & group patterns reference (Godot 4.6.2)
+# Signal & group patterns reference (Godot 4.6)
 
 Depth companion to `godot-signals-groups`.
 
