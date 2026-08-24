@@ -26,11 +26,9 @@ push.log
 
 # --- IDE / 编辑器 ---
 .idea/
-.cursor/*
-!.cursor/mcp.json
+.cursor/
 # `.agents/skills/` contains versioned Codex project Skills.
 # `.codex/` contains versioned, project-scoped Codex/MCP policy.
-# `.cursor/mcp.json` is the Cursor client for the same loopback Godot AI server.
 
 # --- 操作系统 ---
 .DS_Store
