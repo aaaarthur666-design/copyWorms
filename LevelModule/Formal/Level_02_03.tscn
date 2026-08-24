@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://j8i62qpowqd7"]
 
 [ext_resource type="PackedScene" path="res://LevelModule/Scenes/PixelworkMapStitch/Level_02_03/Level_02_03_20260617_121550_267.tscn" id="1_jimbm"]
-[ext_resource type="Script" uid="uid://cukgokydn1tgk" path="res://LevelModule/Formal/Level_02_03.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dqcuvwnmdxx08" path="res://LevelModule/Formal/Level_02_03.gd" id="1_script"]
 [ext_resource type="Resource" uid="uid://l3hmrf4ux81n" path="res://DataConfig/Level/Level02Config.tres" id="2_config"]
-[ext_resource type="Resource" uid="uid://b1s4igaiqss34" path="res://LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres" id="3_data"]
+[ext_resource type="Resource" uid="uid://b1s4igaiqss34" path="res://DataConfig/Level/Level02Data.tres" id="3_data"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(432, 40)

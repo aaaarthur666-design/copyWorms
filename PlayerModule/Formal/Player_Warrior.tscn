@@ -1,10 +1,10 @@
 [gd_scene load_steps=5 format=3 uid="uid://b06lawqhg7cto"]
 
-[ext_resource type="Script" uid="uid://bfy4rlef3jbmu" path="res://PlayerModule/Formal/Player_Warrior.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://bitr25djt0dcr" path="res://PlayerModule/Formal/Player_Warrior.gd" id="1_main"]
 [ext_resource type="Texture2D" uid="uid://wgwbobx7yh6b" path="res://Assets/Sprites/player Ani/人物行走.png" id="2_a8yrj"]
 [ext_resource type="Texture2D" uid="uid://mgire5x01hb" path="res://Assets/Sprites/player Ani/人物待机.png" id="2_d642x"]
 [ext_resource type="Texture2D" uid="uid://cojxg88gkwue3" path="res://Assets/Sprites/player Ani/人物跳跃.png" id="3_0oupe"]
-[ext_resource type="PackedScene" uid="uid://smooth_camera_player" path="res://PlayerModule/Formal/SmoothCamera.tscn" id="4_camera"]
+[ext_resource type="PackedScene" uid="uid://cu0knl4g3s2bk" path="res://PlayerModule/Formal/SmoothCamera.tscn" id="4_camera"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_lc2vh"]
 atlas = ExtResource("2_d642x")

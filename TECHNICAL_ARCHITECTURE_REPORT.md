@@ -32,7 +32,6 @@ project.godot
 ├─ Global/               全局状态、事件、输入、转场、音频
 ├─ LevelModule/
 │  ├─ Formal/            正式关卡、FSM、Builder、关卡数据
-│  ├─ Backup/            历史备份；不应成为正式运行依赖
 │  └─ Scenes/            Pixelwork 地图及运行时脚本
 ├─ PlayerModule/Formal/  玩家基类、三种角色形态、相机
 ├─ EnemyModule/Formal/   敌人基类、普通敌人、花旦 Boss
@@ -130,7 +129,7 @@ flowchart TD
 
 掉落会依据相机安全边距和区域配置再次夹取，并在加入 `DynamicActors` 后校验全局坐标。六种掉落按固定索引推进：月饼、虾饺、木棉、醒狮、烧卖、蒲葵扇；展示由 `DropItem` 与岭南掉落档案界面负责。
 
-当前 `Level_02_03.tscn` 的 `level_data` 仍实际绑定到 `LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres`。这是已确认的运行依赖风险：修改正式数据资源前必须先核对场景的 `ext_resource` 和运行时 `level_data.resource_path`，不得仅凭目录名称判断生效资源。
+`Level_02.tscn` 与 `Level_02_03.tscn` 的 `level_data` 均绑定到正式资源 `DataConfig/Level/Level02Data.tres`。该资源保留了迁移前实际运行的完整文本、数值与音频路径；原 `Level_02_CliffReality` 备份目录已在确认无其他引用后删除，正式流程不再依赖 `Backup/`。
 
 这条 Dictionary 数据链跨越场景边界，键名目前没有编译期检查，是后续配置类型化的重点。以上内容是复战流程的架构基线；剧情台词仍以 `Level_fuzhan_sub01.gd` 和当前正式脚本为准。
 
@@ -320,7 +319,6 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 | 问题 | 需要决定的事项 |
 |---|---|
 | 主线存在两种转场模型 | 统一由 `MainEntry` 托管，或明确从某关开始整树切换 |
-| `Backup/` 与正式配置存在 UID/路径耦合；当前编辑器审计记录 2 条 UID 重复和 22 条无效 UID 回退 | 先迁移正式引用，再隔离或移除备份资源，并逐项重新生成明确归属的 UID |
 | `dream_runtime_flags` 使用字符串 Dictionary | 是否改为强类型 Resource 或专用数据对象 |
 | 大型关卡脚本职责过多 | 确定按阶段、系统还是场景区域拆分 |
 
@@ -375,7 +373,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 - 标题页和主线主要场景均可实例化并完成 `_ready()`。
 - 本机 Godot 4.6 headless 启动主场景成功。
 - 项目目前没有自动化单元测试或持续集成基线。
-- GUI 编辑器审计记录 24 条既有 UID 警告：2 条 UID 重复、22 条无效 UID 回退，涉及备份、正式关卡、DataConfig 与 UI；这些警告不是 MCP 引入的。
+- Godot 4.6.3 全量 UID 审计未发现重复 UID、无效 UID 或 UID 与文本路径不一致；Level 02 数据已经迁入正式 `DataConfig`，原备份依赖已移除。
 - 强制短时退出会出现资源仍在使用的退出日志，不等同于正常游玩崩溃。
 
 每轮结构性修改至少执行：
@@ -391,8 +389,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 1. 先修复第 10.1 节的 P0 纯代码问题。
 2. 再处理 P1 的事件、输入、HUD 和跨平台路径问题。
 3. 决定并统一主线转场模型。
-4. 迁移正式场景对备份资源的引用，再治理 UID。
-5. 补齐缺失 UI 与音频资产。
-6. 为主线、伤害结算、转场清理和敌人注册建立最小自动化回归测试。
+4. 补齐缺失 UI 与音频资产。
+5. 为主线、伤害结算、转场清理和敌人注册建立最小自动化回归测试。
 
 这份文件是仓库唯一架构文档。架构、主线流程、全局契约或风险状态发生变化时，应直接更新本文件，避免再创建并行版本。

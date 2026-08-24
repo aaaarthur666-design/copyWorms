@@ -1,4 +1,4 @@
-[gd_scene load_steps=46 format=3 uid="uid://enemy_cyberwolf"]
+[gd_scene load_steps=46 format=3 uid="uid://b127urir8qs12"]
 
 [ext_resource type="Texture2D" path="res://Assets/Sprites/monster_cyber1/赛博怪物1待机.png" id="tex_idle"]
 [ext_resource type="Texture2D" path="res://Assets/Sprites/monster_cyber1/赛博怪物1行走.png" id="tex_walk"]

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dpjni6cwuqn61"]
 
-[ext_resource type="Script" uid="uid://cckkn406jib0s" path="res://LevelModule/Formal/Level_02_01.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bbapojhvantbu" path="res://LevelModule/Formal/Level_02_01.gd" id="1_script"]
 [ext_resource type="Resource" uid="uid://l3hmrf4ux81n" path="res://DataConfig/Level/Level02Config.tres" id="2_config"]
 [ext_resource type="PackedScene" path="res://LevelModule/Scenes/PixelworkMapStitch/Level_02_01/2D__2026-06-14T08-50-38-613Z_20260616_161150_777.tscn" id="3_map"]
 

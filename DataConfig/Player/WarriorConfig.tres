@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="PlayerConfig" load_steps=2 format=3 uid="uid://player_config_default"]
+[gd_resource type="Resource" script_class="PlayerConfig" load_steps=2 format=3 uid="uid://d2kiu3d02exdw"]
 
 [ext_resource type="Script" path="res://DataConfig/Player/PlayerConfig.gd" id="1_main"]
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://smooth_camera_player"]
+[gd_scene load_steps=2 format=3 uid="uid://cu0knl4g3s2bk"]
 
 [ext_resource type="Script" path="res://PlayerModule/Formal/SmoothCamera.gd" id="1_script"]
 

@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://cs62g6kqle635"]
 
 [ext_resource type="Texture2D" uid="uid://c5tnk83ddbsy7" path="res://LevelModule/Scenes/Level_02_02.png" id="1_efy5v"]
-[ext_resource type="Script" uid="uid://iao51uak3w3" path="res://LevelModule/Formal/Level_02_02.gd" id="2_script"]
+[ext_resource type="Script" uid="uid://cchdlxggjiy53" path="res://LevelModule/Formal/Level_02_02.gd" id="2_script"]
 [ext_resource type="Resource" uid="uid://l3hmrf4ux81n" path="res://DataConfig/Level/Level02Config.tres" id="3_config"]
-[ext_resource type="Script" uid="uid://bwdmt74rhc8ng" path="res://LevelModule/Formal/Ladder.gd" id="4_ladder"]
+[ext_resource type="Script" uid="uid://dn1w0dycye66l" path="res://LevelModule/Formal/Ladder.gd" id="4_ladder"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_left_boundary"]
 size = Vector2(44.6149, 1473.732)

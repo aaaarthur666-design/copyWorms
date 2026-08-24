@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://bwehpx1c7lmui"]
 
-[ext_resource type="Script" uid="uid://x6qi4w6dw0fd" path="res://UI/TitleScreen.gd" id="1_main"]
-[ext_resource type="Texture2D" uid="uid://cud86unx14kx0" path="res://Assets/menu bg.png" id="2_bg"]
+[ext_resource type="Script" uid="uid://46age76wsbif" path="res://UI/TitleScreen.gd" id="1_main"]
+[ext_resource type="Texture2D" uid="uid://dvicmvd3b4frl" path="res://Assets/menu bg.png" id="2_bg"]
 [ext_resource type="FontFile" uid="uid://clodsi6wikjia" path="res://Assets/Fonts/像素Silver/像素Silver.ttf" id="3_font_main"]
-[ext_resource type="Texture2D" uid="uid://0p3xcm7c836i" path="res://Assets/UI/btn.png" id="5_btn"]
+[ext_resource type="Texture2D" uid="uid://3dyhmdfn6jib" path="res://Assets/UI/btn.png" id="5_btn"]
 
 [node name="TitleScreen" type="Control" unique_id=2533512]
 layout_mode = 3

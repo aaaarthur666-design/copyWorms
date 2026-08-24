@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://sword_energy"]
+[gd_scene format=3 uid="uid://dcynf5dkspp4d"]
 
 [ext_resource type="Script" path="res://EnemyModule/Formal/SwordEnergy.gd" id="scr"]
 [ext_resource type="Texture2D" path="res://Assets/Effects/剑气.png" id="tex"]
