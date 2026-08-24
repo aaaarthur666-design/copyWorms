@@ -1,7 +1,7 @@
 ---
 name: godot-physics
 description: >
-  Configure or debug Godot 4.6.2 2D/3D physics bodies, collision layers and masks,
+  Configure or debug Godot 4.6 2D/3D physics bodies, collision layers and masks,
   Area overlap signals, RigidBody forces, RayCast nodes, or direct space-state
   queries. Use for collision, detection, and forces; use godot-2d-movement for
   CharacterBody2D move_and_slide() controllers. Map authoring is out of scope.
@@ -11,7 +11,7 @@ description: >
 
 Pick the right physics body, wire up collision layers/masks, detect overlaps, and cast
 rays. Concepts apply to both 2D and 3D (swap the `2D`/`3D` suffix). Targets
-**Godot 4.6.2**.
+**Godot 4.6**.
 
 ## When to use
 

@@ -1,6 +1,6 @@
 # 织梦者（Dreamweaver）
 
-> HackathonGame · Godot 4.6.2 · 2D 横版动作叙事游戏
+> HackathonGame · Godot 4.6 · 2D 横版动作叙事游戏
 > 岭南文化 × 赛博未来 × 梦境撕裂
 
 ## 游戏简介
@@ -20,7 +20,7 @@
 
 | 项目 | 当前基线 |
 |---|---|
-| 引擎 | Godot 4.6.2 |
+| 引擎 | Godot 4.6 |
 | 渲染器 | GL Compatibility |
 | 脚本语言 | GDScript |
 | 基准视口 | 1280×720，`canvas_items` 拉伸 |
@@ -70,7 +70,7 @@ HackathonGame/
 
 仓库内的 Agent 工作必须先遵守 [AGENTS.md](AGENTS.md)，并在每个任务中首先使用项目专用入口：
 
-- `hackathongame-project`：加载项目上下文、锁定 Godot 4.6.2、判断授权边界并选择验证方式。
+- `hackathongame-project`：加载项目上下文、锁定 Godot 4.6 分支、判断授权边界并选择验证方式。
 
 当前随仓库保留 11 个 Godot 专项 Skill：
 
@@ -87,12 +87,12 @@ MCP 工具可见不代表自动获得正式内容修改权限。任何正式写�
 
 ## 本地开发
 
-1. 安装 Godot 4.6.2 标准版。
+1. 安装 Godot 4.6 标准版。
 2. 使用 Godot 编辑器导入或打开仓库根目录。
 3. 确认渲染器为 GL Compatibility。
 4. 从 `project.godot` 配置的标题场景启动项目。
 
-涉及 GDScript、场景或 Resource 的修改，应使用准确的 Godot 4.6.2 执行 headless 主场景与受影响场景验证。Shader、动画、音频和视觉布局还需要真实图形环境或人工画面/试听检查。
+涉及 GDScript、场景或 Resource 的修改，应使用当前本机 Godot 4.6 执行 headless 主场景与受影响场景验证。Shader、动画、音频和视觉布局还需要真实图形环境或人工画面/试听检查。
 
 ## 文档入口
 
@@ -107,4 +107,4 @@ README 只用于项目介绍和开发入口；实现与架构判断以当前代�
 
 本项目仅供学习与竞赛用途。
 
-Made with Godot 4.6.2
+Made with Godot 4.6

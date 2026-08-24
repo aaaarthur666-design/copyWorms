@@ -1,7 +1,7 @@
 ---
 name: godot-shaders
 description: >
-  Write or port Godot 4.6.2 .gdshader and ShaderMaterial code for canvas_item or
+  Write or port Godot 4.6 .gdshader and ShaderMaterial code for canvas_item or
   spatial effects, uniforms, TIME/UV animation, or screen textures. Use for Godot
   shader code; do not use for non-shader VFX, general 3D scene setup, or
   engine-agnostic shading theory.
@@ -10,7 +10,7 @@ description: >
 # Godot Shaders (4.x)
 
 Write `canvas_item` (2D) and `spatial` (3D) shaders in the Godot Shading Language, animate
-with `TIME`/`UV`, expose `uniform`s, and read the screen. Targets **Godot 4.6.2**.
+with `TIME`/`UV`, expose `uniform`s, and read the screen. Targets **Godot 4.6**.
 
 ## When to use
 

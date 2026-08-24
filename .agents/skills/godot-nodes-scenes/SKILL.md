@@ -1,7 +1,7 @@
 ---
 name: godot-nodes-scenes
 description: >
-  Structure or debug Godot 4.6.2 scene trees, reusable .tscn scenes,
+  Structure or debug Godot 4.6 scene trees, reusable .tscn scenes,
   PackedScene.instantiate(), NodePath access, node lifetime, or Autoload registration.
   Use for composition, instancing, and tree errors; use godot-gdscript for language
   syntax, godot-signals-groups for event architecture, and domain Skills for behavior.
@@ -10,7 +10,7 @@ description: >
 # Godot Nodes & Scenes (4.x)
 
 Compose games from nodes and scenes, instance them at runtime, and access the tree
-without crashing on freed or missing nodes. Targets **Godot 4.6.2**.
+without crashing on freed or missing nodes. Targets **Godot 4.6**.
 
 ## When to use
 

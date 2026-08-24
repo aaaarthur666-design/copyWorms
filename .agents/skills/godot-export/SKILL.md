@@ -1,7 +1,7 @@
 ---
 name: godot-export
 description: >
-  Configure or troubleshoot Godot 4.6.2 exports with matching export templates,
+  Configure or troubleshoot Godot 4.6 exports with matching export templates,
   export_presets.cfg, headless CLI or CI builds, Web headers, mobile signing, or
   dedicated-server builds. Use for producing builds; server networking code,
   storefront publishing, and upload workflows are out of scope.
@@ -10,7 +10,7 @@ description: >
 # Godot Export & Builds (4.x)
 
 Turn a project into runnable platform builds via export presets and the command line, and
-handle the web/dedicated-server gotchas. Targets **Godot 4.6.2**.
+handle the web/dedicated-server gotchas. Targets **Godot 4.6**.
 
 ## When to use
 

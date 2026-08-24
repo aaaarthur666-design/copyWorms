@@ -1,7 +1,7 @@
 ---
 name: godot-2d-movement
 description: >
-  Implement or debug Godot 4.6.2 CharacterBody2D movement using velocity,
+  Implement or debug Godot 4.6 CharacterBody2D movement using velocity,
   move_and_slide(), floor/wall checks, gravity, jump, slopes, or top-down motion.
   Use for 2D kinematic controllers; use godot-physics instead for RigidBody, Area,
   raycast, or layer/mask work. Map authoring is outside this Skill's scope.
@@ -10,7 +10,7 @@ description: >
 # Godot 2D Movement (4.x)
 
 Build responsive 2D character controllers with `CharacterBody2D` and the argument-less
-`move_and_slide()`. Targets **Godot 4.6.2**.
+`move_and_slide()`. Targets **Godot 4.6**.
 
 ## When to use
 

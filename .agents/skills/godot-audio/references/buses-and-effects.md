@@ -1,4 +1,4 @@
-# Audio buses & effects reference (Godot 4.6.2)
+# Audio buses & effects reference (Godot 4.6)
 
 Depth companion to `godot-audio`.
 

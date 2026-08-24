@@ -1,7 +1,7 @@
 ---
 name: godot-signals-groups
 description: >
-  Design or debug Godot 4.6.2 node communication with custom signals, Callable
+  Design or debug Godot 4.6 node communication with custom signals, Callable
   connections, bind or one-shot flags, groups, call_group(), or an Autoload event bus.
   Use for event architecture and broadcasts; use godot-gdscript for isolated signal
   syntax and godot-nodes-scenes for scene composition or Autoload registration.
@@ -10,7 +10,7 @@ description: >
 # Godot Signals & Groups (4.x)
 
 Decouple nodes with the observer pattern (signals) and act on many nodes at once
-(groups), instead of hard-coding references between scenes. Targets **Godot 4.6.2**.
+(groups), instead of hard-coding references between scenes. Targets **Godot 4.6**.
 
 ## When to use
 

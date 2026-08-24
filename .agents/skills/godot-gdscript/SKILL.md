@@ -1,7 +1,7 @@
 ---
 name: godot-gdscript
 description: >
-  Write, review, or debug Godot 4.6.2 .gd code using static typing, lifecycle
+  Write, review, or debug Godot 4.6 .gd code using static typing, lifecycle
   callbacks, annotations, signals, or await, including Godot 3-to-4 syntax migration.
   Use for GDScript language issues; use godot-nodes-scenes for scene composition
   and godot-signals-groups for event architecture. Non-GDScript language work is
@@ -11,7 +11,7 @@ description: >
 # Godot GDScript (4.x)
 
 Write correct, statically typed GDScript and use the node lifecycle and signal
-system the way the engine intends. Targets **Godot 4.6.2** (GDScript 2.0).
+system the way the engine intends. Targets **Godot 4.6** (GDScript 2.0).
 
 ## When to use
 

@@ -1,7 +1,7 @@
 ---
 name: godot-resources
 description: >
-  Model, load, duplicate, or save Godot 4.6.2 Resource data with custom Resource
+  Model, load, duplicate, or save Godot 4.6 Resource data with custom Resource
   classes, .tres/.res files, ResourceLoader, ResourceSaver, or threaded loading.
   Use for data assets and configs; use godot-nodes-scenes for live node composition.
   Runtime save-game design and non-GDScript Resource authoring are out of scope.
@@ -10,7 +10,7 @@ description: >
 # Godot Resources (4.x)
 
 Model game data as reusable, Inspector-editable `Resource` objects instead of hard-coded
-values, and load/save them as `.tres`/`.res`. Targets **Godot 4.6.2**.
+values, and load/save them as `.tres`/`.res`. Targets **Godot 4.6**.
 
 ## When to use
 
