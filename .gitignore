@@ -31,7 +31,9 @@ push.log
 .idea/
 .cursor/
 # `.agents/skills/` contains versioned Codex project Skills.
-# `.codex/README.md` and `.codex/config.toml` are versioned project policy.
+# `.codex/README.md` and `.codex/config.example.toml` are versioned.
+# The active MCP endpoint configuration is local to each checkout.
+/.codex/config.toml
 
 # --- 操作系统 ---
 .DS_Store

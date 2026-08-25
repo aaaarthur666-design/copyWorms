@@ -2,19 +2,20 @@
 
 ## 作用域
 
-仓库根目录的 `.codex/config.toml` 是版本化的团队配置；其他电脑通过 Git 同步后可直接使用，不需要从模板复制。配置只在当前仓库被信任并作为当前项目使用时加载。不要为了本项目把 `godot-ai` 条目复制到用户级 `~/.codex/config.toml`，否则该条目可能在其他项目中也可见。
+仓库根目录的 `.codex/config.example.toml` 是版本化的团队基线；每个检出目录把它复制为 `.codex/config.toml` 后使用。活动配置只在当前仓库被信任并作为当前项目使用时加载，且已被 Git 忽略。不要为了本项目把 `godot-ai` 条目复制到用户级 `~/.codex/config.toml`，否则该条目可能在其他项目中也可见。
 
-同一检出目录中的桌面端 Codex、Codex CLI 和 Codex IDE 扩展会读取 `.codex/config.toml`；不同检出目录通过 Git 同步这份团队配置。ChatGPT 网页端不读取本地配置，其他 MCP 客户端也不继承 Codex 的工具白名单，必须分别配置权限。
+同一检出目录中的桌面端 Codex、Codex CLI 和 Codex IDE 扩展会读取本地 `.codex/config.toml`；不同检出目录不会由 Git 自动同步活动配置。ChatGPT 网页端不读取本地配置，其他 MCP 客户端也不继承 Codex 的工具白名单，必须分别配置权限。
 
 项目作用域只限制 Codex 自动加载这份配置，不等于给正在运行的 MCP 服务建立项目沙箱。若另一个本地客户端被手工指向同一回环端口，或同一服务出现多个 Godot 编辑器会话，它仍可能看到该服务。任何写入前都要读取 `editor_state`、`godot://sessions` 与 `godot://project/info`，核对 `project_name = HackathonGame`、当前场景与项目路径，并显式激活正确会话；不得仅凭端口号或“最近打开”推断目标项目。
 
-本文件和 `.codex/config.toml` 不保存密钥或机器专属路径，应与项目一起纳入 Git。密钥、令牌和个人客户端凭据只能保存在环境变量、系统凭据存储或用户级配置中。
+本文件和 `.codex/config.example.toml` 不保存密钥，应与项目一起纳入 Git；活动的 `.codex/config.toml` 保持本机忽略。密钥、令牌和个人客户端凭据只能保存在环境变量、系统凭据存储或用户级配置中。
 
 官方依据：<https://learn.chatgpt.com/docs/extend/mcp?surface=cli>
 
 ## 组成与版本
 
-- `.codex/config.toml`：版本化的团队连接、工具白名单和审批策略。
+- `.codex/config.example.toml`：版本化的团队连接、工具白名单和审批策略模板。
+- `.codex/config.toml`：从模板复制得到的本机活动配置；被 Git 忽略。
 - `addons/godot_ai/`：随项目版本化的 Godot AI 编辑器插件。
 - `project.godot`：启用插件，并注册仅供编辑器联动使用的 `_mcp_game_helper`。
 - `AGENTS.md` 与 `.agents/skills/hackathongame-project/SKILL.md`：任务授权、正式场景保护和验证规则。
@@ -23,7 +24,7 @@
 
 本项目目标引擎锁定为 Godot 4.6 与 GL Compatibility，不锁定补丁版本；本机继续使用当前已安装的 4.6 补丁版本。不能把“更新到最新”解释为自动升级到其他次版本；后续引擎迁移需要单独授权，并重新验证 API、导入结果、正式主线、视觉效果和导出。
 
-插件升级必须作为一次受审查的项目基础设施修改完成：同步替换 `addons/godot_ai/`、核对许可证和上游版本、重新审计 `.codex/config.toml` 的工具列表、确认插件与服务器版本一致，并验证导出时仍会移除 `_mcp_game_helper`。不要把个人编辑器中的一键自更新当作团队升级流程。
+插件升级必须作为一次受审查的项目基础设施修改完成：同步替换 `addons/godot_ai/`、核对许可证和上游版本、重新审计 `.codex/config.example.toml` 的工具列表并同步本机活动配置、确认插件与服务器版本一致，并验证导出时仍会移除 `_mcp_game_helper`。不要把个人编辑器中的一键自更新当作团队升级流程。
 
 ## 跨电脑部署基线
 
@@ -41,7 +42,7 @@ macOS、Windows 与 Linux 的 `uvx` 路径由插件在本机发现，不写入�
 
 ## 权限边界
 
-- `.codex/config.toml` 中的 `enabled_tools` 是团队白名单基线；需要机器专属差异时应通过不入库的客户端设置处理，不要把绝对路径、密钥或个人凭据写入该文件。
+- `.codex/config.example.toml` 中的 `enabled_tools` 是团队白名单基线；本机 `.codex/config.toml` 应与模板保持一致，除非当前任务明确记录了本机差异。
 - `default_tools_approval_mode = "writes"` 表示非只读工具仍需审批；工具可见不等于当前任务获得修改授权。
 - MCP 权限按工具控制，不按目录控制。服务端不会自动区分 `Formal/`、`Backup/` 和测试目录，正式内容仍受 `AGENTS.md`、Project Skill 和当前任务范围约束。
 - Godot AI 服务可以向其他本地客户端公布比 Codex 白名单更大的工具面。每个非 Codex 客户端都要建立等价的显式白名单；Godot AI 的域排除只能作为补充防线，不能替代客户端白名单。
@@ -71,7 +72,7 @@ MCP 写入测试必须位于与正式场景链无依赖关系的隔离路径。�
 2. 编辑器版本属于 Godot 4.6 分支，插件与服务器版本一致。
 3. 服务只监听 `127.0.0.1`，没有远程主机放行。
 4. 编辑器状态和会话列表只指向 HackathonGame；多会话时已经显式激活正确会话。
-5. Codex 实际工具集合与版本化的 `.codex/config.toml` 一致，没有额外工具。
+5. Codex 实际工具集合与本机 `.codex/config.toml` 一致，且活动配置与 `.codex/config.example.toml` 没有未说明的差异。
 6. 写入审批仍为 `writes`，并通过只读状态、场景树和日志检查。
 7. 已如实报告 `node_manage` 的打包操作、TileSet 只读限制和 `custom_manage` 的默认禁用状态。
 8. `addons/godot_ai/` 与官方发布包一致，且该目录没有遗漏的未跟踪升级文件。
