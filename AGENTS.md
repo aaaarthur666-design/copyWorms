@@ -23,7 +23,7 @@
 
 ## MCP 协作与能力边界
 
-- `.codex/config.toml` 是只对当前受信任仓库生效的项目级配置，应与 `addons/godot_ai/`、`project.godot` 和 `.gitignore` 一起纳入版本控制。不得为了本项目把 `godot-ai` 写入用户级 `~/.codex/config.toml`；详细协作说明见 `.codex/README.md`。
+- `.codex/config.example.toml` 是纳入版本控制的团队 MCP 配置基线；每个检出目录将其复制为被 Git 忽略的 `.codex/config.toml` 后使用。活动配置只对当前受信任仓库生效，不得为了本项目把 `godot-ai` 写入用户级 `~/.codex/config.toml`；详细协作说明见 `.codex/README.md`。
 - Codex 的 `enabled_tools` 是客户端白名单，不是 Godot AI 服务端的全局权限。其他 Agent/MCP 客户端不会自动继承，必须分别配置等价白名单；不得因服务只监听回环地址就假定所有本地客户端权限相同。
 - 项目级配置只限制 Codex 自动加载，不是运行中 MCP 服务的项目沙箱。其他本地客户端或 Godot 编辑器会话可能复用同一端口；任何写入前必须从编辑器状态和会话列表核对 `HackathonGame`、项目路径与当前场景，并显式激活正确会话。
 - MCP 工具授权按工具而非目录生效，不能自动保护 `Formal/` 或阻止访问 `Backup/`。正式内容保护仍以本文件、Project Skill、当前任务授权和写入审批为准。
