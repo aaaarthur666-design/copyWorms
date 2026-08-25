@@ -1,4 +1,4 @@
-[gd_scene load_steps=46 format=3 uid="uid://enemy_cyberbull"]
+[gd_scene load_steps=46 format=3 uid="uid://x48hnxmtphse"]
 
 [ext_resource type="Texture2D" path="res://Assets/Sprites/monster_cyber2/赛博怪物2待机.png" id="tex_idle"]
 [ext_resource type="Texture2D" path="res://Assets/Sprites/monster_cyber2/赛博怪物2行走.png" id="tex_walk"]

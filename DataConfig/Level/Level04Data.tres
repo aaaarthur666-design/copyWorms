@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Level04Data" load_steps=2 format=3 uid="uid://level04_data"]
+[gd_resource type="Resource" script_class="Level04Data" load_steps=2 format=3 uid="uid://dpvbirpwl0t3p"]
 
 [ext_resource type="Script" path="res://DataConfig/Level/Level04Data.gd" id="1_script"]
 

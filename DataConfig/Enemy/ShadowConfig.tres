@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3 uid="uid://shadow_enemy_config"]
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3 uid="uid://kds752mk1vl3"]
 
 [ext_resource type="Script" path="res://DataConfig/Enemy/EnemyConfig.gd" id="1_main"]
 

@@ -26,6 +26,7 @@ push.log
 
 # --- IDE / 编辑器 ---
 .idea/
+.cursor/
 # `.agents/skills/` contains versioned Codex project Skills.
 # `.codex/` contains versioned, project-scoped Codex/MCP policy.
 

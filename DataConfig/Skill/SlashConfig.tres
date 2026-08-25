@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SkillConfig" load_steps=2 format=3 uid="uid://skill_slash_config"]
+[gd_resource type="Resource" script_class="SkillConfig" load_steps=2 format=3 uid="uid://b8kp5dw0r2l8"]
 
 [ext_resource type="Script" path="res://DataConfig/Skill/SkillConfig.gd" id="1_main"]
 

@@ -2,9 +2,9 @@
 
 [ext_resource type="Script" uid="uid://dcg37hnjxpjqx" path="res://LevelModule/Formal/Level_02.gd" id="1_script"]
 [ext_resource type="Resource" uid="uid://l3hmrf4ux81n" path="res://DataConfig/Level/Level02Config.tres" id="2_config"]
-[ext_resource type="Resource" uid="uid://b1s4igaiqss34" path="res://LevelModule/Backup/Level_02_CliffReality/snapshots/Level02Data.tres" id="3_data"]
+[ext_resource type="Resource" uid="uid://b1s4igaiqss34" path="res://DataConfig/Level/Level02Data.tres" id="3_data"]
 [ext_resource type="PackedScene" path="res://LevelModule/Scenes/PixelworkMapStitch/Level 2/2D__2026-06-14T09-34-36-404Z_20260616_150503_986.tscn" id="4_2inj4"]
-[ext_resource type="Script" uid="uid://b8ncuf7p5o5rh" path="res://LevelModule/Formal/InteractiveObject.gd" id="5_interactive"]
+[ext_resource type="Script" uid="uid://btk2x8ndpffig" path="res://LevelModule/Formal/InteractiveObject.gd" id="5_interactive"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_attic_floor"]
 size = Vector2(424, 40)

@@ -1,45 +1,37 @@
 [gd_resource type="Resource" script_class="Level02Data" format=3 uid="uid://b1s4igaiqss34"]
 
-[ext_resource type="Script" uid="uid://do7isgrde1lu5" path="res://DataConfig/Level/Level02Data.gd" id="1_data"]
+[ext_resource type="Script" uid="uid://du6kw5s1xuwy" path="res://DataConfig/Level/Level02Data.gd" id="1_data"]
 
 [resource]
 script = ExtResource("1_data")
-attic_intro_text = "暖洋洋的光透过满洲窗，落在阁楼的木地板上。
-这里的一砖一瓦，都像从记忆里被擦亮过。
-我知道这是假的。
-可它太像真的了。
-像到我差点以为，爷爷还在楼下等我。"
-window_text_l2 = "五彩的满洲窗。
-夕阳穿过红、黄、蓝、绿的玻璃，落在墙上。
-小时候我总觉得，那些光像一座小小的城市。
+attic_intro_text = "暖洋洋的光透过满洲窗洒进阁楼，空气里有淡淡的凉茶药香。
 
-现在，现实里的这扇窗也许已经被拆下来了。
-至少在这里，它还在。"
-attic_door_text = "门外像隔着一层透明的膜。
-不是锁。
-更像这个梦还没学会如何通向更远的地方。
-如果碰它，会发生什么？"
-rattan_chair_monologue = "爷爷以前总坐在这张藤椅上。
-一边摇蒲扇，一边看街坊经过。
-椅子还在轻轻晃。
-好像他刚刚起身去煲凉茶。
-可风声太规律了。
-规律得不像风。"
+这里是……爷爷家的阁楼？我回来了？
+
+不对……这是 CodeBuddy 为我编译的西关梦境。这里的一土一寸，一砖一瓦，都还保留着我和爷爷的记忆。"
+window_text_l2 = "五彩的满洲窗。夕阳透过红黄蓝绿的玻璃，在地板上拼出一块块温暖的光斑。
+
+小时候我总爱趴在这扇窗前看楼下的老街。爷爷会在楼下喊：『阿明，落嚟饮糖水啦——』
+
+……窗外的老街还在。至少在这里，它还在。"
+attic_door_text = "吱呀作响的木趟栊门。推开它，就是记忆里的西关梦境。"
+rattan_chair_monologue = "爷爷每天都来的杂货店。
+
+每天黄昏，爷爷就坐在这里摇着葵扇，给街坊们讲古。我蹲在旁边数着石板路上的蚂蚁。
+
+藤椅还在轻轻摇晃，好像他刚刚才离开。"
 street_enemy_spawn_points = Array[Vector2]([Vector2(735, 540), Vector2(1315, 540), Vector2(2093, 540), Vector2(3219, 540), Vector2(3877, 540)])
 cliff_first_sight_text = "老街在这里断裂了。
-麻石路像被什么东西硬生生撕开。
-对岸，就是凉茶铺的方向。
-这道裂缝……跳不过去。
-但我必须过去。"
+
+对岸是爷爷的凉茶铺，炉火还亮着，一个熟悉的剪影在柜台后忙碌着。
+
+『爷爷——！』我喊出声，可声音掉进了深渊里。这道裂缝……"
 cliff_safe_spawn = Vector2(2240, 576)
 dream_phone_echo_text = "阿明，医生说你爷爷在今天凌晨走了……
 
-不。
-不要在这里出现。
-这是我的梦。
-这里的爷爷还在。
+不——不要在这里出现！这是我的梦，这里的爷爷还在！
 
-为什么连梦里都不肯放过我？"
+为什么连梦里都不放过我！"
 wake_up_monologue = "……又是这个天花板。
 梦里的裂缝、黑影，还有那条短信。
 
@@ -68,6 +60,7 @@ reality_phone_content = "阿明，明天就是你爷爷的头七了。
 不用急着说什么。
 回来就好。"
 reality_phone_monologue = "……连最后一面都没见到。
+
 可我记得爷爷。
 记得凉茶铺的味道，记得老街的声音。
 也记得小时候那些舍不得丢的小东西。
@@ -121,16 +114,12 @@ Target Area 01: level_fuzhan_01
 Required Memory Fragments: 3 / 3
 Preparing Local Dream Viewport…"])
 config_item_ids = Array[String](["player_damage_reduction", "base_jump_height", "allow_external_signal"])
-config_item_labels = Array[String](["Player_Damage_Reduction（玩家伤害减免）", "Base_Jump_Height（跳跃能力增强）", "Allow_External_Signal（外部信号注入许可）"])
+config_item_labels = Array[String](["Player_Damage_Reduction  （玩家伤害减免）", "Base_Jump_Height  （跳跃能力增强）", "Allow_External_Signal  （外部信号注入许可）"])
 config_initial_values = Array[String](["false", "10", "true"])
 config_target_values = Array[String](["true", "99", "false"])
 config_initial_display = Array[String](["false", "关", "true"])
 config_target_display = Array[String](["true", "开", "false"])
-config_success_feedbacks = Array[String](["// 黑影的爪牙再也伤不到我。
-// 至少在这里，我不想再失败。", "// 增强跳跃能力。
-// 那道裂缝，我跳得过去了。", "// 把现实关在门外。
-// 这个梦，只属于我和爷爷。
-// 也许这样，就不会再痛了。"])
+config_success_feedbacks = Array[String](["// 黑影的爪牙再也伤不到我。", "// 增强跳跃能力——那道裂缝，我跳得过去了。", "// 把现实关在门外。这个梦，只属于我和爷爷。"])
 recompilation_lines = Array[String](["[SYSTEM] Recompiling project: Xiguan_Dream …", "[BUILD] Loading 西关历史地貌数据集 … OK", "[BUILD] Loading recovered childhood memories: 6 / 6 … OK", "[BUILD] Stabilizing core area: 凉茶铺 … OK", "[BUILD] Patching player_module: damage_reduction = true … OK", "[BUILD] Patching physics_module: base_jump_height = 99 … OK", "[BUILD] Sealing external signal gateway … OK", "[BUILD] Rebuilding 凉茶铺 / 石板路 / 满洲窗 … OK", "[WARN] 检测到记忆偏差风险：+47%。已忽略。", "[SYSTEM] Compilation successful. Dream version: 2.0"])
 compile_success_text = "编译完成。
 『西关梦境 2.0』已生成。
