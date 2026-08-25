@@ -1,7 +1,6 @@
 # Project-scoped policy: Codex loads this only for this trusted repository.
 # Keep Godot AI loopback-only and expose only the approved Godot-aware domains.
 # Do not copy this entry into the user-level ~/.codex/config.toml. Writes still prompt.
-sandbox_mode = "workspace-write"
 [mcp_servers."godot-ai"]
 url = "http://127.0.0.1:8000/mcp"
 enabled = true
@@ -36,5 +35,3 @@ enabled_tools = [
   "tileset_manage",
 ]
 
-[sandbox_workspace_write]
-network_access = true
