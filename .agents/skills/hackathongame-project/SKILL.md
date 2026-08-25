@@ -55,7 +55,7 @@ After the mandatory sources, inspect only the evidence needed for the request:
 - Level 02 memory/replay flow: read section 3.2 of `TECHNICAL_ARCHITECTURE_REPORT.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
 - Pixelwork maps: inspect both source/generated map data and the matching runtime assembly or collision code.
 - UI, shader, animation, or audio: inspect the scene/resource chain and plan real visual or listening verification.
-- Skill or MCP work: inspect the relevant `SKILL.md`, `agents/openai.yaml`, `.codex/config.example.toml`, local `.codex/config.toml`, `.codex/README.md`, and upstream source/version. Do not touch game content during setup tests.
+- Skill or MCP work: inspect the relevant `SKILL.md`, `agents/openai.yaml`, `.codex/config.toml`, `.codex/README.md`, and upstream source/version. Do not touch game content during setup tests.
 
 Use `README.md` for product identity only, not as proof of current implementation.
 
@@ -80,7 +80,7 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Do not hand-edit `.godot/`, import caches, `.import` files, or unclear UIDs.
 - Review the source, version, scripts, and declared dependencies before installing a third-party Skill, plugin, MCP server, or package.
 - Keep project MCP connections loopback-only and project-scoped when practical. Never store secrets in the repository.
-- Treat `.codex/config.example.toml` and `.codex/README.md` as this repository's shared project policy. The active `.codex/config.toml` is local and Git-ignored; compare it with the template before MCP use. Do not add the project server to a user-level Codex config unless the user explicitly requests a cross-project setup.
+- Treat `.codex/config.toml` and `.codex/README.md` as this repository's versioned shared project policy. Keep the config free of secrets and machine-specific paths. Do not add the project server to a user-level Codex config unless the user explicitly requests a cross-project setup.
 - Treat MCP allowlists as client-specific and tool-based, not as a server-wide or path-based sandbox. Confirm each active client has the intended allowlist, and continue to enforce protected paths and current-task authorization independently.
 - Treat project-scoped loading as a Codex client boundary, not server-side project isolation. Before every MCP write, confirm the editor state and session list identify HackathonGame, its project path, and the intended current scene; explicitly activate the correct session when more than one exists.
 - Under Godot AI 3.2.0, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support. Keep the new `custom_manage` outside the Codex allowlist until this repository contains reviewed, registered custom tools.
