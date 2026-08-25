@@ -1,4 +1,5 @@
-# Project-scoped policy: Codex loads this only for this trusted repository.
+# Project-scoped policy template. Copy this file to `.codex/config.toml`
+# after cloning the repository; the active config is intentionally ignored.
 # Keep Godot AI loopback-only and expose only the approved Godot-aware domains.
 # Do not copy this entry into the user-level ~/.codex/config.toml. Writes still prompt.
 [mcp_servers."godot-ai"]
@@ -34,4 +35,3 @@ enabled_tools = [
   "tilemap_manage",
   "tileset_manage",
 ]
-

@@ -27,7 +27,7 @@
 
 ```text
 project.godot
-├─ .agents/ / .codex/   Agent 规则、Skills 与项目级 MCP 策略
+├─ .agents/ / .codex/   Agent 规则、Skills、MCP 团队模板与本机配置边界
 ├─ addons/godot_ai/     Godot AI 编辑器插件；不属于导出后的游戏运行架构
 ├─ Global/               全局状态、事件、输入、转场、音频
 ├─ LevelModule/
@@ -148,7 +148,7 @@ flowchart TD
 | `SFXManager` | 音效播放、实例管理和防抖 |
 | `SceneTransitionManager` | 切场景、检查点重启和转场清理 |
 
-Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.1.5，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。MCP 的项目作用域、权限和协作规则以 `.codex/README.md` 为准。
+Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.1.5，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。版本化的 MCP 团队基线位于 `.codex/config.example.toml`，本机活动配置 `.codex/config.toml` 被 Git 忽略；项目作用域、权限和协作规则以 `.codex/README.md` 为准。
 
 ### 4.1 运行模式
 
