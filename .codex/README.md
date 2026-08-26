@@ -20,11 +20,25 @@
 - `project.godot`：启用插件，并注册仅供编辑器联动使用的 `_mcp_game_helper`。
 - `AGENTS.md` 与 `.agents/skills/hackathongame-project/SKILL.md`：任务授权、正式场景保护和验证规则。
 
-截至 2026-08-22，上游 Godot AI 最新稳定版与本仓库插件基线均为 `3.1.5`，插件与服务器必须保持同一版本。Godot AI 使用 `uv`/`uvx` 启动精确版本的 Python 服务器；本配置不依赖 Node.js 或 npm。`required = false` 使 Godot 编辑器未启动时的普通仓库任务不会因此启动失败。
+截至 2026-08-25，上游 Godot AI 最新稳定版与本仓库插件基线均为 `3.2.0`，插件与服务器必须严格保持同一版本。Godot AI 使用 `uv`/`uvx` 启动 `godot-ai==3.2.0` Python 服务器；本配置不依赖 Node.js 或 npm。`required = false` 使 Godot 编辑器未启动时的普通仓库任务不会因此启动失败。
 
 本项目目标引擎锁定为 Godot 4.6 与 GL Compatibility，不锁定补丁版本；本机继续使用当前已安装的 4.6 补丁版本。不能把“更新到最新”解释为自动升级到其他次版本；后续引擎迁移需要单独授权，并重新验证 API、导入结果、正式主线、视觉效果和导出。
 
 插件升级必须作为一次受审查的项目基础设施修改完成：同步替换 `addons/godot_ai/`、核对许可证和上游版本、重新审计 `.codex/config.example.toml` 的工具列表并同步本机活动配置、确认插件与服务器版本一致，并验证导出时仍会移除 `_mcp_game_helper`。不要把个人编辑器中的一键自更新当作团队升级流程。
+
+## 跨电脑部署基线
+
+仓库本身携带插件和 Codex 项目配置，不依赖提交者电脑的绝对路径或用户级 MCP 配置。新电脑应满足以下条件：
+
+1. 使用 Godot `4.6.x` 打开仓库并保持 GL Compatibility；不要因插件 README 推荐更新版本而迁移项目引擎。
+2. 安装 `uv`，确保 `uvx` 能被从图形界面启动的 Godot 找到。首次启动需要从 PyPI 下载 `godot-ai==3.2.0` 及其 Python 依赖，因此需要临时网络访问并可能比后续启动慢；离线电脑应在联网时先完成一次缓存预热。
+3. 保持 `127.0.0.1:8000` 可用，并让插件 HTTP 端口与 `.codex/config.toml` 的 URL 一致。若因端口冲突必须改端口，应在该电脑的 Godot AI 设置和项目配置中同步调整；不要改成局域网或公网地址。
+4. 在 Codex 中信任并从仓库根目录打开项目，使 `.codex/config.toml` 生效；不需要也不应复制到 `~/.codex/config.toml`。其他 MCP 客户端必须单独建立等价白名单。
+5. 等 Godot AI 面板显示插件与服务器均为 `3.2.0` 后，新开 Codex 任务或重连 MCP，再核对项目名、项目路径、会话和只读工具。
+
+macOS、Windows 与 Linux 的 `uvx` 路径由插件在本机发现，不写入仓库；Windows 使用 `uvx.exe`/`pythonw.exe` 的专用启动路径。游戏运行和导出不要求 MCP 服务在线：Godot AI 是编辑器插件，导出钩子会从导出快照移除 `_mcp_game_helper`。因此没有安装 Codex 或 `uv` 的玩家电脑不受影响，但开发电脑若缺少 `uv` 将无法使用 MCP。
+
+升级提交必须包含 `addons/godot_ai/` 下所有新增文件及其上游 UID 文件。若 Git 状态仍显示该目录内有未跟踪文件，升级尚未具备跨电脑可复制性，不得仅提交 `plugin.cfg` 或已有文件的修改。
 
 ## 权限边界
 
@@ -32,8 +46,9 @@
 - `default_tools_approval_mode = "writes"` 表示非只读工具仍需审批；工具可见不等于当前任务获得修改授权。
 - MCP 权限按工具控制，不按目录控制。服务端不会自动区分 `Formal/`、`Backup/` 和测试目录，正式内容仍受 `AGENTS.md`、Project Skill 和当前任务范围约束。
 - Godot AI 服务可以向其他本地客户端公布比 Codex 白名单更大的工具面。每个非 Codex 客户端都要建立等价的显式白名单；Godot AI 的域排除只能作为补充防线，不能替代客户端白名单。
-- Godot AI 3.1.5 的 `node_manage` 把删除、复制、重命名、移动、重设父节点与分组添加/移除打包在同一个工具中。除非任务明确需要，不得调用分组写入操作。
-- Godot AI 3.1.5 的 `tileset_manage` 只有 TileSet 图集读取能力。不得声称已开放或验证 TileSet 写入；TileMap 写入与 TileSet 读取必须分开描述。
+- Godot AI 3.2.0 的 `node_manage` 把删除、复制、重命名、移动、重设父节点与分组添加/移除打包在同一个工具中。除非任务明确需要，不得调用分组写入操作。
+- Godot AI 3.2.0 的 `tileset_manage` 只有 TileSet 图集读取能力。不得声称已开放或验证 TileSet 写入；TileMap 写入与 TileSet 读取必须分开描述。
+- Godot AI 3.2.0 新增 `custom_manage` 及可提升为独立 MCP 工具的第三方注册入口。本项目当前没有注册自定义工具，因此 `.codex/config.toml` 有意不开放 `custom_manage`；引入自定义工具必须先审查来源、参数校验、写入标记、撤销能力与超时，再单独调整白名单。
 
 ## 网络与隐私
 
@@ -59,5 +74,6 @@ MCP 写入测试必须位于与正式场景链无依赖关系的隔离路径。�
 4. 编辑器状态和会话列表只指向 HackathonGame；多会话时已经显式激活正确会话。
 5. Codex 实际工具集合与本机 `.codex/config.toml` 一致，且活动配置与 `.codex/config.example.toml` 没有未说明的差异。
 6. 写入审批仍为 `writes`，并通过只读状态、场景树和日志检查。
-7. 已如实报告 `node_manage` 的打包操作和 TileSet 只读限制。
-8. `git diff --check` 通过，最终 Git 状态只包含预期文件。
+7. 已如实报告 `node_manage` 的打包操作、TileSet 只读限制和 `custom_manage` 的默认禁用状态。
+8. `addons/godot_ai/` 与官方发布包一致，且该目录没有遗漏的未跟踪升级文件。
+9. `git diff --check` 通过，最终 Git 状态只包含预期文件。

@@ -2,7 +2,7 @@
 
 > 唯一架构文档
 >
-> 更新日期：2026-08-23
+> 更新日期：2026-08-25
 >
 > 目标引擎：Godot 4.6，GL Compatibility
 >
@@ -148,7 +148,7 @@ flowchart TD
 | `SFXManager` | 音效播放、实例管理和防抖 |
 | `SceneTransitionManager` | 切场景、检查点重启和转场清理 |
 
-Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.1.5，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。版本化的 MCP 团队基线位于 `.codex/config.example.toml`，本机活动配置 `.codex/config.toml` 被 Git 忽略；项目作用域、权限和协作规则以 `.codex/README.md` 为准。
+Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.2.0，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。3.2.0 的自定义工具入口默认不在 Codex 白名单内，只有项目提交了经过审查的注册实现后才可另行开放。版本化的 MCP 团队基线位于 `.codex/config.example.toml`，本机活动配置 `.codex/config.toml` 被 Git 忽略；项目作用域、权限和协作规则以 `.codex/README.md` 为准。
 
 ### 4.1 运行模式
 

@@ -19,6 +19,9 @@
 *.aab
 
 # --- 工具 / 部署产物（非项目源码） ---
+/.codebuddy/
+/.edgeone/
+/godot-editor/
 /addons/*
 !/addons/godot_ai/
 !/addons/godot_ai/**
