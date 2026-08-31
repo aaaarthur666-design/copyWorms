@@ -17,22 +17,6 @@ size = Vector2(1112, 8)
 
 [node name="Level_fuzhan_02" type="Node2D"]
 script = ExtResource("1_fuzhan")
-area_index = 2
-camera_limit_left = 0
-camera_limit_right = 4474
-camera_limit_top = 56
-camera_limit_bottom = 616
-camera_zoom = Vector2(1.5, 1.5)
-camera_lerp_speed = 2.5
-enemy_spawn_y = 540.0
-enemy_spawn_x_range = Vector2(220, 4300)
-drop_spawn_y = 560.0
-drop_spawn_y_range = Vector2(360, 536)
-drop_spawn_x_range = Vector2(1800, 4300)
-use_override_spawn_position = true
-override_spawn_position = Vector2(1816, 512)
-max_alive_enemies = 4
-enemy_spawn_interval = 3.0
 
 [node name="CollisionBodies" type="Node2D" parent="."]
 

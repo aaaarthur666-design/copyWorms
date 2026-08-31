@@ -5,11 +5,10 @@
 extends Area2D
 
 var direction: Vector2 = Vector2.RIGHT
-var speed: float = 300.0
-var damage: int = 10
-var damage_type: int = GlobalDefine.DamageType.MAGIC
-var knockback_force: float = 200.0
-var max_distance: float = 500.0
+var speed: float = 0.0
+var damage: int = 0
+var damage_type: int = GlobalDefine.DamageType.PHYSICAL
+var max_distance: float = 0.0
 var _traveled: float = 0.0
 var _owner: Node2D = null
 
@@ -54,10 +53,11 @@ func _ready() -> void:
 
 	rotation = direction.angle()
 
-func setup(dir: Vector2, dmg: int, owner: Node2D, dist: float = 500.0, spd: float = 300.0) -> void:
+func setup(dir: Vector2, dmg: int, type: int, owner: Node2D, dist: float, spd: float) -> void:
 	direction = dir.normalized()
 	rotation = direction.angle()
 	damage = dmg
+	damage_type = type
 	_owner = owner
 	max_distance = dist
 	speed = spd
@@ -115,7 +115,7 @@ func _on_body_entered(body: Node2D) -> void:
 
 	var result = DamageCalculator.calculate(damage, 0, damage_type)
 	var kb_dir = direction.normalized() if direction != Vector2.ZERO else Vector2(1, 0)
-	body.take_damage(result["damage"], kb_dir)
+	body.take_damage(result["damage"], kb_dir, _owner if _owner and is_instance_valid(_owner) else self)
 
 	_spawn_hit_flash(body.global_position)
 	_fade_out()

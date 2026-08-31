@@ -7,10 +7,11 @@
 [ext_resource type="PackedScene" path="res://EnemyModule/Formal/Enemy_CyberWolf.tscn" id="5_42v6a"]
 [ext_resource type="Resource" path="res://DataConfig/Enemy/CleanerConfig.tres" id="6_dyht2"]
 [ext_resource type="Resource" path="res://DataConfig/Enemy/SecurityConfig.tres" id="7_jtuer"]
-[ext_resource type="Shader" uid="uid://bvxp4ilvb52h2" path="res://LevelModule/Formal/glitch_effect.gdshader" id="8_1stf1"]
+[ext_resource type="Shader" uid="uid://dh7thonbng2s5" path="res://LevelModule/Formal/glitch_effect.gdshader" id="8_1stf1"]
 [ext_resource type="PackedScene" uid="uid://hud" path="res://UI/HUD.tscn" id="9_6a6q0"]
 [ext_resource type="PackedScene" uid="uid://dsb7odmae73n" path="res://PlayerModule/Formal/Player_Warrior_Cyber.tscn" id="10_u10e4"]
 [ext_resource type="Resource" path="res://DataConfig/Player/WarriorConfig.tres" id="11_jrejv"]
+[ext_resource type="Script" path="res://Tools/CodeRain.gd" id="12_code_rain"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_fu5dj"]
 size = Vector2(1200, 40)
@@ -1240,6 +1241,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(0, 0.15, 0.05, 0.15)
+script = ExtResource("12_code_rain")
 
 [node name="CodeRainTexts" type="Control" parent="CanvasLayerUI/CodeRainOverlay" unique_id=996432468]
 anchors_preset = 0

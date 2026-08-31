@@ -200,7 +200,9 @@ func _build_skill_icon() -> void:
 	_skill_icon_container.add_child(bg)
 
 	# 技能图标（TextureRect，后续替换图片只需改 SKILL_ICON_PATH 常量）
-	var tex = load(SKILL_ICON_PATH) as Texture2D
+	var tex: Texture2D = null
+	if ResourceLoader.exists(SKILL_ICON_PATH):
+		tex = load(SKILL_ICON_PATH) as Texture2D
 	if tex:
 		var icon = TextureRect.new()
 		icon.name = "Icon"
@@ -686,15 +688,10 @@ func _stop_pause_code_rain(immediate: bool = false) -> void:
 func _is_code_rain_pause_scene() -> bool:
 	if not GameUIStyle.is_cyber_theme():
 		return false
-	if not is_inside_tree():
+	var level := GameManager.current_level
+	if level == null or not is_instance_valid(level):
 		return false
-	var tree = get_tree()
-	if tree == null:
-		return false
-	var scene: Node = tree.current_scene
-	if not scene:
-		return false
-	return scene is Level_03 or scene is Level_04 or scene is Level_05
+	return level is Level_03 or level is Level_04 or level is Level_05
 
 func _is_fuzhan_memory_level() -> bool:
 	var level = GameManager.current_level

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="MemoryRecoveryAreaConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Level/MemoryRecoveryAreaConfig.gd" id="1_area"]
+
+[resource]
+script = ExtResource("1_area")
+area_index = 1
+scene_path = "res://LevelModule/Formal/Level_fuzhan_01.tscn"
+spawn_node_path = NodePath("SpawnPoints/AtticSpawn")
+use_override_spawn_position = true
+override_spawn_position = Vector2(2264, 544)
+fallback_spawn_position = Vector2(140, 550)
+camera_limit_left = 0
+camera_limit_right = 5328
+camera_limit_top = -500
+camera_limit_bottom = 640
+camera_zoom = Vector2(1, 1)
+camera_lerp_speed = 2.5
+enemy_spawn_y = 540.0
+enemy_spawn_x_range = Vector2(260, 5100)
+allow_upper_lantern_spawns = false
+max_alive_enemies = 4
+enemy_spawn_interval = 3.0
+drop_spawn_y = 560.0
+drop_spawn_y_range = Vector2(0, 0)
+drop_spawn_x_range = Vector2(200, 5200)

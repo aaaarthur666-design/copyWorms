@@ -127,7 +127,6 @@ func _spawn_enemy(index: int) -> void:
 	var e = _enemy_scenes[_enemy_index].instantiate()
 	e.global_position = Vector2(1200, 700)
 	add_child(e)
-	GameManager.register_enemy(e)
 	_current_enemy = e
 	# 无限血量：覆写 max_health
 	e.max_health = 999999

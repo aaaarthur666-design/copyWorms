@@ -84,7 +84,7 @@ func _ready() -> void:
 ## 查找顺序: owner(实例化时的父节点) → GameManager.player_ref
 ## 触发震屏
 ## strength: 初始偏移像素, duration: 持续时间(秒)
-func shake(strength: float = 6.0, duration: float = 0.2) -> void:
+func shake(strength: float, duration: float) -> void:
 	_shake_strength = strength
 	_shake_decay = strength / maxf(duration, 0.01)
 

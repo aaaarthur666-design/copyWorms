@@ -87,3 +87,36 @@ climax_monologue = "爷爷……走了。
 
 原来不是我不回家。
 是那个可以让我回去的地方，也要没有了。"
+code_scroll_speed = 0.12
+narrative_input_timeout = 30.0
+idle_bed_prompt_text = "没什么事做。\n还是继续睡吧。"
+idle_bed_prompt_delay = 2.0
+computer_unlock_sleep_count = 3
+ide_preview_timeout = 8.0
+move_speed_multiplier = 0.5
+normal_move_speed_multiplier = 1.0
+final_blackout_duration = 4.0
+final_blackout_fade_duration = 0.8
+final_glitch_duration = 2.0
+camera_zoom = Vector2(2, 2)
+camera_lerp_speed = 2.5
+interaction_cooldown = 0.3
+interaction_recovery_threshold = 0.5
+narrative_input_arm_delay = 0.3
+narrative_poll_interval = 0.05
+obstacle_fade_duration = 0.5
+sleep_fade_duration = 1.0
+sleep_blink_count = 5
+sleep_blink_alpha_start = 0.5
+sleep_blink_alpha_step = 0.08
+sleep_blink_interval = 2.0
+sleep_blink_dim_duration = 0.8
+sleep_blink_hold_duration = 0.3
+sleep_blink_recover_duration = 0.6
+sleep_final_interval = 2.0
+sleep_final_alpha = 0.9
+sleep_final_dim_duration = 1.2
+sleep_final_hold_duration = 0.5
+sleep_final_recover_duration = 0.8
+ide_crash_message_duration = 1.5
+next_level_path = "res://LevelModule/Formal/Level_02.tscn"

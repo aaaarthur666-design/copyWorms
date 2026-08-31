@@ -4,6 +4,8 @@
 # ============================================================
 extends Node2D
 
+@export var level_data: LevelFinalData = preload("res://DataConfig/Level/LevelFinalData.tres")
+
 var _all_interactives: Array[InteractiveObject] = []
 var _dialog_open: bool = false
 var _dialog_panel: Panel = null
@@ -12,12 +14,13 @@ var _dialog_lines: Array[String] = []
 var _dialog_index: int = 0
 var _ending_triggered: bool = false
 
-const PLAYER_SPAWN := Vector2(320, 616)
-const INTERACT_POS := Vector2(192, 592)
 const INTERACT_ID := "final_sun"
-const FINAL_ENDING_TEXT := "太阳照常升起。\n房间还是那间房间，桌上还有灰，电脑还在发烫。\n但窗帘被拉开了。\n\n外面很吵。\n车声、人声、早点摊的蒸汽声，乱成一团。\n可那才是真的世界。\n\n阿明合上旧项目，新建文件夹：\nXiguan_Archive\n他背起相机，拿起爷爷的灯笼。\n去记录那些还没来得及消失的门、窗、声音和人。\n\n老街会被拆掉。\n但记忆不该只被关在梦里。\n技术也不该只是逃避的温室。\n\n从今天起，\n它会成为一座通向现实的桥。"
 
 func _ready() -> void:
+	if not level_data:
+		push_error("[Level_final] LevelFinalData 加载失败，停止初始化")
+		return
+	GameManager.set_current_level(self)
 	# 清除旧玩家
 	if GameManager.player_ref and is_instance_valid(GameManager.player_ref):
 		GameManager.player_ref.queue_free()
@@ -25,18 +28,18 @@ func _ready() -> void:
 	# 背景色
 	var bg = ColorRect.new()
 	bg.name = "Background"
-	bg.size = Vector2(400, 720)
+	bg.size = level_data.background_size
 	bg.position = Vector2(0, 0)
-	bg.color = Color(0.769, 0.6, 0.286, 1.0)
+	bg.color = level_data.background_color
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.z_index = -10
 	add_child(bg)
 
 	# 创建玩家（普通外观，非赛博非岭南）
-	var path := "res://PlayerModule/Formal/Player_Warrior.tscn"
+	var path := level_data.player_scene_path
 	if ResourceLoader.exists(path):
 		var p = load(path).instantiate()
-		p.position = PLAYER_SPAWN
+		p.position = level_data.player_spawn
 		add_child(p)
 		GameManager.register_player(p)
 
@@ -45,17 +48,17 @@ func _ready() -> void:
 		p.can_dash = false
 		p.can_attack = false
 		p.can_skill = false
-		p.runtime_move_speed_multiplier = 0.2
+		p.runtime_move_speed_multiplier = level_data.player_move_speed_multiplier
 		var cam = p.get_node_or_null("SmoothCamera") as SmoothCamera
 		if cam:
 			# 摄像机配置
-			cam.limit_left = 0
-			cam.limit_right = 400
-			cam.limit_top = 314
-			cam.limit_bottom = 640
-			cam.zoom = Vector2(3.5, 3.5)
+			cam.limit_left = level_data.camera_limit_left
+			cam.limit_right = level_data.camera_limit_right
+			cam.limit_top = level_data.camera_limit_top
+			cam.limit_bottom = level_data.camera_limit_bottom
+			cam.zoom = level_data.camera_zoom
 			cam.offset = Vector2.ZERO
-			cam.lerp_speed = 2.5
+			cam.lerp_speed = level_data.camera_lerp_speed
 			cam.bind_target(p)
 			cam.follow_enabled = true
 			cam.make_current()
@@ -64,6 +67,7 @@ func _ready() -> void:
 	_create_interactive()
 	# 订阅交互事件
 	EventBus.subscribe(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, self, "_on_object_interacted")
+	EventBus.emit(GlobalDefine.EventName.LEVEL_LOADED, {"level": self})
 	set_process(true)
 	set_process_input(true)
 	print("[Level_final] 终局关卡加载完成")
@@ -74,7 +78,8 @@ func _exit_tree() -> void:
 
 
 func prepare_for_level_exit() -> void:
-	InputManager.unblock_input("终局")
+	InputManager.release_input_for_owner(self)
+	GameManager.end_dialog(self)
 	_dialog_open = false
 	EventBus.unsubscribe_all(self)
 
@@ -85,13 +90,13 @@ func _create_interactive() -> void:
 	obj.object_id = INTERACT_ID
 	obj.is_active = true
 	obj.prompt_text = ""
-	obj.position = INTERACT_POS
+	obj.position = level_data.interaction_position
 	obj.collision_layer = 0
 	obj.collision_mask = GlobalDefine.Collision.PLAYER
 	var col = CollisionShape2D.new()
 	col.name = "CollisionShape2D"
 	var rect = RectangleShape2D.new()
-	rect.size = Vector2(100, 80)
+	rect.size = level_data.interaction_size
 	col.shape = rect
 	obj.add_child(col)
 	add_child(obj)
@@ -142,10 +147,11 @@ func _trigger_ending() -> void:
 			obj.set_active(false)
 	_dialog_open = true
 	InputManager.block_input("终局", self)
+	GameManager.begin_dialog(self)
 	# 显示文本框
 	if not _dialog_panel:
 		_create_dialog_panel()
-	_dialog_lines = GameUIStyle.paginate_interaction_text(FINAL_ENDING_TEXT)
+	_dialog_lines = GameUIStyle.paginate_interaction_text(level_data.ending_text)
 	_dialog_index = 0
 	_show_dialog_page()
 	_dialog_panel.visible = true
@@ -164,6 +170,7 @@ func _advance_dialog() -> void:
 
 func _finish_ending() -> void:
 	_dialog_open = false
+	GameManager.end_dialog(self)
 	if _dialog_panel:
 		_dialog_panel.hide()
 	# 读完后开始5s黑屏渐入
@@ -172,17 +179,15 @@ func _finish_ending() -> void:
 	cv.layer = 2000
 	add_child(cv)
 	var black = ColorRect.new()
-	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.size = get_viewport_rect().size
-	black.position = Vector2.ZERO
+	cv.add_child(black)
+	black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	black.color = Color(0, 0, 0, 0.0)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cv.add_child(black)
 	# 5s 渐入满黑 → 切回标题界面
 	var tw = get_tree().create_tween()
-	tw.tween_property(black, "color:a", 1.0, 5.0).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(black, "color:a", 1.0, level_data.ending_fade_duration).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func():
-		SceneTransitionManager.request_scene_change("res://UI/TitleScreen.tscn", self)
+		SceneTransitionManager.request_scene_change(level_data.title_scene_path, self)
 	)
 
 ## 创建文本框面板

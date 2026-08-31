@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="Level02Data" format=3 uid="uid://b1s4igaiqss34"]
+[gd_resource type="Resource" script_class="Level02Data" load_steps=4 format=3 uid="uid://b1s4igaiqss34"]
 
 [ext_resource type="Script" uid="uid://du6kw5s1xuwy" path="res://DataConfig/Level/Level02Data.gd" id="1_data"]
+[ext_resource type="Resource" path="res://DataConfig/Level/MemoryRecoveryArea01.tres" id="2_area01"]
+[ext_resource type="Resource" path="res://DataConfig/Level/MemoryRecoveryArea02.tres" id="3_area02"]
 
 [resource]
 script = ExtResource("1_data")
@@ -14,7 +16,6 @@ window_text_l2 = "五彩的满洲窗。夕阳透过红黄蓝绿的玻璃，在�
 小时候我总爱趴在这扇窗前看楼下的老街。爷爷会在楼下喊：『阿明，落嚟饮糖水啦——』
 
 ……窗外的老街还在。至少在这里，它还在。"
-attic_door_text = "吱呀作响的木趟栊门。推开它，就是记忆里的西关梦境。"
 rattan_chair_monologue = "爷爷每天都来的杂货店。
 
 每天黄昏，爷爷就坐在这里摇着葵扇，给街坊们讲古。我蹲在旁边数着石板路上的蚂蚁。
@@ -26,7 +27,6 @@ cliff_first_sight_text = "老街在这里断裂了。
 对岸是爷爷的凉茶铺，炉火还亮着，一个熟悉的剪影在柜台后忙碌着。
 
 『爷爷——！』我喊出声，可声音掉进了深渊里。这道裂缝……"
-cliff_safe_spawn = Vector2(2240, 576)
 dream_phone_echo_text = "阿明，医生说你爷爷在今天凌晨走了……
 
 不——不要在这里出现！这是我的梦，这里的爷爷还在！
@@ -40,13 +40,6 @@ wake_up_monologue = "……又是这个天花板。
 
 也许不是梦不够完整。
 是我记得的东西，还不够完整。"
-computer_locked_text = "屏幕还停留在崩溃日志界面。
-CodeBuddy 似乎已经完成了新的诊断。
-但在那之前，手机还在震。
-先看看手机。"
-bed_locked_text = "现在还不能睡。
-如果记忆不完整，回到梦里也只是继续迷路。
-先看看手机，再问问 CodeBuddy。"
 reality_phone_content = "阿明，明天就是你爷爷的头七了。
 老屋那边已经开始清空。
 
@@ -135,9 +128,121 @@ bed_unlocked_text = "回去吧。
 是带着那些真正的回忆，去见爷爷。"
 sfx_phone_vibrate_path = "res://Assets/Audio/sfx_phone_vibrate.ogg"
 sfx_electric_noise_path = "res://Assets/Audio/sfx_electric_noise.ogg"
-bgm_dream_warm_path = "res://Assets/Audio/bgm_dream_warm.ogg"
-dream_rebuilt_text = "西关梦境 v2.0 重构完毕。
-记忆样本同步完成：6 / 6。
+dream_move_speed_multiplier = 1.0
+narrative_input_timeout = 30.0
+narrative_input_arm_delay = 0.3
+narrative_poll_interval = 0.05
+interaction_cooldown = 0.3
+interaction_recovery_threshold = 0.5
+interaction_fallback_radius = 120.0
+interference_pulse_duration = 0.6
+interference_dim_duration = 1.5
+ide_line_delay = 1.2
+free_chat_reply_delay = 0.4
+memory_launch_prepare_delay = 0.45
+memory_launch_intro_hold_duration = 2.2
+attic_camera_left = 0
+attic_camera_bottom = 640
+attic_transition_fade_duration = 0.8
+street_entry_position = Vector2(435, 550)
+street_enemy_max_count = 5
+single_paper_spawn_offset = Vector2(300, 0)
+next_street_segment_path = "res://LevelModule/Formal/Level_02_01.tscn"
+segment_01_next_level_path = "res://LevelModule/Formal/Level_02_02.tscn"
+segment_01_map_left = 0
+segment_01_map_right = 4464
+segment_01_spawn_position = Vector2(140, 550)
+segment_01_exit_trigger_position = Vector2(4336, 460)
+segment_01_exit_trigger_size = Vector2(120, 360)
+segment_01_camera_top = 56
+segment_01_camera_bottom = 616
+segment_01_camera_zoom = Vector2(1.5, 1.5)
+segment_01_camera_lerp_speed = 2.5
+segment_01_enemy_ground_y = 540.0
+segment_01_enemy_upper_y = 356.0
+segment_01_paper_spawn_interval = 700
+segment_01_lantern_spawn_interval = 1000
+segment_01_paper_upper_spawn_x = Array[float]([3200.0, 3900.0])
+segment_01_lantern_upper_spawn_x = Array[float]([3200.0, 4000.0])
+segment_01_whiteout_duration = 4.0
+segment_01_whiteout_fade_duration = 0.8
+segment_02_intro_text = "这个世界还不稳定。\n有些梯子看似能爬，却没有通路。\n有些墙看似封死，却能穿过。\n梦不是现实。\n它只是在模仿我记得的样子。"
+segment_02_intro_delay = 2.0
+segment_02_next_level_path = "res://LevelModule/Formal/Level_02_03.tscn"
+segment_02_map_left = 0
+segment_02_map_right = 1474
+segment_02_spawn_position = Vector2(138, 546)
+segment_02_exit_trigger_position = Vector2(1399.6136, -498.6906)
+segment_02_exit_trigger_size = Vector2(64.7636, 93.5474)
+segment_02_camera_top = -835
+segment_02_camera_bottom = 638
+segment_02_camera_zoom = Vector2(1.5, 1.5)
+segment_02_camera_lerp_speed = 2.5
+segment_02_enemy_detect_range_cap = 500.0
+segment_02_paper_spawn_positions = Array[Vector2]([Vector2(552, 368), Vector2(864, 360), Vector2(616, 184), Vector2(1144, 192), Vector2(1096, -176), Vector2(1104, -384)])
+segment_02_lantern_spawn_positions = Array[Vector2]([Vector2(864, 360), Vector2(1144, 192), Vector2(1096, -176), Vector2(1104, -384)])
+segment_03_player_spawn_fallback = Vector2(32, 512)
+segment_03_camera_left = 0
+segment_03_camera_right = 1136
+segment_03_camera_top = 0
+segment_03_camera_bottom = 640
+segment_03_camera_zoom = Vector2(1.5, 1.5)
+segment_03_camera_lerp_speed = 2.5
+shadow_max_alive = 8
+shadow_max_onscreen = 6
+shadow_spawn_interval = 1.5
+interference_move_multiplier = 0.55
+death_guard_health = 10
+final_blackout_fade_duration = 0.8
+final_blackout_duration = 4.0
+reality_move_multiplier = 0.5
+shadow_onscreen_distance = 700.0
+shadow_positive_side_chance = 0.5
+shadow_spawn_distance_min = 150.0
+shadow_spawn_distance_max = 300.0
+shadow_spawn_min_x = 50.0
+shadow_spawn_max_x = 420.0
+shadow_spawn_y = 336.0
+wake_hold_decay_multiplier = 2.0
+wake_transition_hold_duration = 0.6
+wake_transition_fade_duration = 1.0
+interference_invincibility_duration = 999.0
+fall_reset_fade_in_duration = 0.5
+fall_reset_fade_out_duration = 0.3
+cliff_safe_spawn_fallback = Vector2(232, 440)
+reality_player_spawn = Vector2(1512, 608)
+reality_bgm_fade_duration = 1.0
+reality_camera_zoom = Vector2(2, 2)
+reality_camera_lerp_speed = 2.5
+recompile_line_interval = 0.45
+recompile_finish_delay = 1.0
+dream_version = "2.0"
+rebuilt_dream_transition_text = "西关梦境 V2.0 已构建成功
 
-意识正在下沉……下沉……
-闭上眼睛，进入核心梦境。"
+童年回忆补全完成。
+核心区域：凉茶铺，已开放。
+
+沉入梦乡……
+回到那个地方……
+见到爷爷……"
+rebuilt_dream_hold_duration = 2.5
+memory_area_01 = ExtResource("2_area01")
+memory_area_02 = ExtResource("3_area02")
+memory_return_scene_path = "res://LevelModule/Formal/Level_02_03.tscn"
+memory_bgm_fade_duration = 1.0
+memory_player_move_speed_multiplier = 1.0
+memory_death_guard_health = 1
+memory_death_guard_invincibility_duration = 999.0
+memory_positive_spawn_side_chance = 0.5
+memory_fragments_per_area = 3
+memory_total_fragments = 6
+memory_kills_per_drop = 10
+memory_drop_types = Array[String](["月饼", "虾饺", "木棉", "醒狮", "烧卖", "蒲葵扇"])
+memory_lantern_spawn_weight = 1
+memory_paper_spawn_weight = 4
+memory_upper_enemy_y = 356.0
+memory_upper_enemy_chance = 0.35
+memory_enemy_spawn_distance_min = 220.0
+memory_enemy_spawn_distance_max = 460.0
+memory_drop_spawn_edge_margin = 80.0
+memory_narrative_timeout = 30.0

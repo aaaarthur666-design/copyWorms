@@ -5,16 +5,15 @@
 extends EnemyBase
 class_name Enemy_Slime
 
-var jump_velocity: float = -300.0
 var jump_timer: float = 0.0
 var is_jumping: bool = false
 
+func _get_default_config_path() -> String:
+	return "res://DataConfig/Enemy/SlimeConfig.tres"
+
 func _on_ready() -> void:
 	super._on_ready()
-	if not config:
-		config = load("res://DataConfig/Enemy/SlimeConfig.tres") as EnemyConfig
-		_apply_config()
-	jump_timer = randf_range(1.0, 3.0)
+	jump_timer = randf_range(config.first_jump_interval_min, config.first_jump_interval_max)
 
 func _on_physics_process(delta: float) -> void:
 	super._on_physics_process(delta)
@@ -25,19 +24,19 @@ func _on_physics_process(delta: float) -> void:
 	jump_timer -= delta
 	if jump_timer <= 0 and is_on_floor() and current_state in [GlobalDefine.EnemyState.IDLE, GlobalDefine.EnemyState.PATROL, GlobalDefine.EnemyState.CHASE]:
 		_perform_slime_jump()
-		jump_timer = randf_range(2.0, 4.0)
+		jump_timer = randf_range(config.jump_interval_min, config.jump_interval_max)
 
 	if is_jumping and is_on_floor():
 		is_jumping = false
 
 func _perform_slime_jump() -> void:
 	is_jumping = true
-	velocity.y = jump_velocity
+	velocity.y = config.jump_velocity
 	if current_state == GlobalDefine.EnemyState.CHASE and target:
 		var dir = signf(target.global_position.x - global_position.x)
-		velocity.x = dir * 150.0
+		velocity.x = dir * config.jump_chase_speed
 	else:
-		velocity.x = patrol_direction * 100.0
+		velocity.x = patrol_direction * config.jump_patrol_speed
 
 func _on_attack() -> void:
 	super._on_attack()
@@ -45,15 +44,15 @@ func _on_attack() -> void:
 		return
 	# 攻击命中前检查距离：玩家闪避/突进拉开距离则攻击落空
 	var dist = global_position.distance_to(target.global_position)
-	var attack_range = config.attack_range if config else 35.0
-	if dist > attack_range + 30.0:
+	var attack_range = config.attack_range
+	if dist > attack_range + config.attack_range_tolerance:
 		return
 
 	if target.has_method("take_damage"):
-		var atk = config.attack_damage if config else 8
-		var result = DamageCalculator.calculate(atk, 0, GlobalDefine.DamageType.PHYSICAL)
+		var atk = config.attack_damage
+		var result = DamageCalculator.calculate(atk, 0, config.attack_damage_type)
 		var kb_dir = DamageCalculator.get_knockback_direction(global_position, target.global_position)
-		target.take_damage(result["damage"], kb_dir)
+		target.take_damage(result["damage"], kb_dir, self)
 
 func _on_die() -> void:
 	super._on_die()

@@ -72,7 +72,7 @@ func _build_spawn_points() -> void:
 	var spawn_container = level._get_or_create_child("SpawnPoints", Node2D)
 	var spawn_marker = Marker2D.new()
 	spawn_marker.name = "PlayerSpawnPoint"
-	spawn_marker.position = Vector2(100, 550)
+	spawn_marker.position = level.level_config.spawn_point
 	spawn_container.add_child(spawn_marker)
 	level.player_spawn_point = spawn_marker
 

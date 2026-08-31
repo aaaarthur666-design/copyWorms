@@ -5,9 +5,11 @@
 [resource]
 script = ExtResource("1_script")
 level_name = "维度侵蚀与空间崩塌"
+level_id = "level_04"
 bg_color = Color(0.08, 0.06, 0.05, 1)
 camera_limit_left = -50
 camera_limit_right = 12800
 camera_limit_top = -900
 camera_limit_bottom = 2800
 spawn_point = Vector2(184, -132)
+player_scene_path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"

@@ -5,30 +5,29 @@ const PAPER_EFFIGY_SCENE_PATH := "res://EnemyModule/Formal/Enemy_PaperEffigy.tsc
 const PAPER_EFFIGY_CONFIG_PATH := "res://DataConfig/Enemy/PaperEffigyConfig.tres"
 const LANTERN_GHOST_SCENE_PATH := "res://EnemyModule/Formal/Enemy_LanternGhost.tscn"
 const LANTERN_GHOST_CONFIG_PATH := "res://DataConfig/Enemy/LanternGhostConfig.tres"
-const ENEMY_SPAWN_WEIGHT_LANTERN := 1
-const ENEMY_SPAWN_WEIGHT_PAPER := 4
-const ENEMY_UPPER_Y := 356.0
+@export var level_data: Level02Data = preload("res://DataConfig/Level/Level02Data.tres")
+@export var level_config: LevelConfig = preload("res://DataConfig/Level/Level02Config.tres")
 
-const DROP_SPAWN_EDGE_MARGIN := 80.0
-
-@export var area_index: int = 1
-@export var player_scene_path: String = "res://PlayerModule/Formal/Player_Warrior_Lingnan.tscn"
-@export var spawn_node_path: NodePath = ^"SpawnPoints/AtticSpawn"
-@export var camera_limit_left: int = 0
-@export var camera_limit_right: int = 5328
-@export var camera_limit_top: int = -500
-@export var camera_limit_bottom: int = 640
-@export var camera_zoom: Vector2 = Vector2.ONE
-@export var camera_lerp_speed: float = 2.5
-@export var enemy_spawn_y: float = 540.0
-@export var enemy_spawn_x_range: Vector2 = Vector2(260.0, 5000.0)
-@export var drop_spawn_y: float = 560.0
-@export var drop_spawn_y_range: Vector2 = Vector2.ZERO
-@export var drop_spawn_x_range: Vector2 = Vector2(260.0, 5000.0)
-@export var use_override_spawn_position: bool = false
-@export var override_spawn_position: Vector2 = Vector2.ZERO
-@export var max_alive_enemies: int = 5
-@export var enemy_spawn_interval: float = 1.8
+var area_config: MemoryRecoveryAreaConfig = null
+var area_index: int
+var spawn_node_path: NodePath
+var camera_limit_left: int
+var camera_limit_right: int
+var camera_limit_top: int
+var camera_limit_bottom: int
+var camera_zoom: Vector2
+var camera_lerp_speed: float
+var enemy_spawn_y: float
+var enemy_spawn_x_range: Vector2
+var allow_upper_lantern_spawns: bool
+var drop_spawn_y: float
+var drop_spawn_y_range: Vector2
+var drop_spawn_x_range: Vector2
+var use_override_spawn_position: bool
+var override_spawn_position: Vector2
+var fallback_spawn_position: Vector2
+var max_alive_enemies: int
+var enemy_spawn_interval: float
 
 var _paper_scene: PackedScene = null
 var _lantern_scene: PackedScene = null
@@ -42,6 +41,12 @@ var _kills_since_drop: int = 0
 var _transition_running: bool = false
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
+var _narrative_pages: Array[String] = []
+var _narrative_page_index: int = 0
+var _narrative_arm_remaining: float = 0.0
+var _narrative_wait_elapsed: float = 0.0
+var _narrative_poll_elapsed: float = 0.0
+var _narrative_callback: Callable = Callable()
 var _ui_layer: CanvasLayer = null
 var _progress_label: Label = null
 var _narrative_panel: Panel = null
@@ -57,11 +62,14 @@ var _enemies_frozen: bool = false
 
 func _ready() -> void:
 	_apply_area_configuration()
+	if not area_config:
+		push_error("[%s] 缺少 MemoryRecoveryAreaConfig，副本停止初始化" % name)
+		return
 	_validate_area_configuration()
-	GameManager.current_level = self
+	GameManager.set_current_level(self)
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_LINGNAN)
 	LevelFuzhanSub01.start_flow()
-	MusicManager.fade_to(LevelFuzhanSub01.LEVEL_02_BGM_PATH, 1.0)
+	MusicManager.fade_to(level_config.bgm_path, level_data.memory_bgm_fade_duration)
 	_setup_player()
 	_setup_camera_limits()
 	_load_hud()
@@ -71,7 +79,7 @@ func _ready() -> void:
 	_bind_events()
 	_start_enemy_spawns()
 	EventBus.emit(GlobalDefine.EventName.LEVEL_LOADED, { "level": self })
-	print("[%s] 记忆回收场景初始化完成，当前进度: %d/%d" % [name, LevelFuzhanSub01.area_collected(area_index), LevelFuzhanSub01.REQUIRED_PER_AREA])
+	print("[%s] 记忆回收场景初始化完成，当前进度: %d/%d" % [name, LevelFuzhanSub01.area_collected(area_index), LevelFuzhanSub01.required_per_area()])
 	_show_narrative(LevelFuzhanSub01.intro_text(area_index))
 
 
@@ -79,7 +87,12 @@ func _exit_tree() -> void:
 	_cleanup()
 
 
-func _process(_delta: float) -> void:
+func prepare_for_level_exit() -> void:
+	_cleanup()
+
+
+func _process(delta: float) -> void:
+	_update_narrative(delta)
 	if GameManager.is_game_over:
 		GameManager.is_game_over = false
 		_hide_game_over_panels()
@@ -109,6 +122,7 @@ func _setup_player() -> void:
 		GameManager.player_ref.global_position = spawn_pos
 		_reset_player_for_memory_recovery(GameManager.player_ref)
 		return
+	var player_scene_path := level_config.player_scene_path
 	if not ResourceLoader.exists(player_scene_path):
 		push_error("[%s] 玩家场景不存在: %s" % [name, player_scene_path])
 		return
@@ -132,7 +146,7 @@ func _reset_player_for_memory_recovery(player: Node2D) -> void:
 	player.set("can_skill", true)
 	player.set("can_double_jump", false)
 	player.set("has_double_jumped", false)
-	player.set("runtime_move_speed_multiplier", 1.0)
+	player.set("runtime_move_speed_multiplier", level_data.memory_player_move_speed_multiplier)
 	var current_health = player.get("current_health")
 	var max_health = player.get("max_health")
 	if current_health != null and max_health != null:
@@ -149,7 +163,7 @@ func _get_spawn_position() -> Vector2:
 	var spawn := get_node_or_null(spawn_node_path) as Marker2D
 	if spawn:
 		return spawn.global_position
-	return Vector2(140, 550)
+	return fallback_spawn_position
 
 
 func _setup_camera_limits() -> void:
@@ -179,6 +193,31 @@ func _apply_area_configuration() -> void:
 	pass
 
 
+func _use_area_config(config: MemoryRecoveryAreaConfig) -> void:
+	area_config = config
+	if not area_config:
+		return
+	area_index = area_config.area_index
+	spawn_node_path = area_config.spawn_node_path
+	camera_limit_left = area_config.camera_limit_left
+	camera_limit_right = area_config.camera_limit_right
+	camera_limit_top = area_config.camera_limit_top
+	camera_limit_bottom = area_config.camera_limit_bottom
+	camera_zoom = area_config.camera_zoom
+	camera_lerp_speed = area_config.camera_lerp_speed
+	enemy_spawn_y = area_config.enemy_spawn_y
+	enemy_spawn_x_range = area_config.enemy_spawn_x_range
+	allow_upper_lantern_spawns = area_config.allow_upper_lantern_spawns
+	drop_spawn_y = area_config.drop_spawn_y
+	drop_spawn_y_range = area_config.drop_spawn_y_range
+	drop_spawn_x_range = area_config.drop_spawn_x_range
+	use_override_spawn_position = area_config.use_override_spawn_position
+	override_spawn_position = area_config.override_spawn_position
+	fallback_spawn_position = area_config.fallback_spawn_position
+	max_alive_enemies = area_config.max_alive_enemies
+	enemy_spawn_interval = area_config.enemy_spawn_interval
+
+
 func _validate_area_configuration() -> void:
 	var min_x := minf(drop_spawn_x_range.x, drop_spawn_x_range.y)
 	var max_x := maxf(drop_spawn_x_range.x, drop_spawn_x_range.y)
@@ -187,7 +226,7 @@ func _validate_area_configuration() -> void:
 		drop_spawn_x_range = Vector2(max_x, min_x)
 		min_x = drop_spawn_x_range.x
 		max_x = drop_spawn_x_range.y
-	var cam_max_x := float(camera_limit_right) - DROP_SPAWN_EDGE_MARGIN
+	var cam_max_x := float(camera_limit_right) - level_data.memory_drop_spawn_edge_margin
 	if max_x > cam_max_x:
 		push_warning("[%s] drop_spawn_x_range 右边界 %.1f 超出 camera_limit_right=%d，已截断" % [name, max_x, camera_limit_right])
 		drop_spawn_x_range = Vector2(min_x, cam_max_x)
@@ -269,26 +308,26 @@ func _spawn_enemy() -> void:
 
 
 func _roll_paper_effigy_spawn() -> bool:
-	var total := ENEMY_SPAWN_WEIGHT_LANTERN + ENEMY_SPAWN_WEIGHT_PAPER
-	return randf() < float(ENEMY_SPAWN_WEIGHT_PAPER) / float(total)
+	var total := level_data.memory_lantern_spawn_weight + level_data.memory_paper_spawn_weight
+	return randf() < float(level_data.memory_paper_spawn_weight) / float(total)
 
 
 func _random_enemy_spawn_position(use_paper: bool) -> Vector2:
 	var min_x := minf(enemy_spawn_x_range.x, enemy_spawn_x_range.y)
 	var max_x := maxf(enemy_spawn_x_range.x, enemy_spawn_x_range.y)
-	min_x = maxf(min_x, float(camera_limit_left) + DROP_SPAWN_EDGE_MARGIN)
-	max_x = minf(max_x, float(camera_limit_right) - DROP_SPAWN_EDGE_MARGIN)
+	min_x = maxf(min_x, float(camera_limit_left) + level_data.memory_drop_spawn_edge_margin)
+	max_x = minf(max_x, float(camera_limit_right) - level_data.memory_drop_spawn_edge_margin)
 	if min_x > max_x:
-		min_x = float(camera_limit_left) + DROP_SPAWN_EDGE_MARGIN
-		max_x = float(camera_limit_right) - DROP_SPAWN_EDGE_MARGIN
+		min_x = float(camera_limit_left) + level_data.memory_drop_spawn_edge_margin
+		max_x = float(camera_limit_right) - level_data.memory_drop_spawn_edge_margin
 	var player := GameManager.player_ref
 	var x := randf_range(min_x, max_x)
 	if player and is_instance_valid(player):
-		var side := -1.0 if randf() < 0.5 else 1.0
-		x = clampf(player.global_position.x + side * randf_range(220.0, 460.0), min_x, max_x)
+		var side := 1.0 if randf() < level_data.memory_positive_spawn_side_chance else -1.0
+		x = clampf(player.global_position.x + side * randf_range(level_data.memory_enemy_spawn_distance_min, level_data.memory_enemy_spawn_distance_max), min_x, max_x)
 	var y := enemy_spawn_y
-	if not use_paper and area_index == 2 and randf() < 0.35:
-		y = ENEMY_UPPER_Y
+	if not use_paper and allow_upper_lantern_spawns and randf() < level_data.memory_upper_enemy_chance:
+		y = level_data.memory_upper_enemy_y
 	return Vector2(x, y)
 
 
@@ -299,11 +338,11 @@ func _on_enemy_died(data: Dictionary) -> void:
 	if not enemy or not _enemies.has(enemy):
 		return
 	_enemies.erase(enemy)
-	if LevelFuzhanSub01.area_collected(area_index) >= LevelFuzhanSub01.REQUIRED_PER_AREA:
+	if LevelFuzhanSub01.area_collected(area_index) >= LevelFuzhanSub01.required_per_area():
 		return
 	_kills_since_drop += 1
 	_update_progress_label()
-	if _kills_since_drop >= LevelFuzhanSub01.KILLS_PER_DROP:
+	if _kills_since_drop >= LevelFuzhanSub01.kills_per_drop():
 		_kills_since_drop = 0
 		_spawn_memory_drop()
 
@@ -314,8 +353,12 @@ func _spawn_memory_drop() -> void:
 		_show_narrative("已有童年回忆样本正在等待回收。")
 		return
 	var drop := DropItem.new()
-	var type_index := clampi(LevelFuzhanSub01.total_fragments(), 0, LevelFuzhanSub01.DROP_TYPES.size() - 1)
-	drop.drop_type = LevelFuzhanSub01.DROP_TYPES[type_index]
+	var configured_drop_types := LevelFuzhanSub01.drop_types()
+	if configured_drop_types.is_empty():
+		push_error("[%s] memory_drop_types 不能为空" % name)
+		return
+	var type_index := clampi(LevelFuzhanSub01.total_fragments(), 0, configured_drop_types.size() - 1)
+	drop.drop_type = configured_drop_types[type_index]
 	drop.object_id = "memory_drop_%d_%d" % [area_index, Time.get_ticks_msec()]
 	drop.collision_layer = 0
 	drop.collision_mask = GlobalDefine.Collision.PLAYER
@@ -354,10 +397,10 @@ func _drop_spawn_bounds() -> Rect2:
 	if drop_spawn_y_range != Vector2.ZERO:
 		cfg_min_y = minf(drop_spawn_y_range.x, drop_spawn_y_range.y)
 		cfg_max_y = maxf(drop_spawn_y_range.x, drop_spawn_y_range.y)
-	var cam_min_x := float(camera_limit_left) + DROP_SPAWN_EDGE_MARGIN
-	var cam_max_x := float(camera_limit_right) - DROP_SPAWN_EDGE_MARGIN
-	var cam_min_y := float(camera_limit_top) + DROP_SPAWN_EDGE_MARGIN
-	var cam_max_y := float(camera_limit_bottom) - DROP_SPAWN_EDGE_MARGIN
+	var cam_min_x := float(camera_limit_left) + level_data.memory_drop_spawn_edge_margin
+	var cam_max_x := float(camera_limit_right) - level_data.memory_drop_spawn_edge_margin
+	var cam_min_y := float(camera_limit_top) + level_data.memory_drop_spawn_edge_margin
+	var cam_max_y := float(camera_limit_bottom) - level_data.memory_drop_spawn_edge_margin
 	var min_x := maxf(cfg_min_x, cam_min_x)
 	var max_x := minf(cfg_max_x, cam_max_x)
 	var min_y := maxf(cfg_min_y, cam_min_y)
@@ -467,10 +510,10 @@ func _on_object_interacted(data: Dictionary) -> void:
 func _finish_memory_drop_collection() -> void:
 	var collected := LevelFuzhanSub01.add_fragment(area_index)
 	_update_progress_label()
-	if collected >= LevelFuzhanSub01.REQUIRED_PER_AREA:
+	if collected >= LevelFuzhanSub01.required_per_area():
 		_complete_area()
 	else:
-		_show_narrative("童年回忆样本已回收。\n当前区域进度：%d / %d。" % [collected, LevelFuzhanSub01.REQUIRED_PER_AREA])
+		_show_narrative("童年回忆样本已回收。\n当前区域进度：%d / %d。" % [collected, LevelFuzhanSub01.required_per_area()])
 
 
 func _check_player_death_guard() -> void:
@@ -482,9 +525,9 @@ func _check_player_death_guard() -> void:
 	var current_health = player.get("current_health")
 	if current_health == null or int(current_health) > 0:
 		return
-	player.set("current_health", 1)
+	player.set("current_health", level_data.memory_death_guard_health)
 	player.set("is_invincible", true)
-	player.set("invincible_timer", 999.0)
+	player.set("invincible_timer", level_data.memory_death_guard_invincibility_duration)
 	_on_player_died({ "player": player })
 
 
@@ -518,11 +561,11 @@ func _return_to_reality_scene() -> void:
 	_cleanup()
 	InputManager.force_unblock_all()
 	if not _is_loaded_under_main_entry():
-		SceneTransitionManager.request_scene_change(LevelFuzhanSub01.LEVEL_02_03_PATH, self)
+		SceneTransitionManager.request_scene_change(level_data.memory_return_scene_path, self)
 		return
 	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {
 		"level": self,
-		"next_level": LevelFuzhanSub01.LEVEL_02_03_PATH,
+		"next_level": level_data.memory_return_scene_path,
 	})
 
 
@@ -630,9 +673,9 @@ func _update_progress_label() -> void:
 	_progress_label.text = "记忆回收 Area %02d  %d / %d    击杀进度 %d / %d" % [
 		area_index,
 		LevelFuzhanSub01.area_collected(area_index),
-		LevelFuzhanSub01.REQUIRED_PER_AREA,
+		LevelFuzhanSub01.required_per_area(),
 		_kills_since_drop,
-		LevelFuzhanSub01.KILLS_PER_DROP,
+		LevelFuzhanSub01.kills_per_drop(),
 	]
 
 
@@ -641,37 +684,76 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 		if callback.is_valid():
 			callback.call()
 		return
+	if _narrative_open:
+		_close_narrative(false)
 	_set_enemies_frozen(true)
 	_narrative_open = true
 	_narrative_enter_pressed = false
-	var pages := GameUIStyle.paginate_interaction_text(text)
-	var page_index := 0
+	_narrative_arm_remaining = level_data.narrative_input_arm_delay
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
+	_narrative_callback = callback
+	_narrative_pages.clear()
+	_narrative_pages.append_array(GameUIStyle.paginate_interaction_text(text))
+	if _narrative_pages.is_empty():
+		_narrative_pages.append(text)
+	_narrative_page_index = 0
+	_show_narrative_page()
+
+
+func _update_narrative(delta: float) -> void:
+	if not _narrative_open or not level_data:
+		return
+	if _narrative_arm_remaining > 0.0:
+		_narrative_arm_remaining = maxf(_narrative_arm_remaining - delta, 0.0)
+		if _narrative_arm_remaining <= 0.0:
+			_narrative_enter_pressed = false
+		return
+	_narrative_poll_elapsed += delta
+	var poll_interval := maxf(level_data.narrative_poll_interval, 0.001)
+	if _narrative_poll_elapsed < poll_interval:
+		return
+	_narrative_wait_elapsed += _narrative_poll_elapsed
+	_narrative_poll_elapsed = 0.0
+	if _narrative_enter_pressed:
+		_narrative_enter_pressed = false
+		if _narrative_page_index < _narrative_pages.size() - 1:
+			_narrative_page_index += 1
+			_narrative_wait_elapsed = 0.0
+			_show_narrative_page()
+			return
+		_close_narrative(true)
+		return
+	if _narrative_wait_elapsed >= level_data.memory_narrative_timeout:
+		_close_narrative(true)
+
+
+func _show_narrative_page() -> void:
 	if _narrative_panel:
 		if _narrative_text:
-			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
+			GameUIStyle.fit_interaction_text_panel(
+				_narrative_panel,
+				_narrative_text,
+				_narrative_pages[_narrative_page_index]
+			)
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
-	var elapsed: float = 0.0
-	var wait_delta: float = 0.05
-	while _narrative_open and elapsed < 30.0:
-		if _narrative_enter_pressed:
-			if page_index < pages.size() - 1:
-				page_index += 1
-				_narrative_enter_pressed = false
-				elapsed = 0.0
-				if _narrative_panel and _narrative_text:
-					GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
-			else:
-				break
-		await get_tree().create_timer(wait_delta).timeout
-		elapsed += wait_delta
-	if _narrative_panel:
-		_narrative_panel.hide()
-	_narrative_open = false
+
+
+func _close_narrative(invoke_callback: bool) -> void:
+	var callback := _narrative_callback
+	_narrative_callback = Callable()
+	_narrative_pages.clear()
+	_narrative_page_index = 0
+	_narrative_arm_remaining = 0.0
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
 	_narrative_enter_pressed = false
+	_narrative_open = false
+	if _narrative_panel and is_instance_valid(_narrative_panel):
+		_narrative_panel.hide()
 	if not _transition_running:
 		_set_enemies_frozen(false)
-	if callback.is_valid():
+	if invoke_callback and callback.is_valid() and is_inside_tree():
 		callback.call()
 
 
@@ -815,6 +897,7 @@ func _stop_all_edge_flash() -> void:
 
 
 func _cleanup() -> void:
+	_close_narrative(false)
 	EventBus.unsubscribe_all(self)
 	if _spawn_timer and is_instance_valid(_spawn_timer):
 		_spawn_timer.stop()

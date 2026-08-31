@@ -4,7 +4,7 @@
 extends LevelBase
 class_name Level_04
 
-@export var level_data: Level04Data = null
+@export var level_data: Level04Data = preload("res://DataConfig/Level/Level04Data.tres")
 
 enum LevelState { HOMOMORPHIC_COMBAT, STAGE2, STAGE3, LEVEL_END_TRANSIT }
 
@@ -20,17 +20,6 @@ var _wall_dialog_shown: bool = false
 var _cyber_return_dialog_shown: bool = false
 var _swap_cooldown: float = 0.0
 var _hurt_swap_pending: bool = false
-const CYBER_TELEPORT := Vector2(2298, -75)
-const HURT_SWAP_DELAY: float = 0.28
-const LNGN_POSITIONS: Array[Vector2] = [
-	Vector2(524, 2060), Vector2(3564, 2073), Vector2(1631, 1316)
-]
-const LNGN_DIALOGS: Array[String] = [
-	"不太对。\n这条路像是旧阁楼的残片。\n我需要到上面看看。",
-	"还是不对。\n系统把路折回来了。",
-	""
-]
-const STAGE2_SPAWN := Vector2(242, 4333)
 var _stage1_enemies: Array[Node2D] = []
 var _stage2_entered: bool = false
 
@@ -50,10 +39,6 @@ var _stage2_alarm_player: AudioStreamPlayer = null
 var _stage2_alarm_playback: AudioStreamGeneratorPlayback = null
 var _stage2_alarm_phase: float = 0.0
 var _stage2_pulse_phase: float = 0.0
-const STAGE2_MAP_OFFSET: float = 2500.0
-const STAGE2_SWAP_MIN: float = 5.0
-const STAGE2_SWAP_MAX: float = 12.0
-const STAGE2_WARNING_TIME: float = 2.5
 
 # ---- 侵蚀值系统 ----
 var _erosion_value: float = 0.0
@@ -61,9 +46,6 @@ var _erosion_bar_bg: ColorRect = null
 var _erosion_bar_fill: ColorRect = null
 var _erosion_label: Label = null
 var _erosion_vignette: ColorRect = null
-const EROSION_MAX: float = 100.0
-const EROSION_RATE: float = 0.7
-const EROSION_KILL_REDUCE: float = 15.0
 
 # ---- 阶段2敌人 + 阶段3 ----
 var _stage2_lingnan_enemies: Array[Node2D] = []
@@ -91,7 +73,12 @@ var _ending_label: Label = null
 var _is_interacting: bool = false
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
+var _narrative_pages: Array[String] = []
+var _narrative_page_index: int = 0
+var _narrative_arm_remaining: float = 0.0
+var _narrative_wait_elapsed: float = 0.0
+var _narrative_poll_elapsed: float = 0.0
+var _narrative_callback: Callable = Callable()
 
 # ---- 右侧边缘闪烁光效（引导玩家找到 IA_Stage3） ----
 var _right_edge_flash: ColorRect = null
@@ -117,10 +104,13 @@ var _float_text_timer: float = 0.0
 func _setup_player() -> void:
 	if GameManager.player_ref and is_instance_valid(GameManager.player_ref):
 		return
-	var path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"
+	if not level_config:
+		push_error("[Level_04] 缺少 LevelConfig，无法创建玩家")
+		return
+	var path = level_config.player_scene_path
 	if ResourceLoader.exists(path):
 		var p = load(path).instantiate()
-		p.position = level_config.spawn_point if level_config else Vector2(400, 550)
+		p.position = level_config.spawn_point
 		add_child(p)
 		GameManager.register_player(p)
 
@@ -134,7 +124,7 @@ func _swap_player_skin(skin: String) -> void:
 	if InputManager.game_action.is_connected(old._on_game_action):
 		InputManager.game_action.disconnect(old._on_game_action)
 	# 先创建新玩家，再释放旧的（避免 player_ref=null 的空窗期）
-	var path = "res://PlayerModule/Formal/Player_Warrior_" + skin + ".tscn"
+	var path = level_data.lingnan_player_scene_path if skin == "Lingnan" else level_data.cyber_player_scene_path
 	if not ResourceLoader.exists(path): return
 	var p = load(path).instantiate()
 	p.global_position = pos; p.current_health = h
@@ -164,6 +154,9 @@ func _on_ready() -> void:
 	_play_intro_fade_in()
 	if not level_config: level_config = load("res://DataConfig/Level/Level04Config.tres") as LevelConfig; _apply_config()
 	if not level_data:  level_data  = load("res://DataConfig/Level/Level04Data.tres") as Level04Data
+	if not level_config or not level_data:
+		push_error("[Level_04] 必需的 LevelConfig/Level04Data 加载失败，停止初始化")
+		return
 
 	var wolf = "res://EnemyModule/Formal/Enemy_CyberWolf.tscn"
 	if ResourceLoader.exists(wolf): _enemy_cyber_wolf_scene = load(wolf)
@@ -176,7 +169,7 @@ func _on_ready() -> void:
 
 	Level_04_SceneBuilder.new(self).build_all()
 	_setup_camera_limits()
-	_set_cam_from_group($Stage1Collisions, -696)
+	_set_cam_from_group($Stage1Collisions, level_data.stage_1_camera_top)
 	_cache_ui_refs()
 	_start_code_rain()
 	# 收集交互物引用 + 启动闪烁动画
@@ -212,18 +205,13 @@ func _on_ready() -> void:
 	_finish_intro_fade_in()
 
 	if level_data and level_data.anchor_narrative != "":
-		_show_narrative("[color=green]> User_Ming_Override_Protocol: Phase_Final.[/color]\n[color=green]> Target: REAL_EXIT.[/color]", func():
-			_show_narrative("[color=goldenrod]阿明：[/color]" + level_data.anchor_narrative, func():
-				_pan_camera_to(Vector2(1733, 318), func():
-					_spawn_stage1_enemies(); _restore_combat_mechanics()
-				)
-			)
-		)
+		_show_narrative(level_data.opening_protocol_text, _show_opening_anchor_narrative)
 	else:
 		_spawn_stage1_enemies(); _restore_combat_mechanics()
 	print("[Level_04] 初始化完成")
 	# 调试：阶段测试面板（按0开关）
-	_setup_stage_test_panel()
+	if GameManager.dev_tools_enabled():
+		_setup_stage_test_panel()
 
 
 func _setup_stage_test_panel() -> void:
@@ -247,6 +235,28 @@ func prepare_for_level_exit() -> void:
 	_full_cleanup()
 
 
+func _show_opening_anchor_narrative() -> void:
+	if not is_inside_tree() or not level_data:
+		return
+	_show_narrative(
+		"[color=goldenrod]阿明：[/color]" + level_data.anchor_narrative,
+		_pan_opening_camera
+	)
+
+
+func _pan_opening_camera() -> void:
+	if not is_inside_tree() or not level_data:
+		return
+	_pan_camera_to(level_data.stage_1_intro_pan_target, _finish_opening_sequence)
+
+
+func _finish_opening_sequence() -> void:
+	if not is_inside_tree():
+		return
+	_spawn_stage1_enemies()
+	_restore_combat_mechanics()
+
+
 func _disconnect_input_manager() -> void:
 	if InputManager.game_action.is_connected(_on_game_action):
 		InputManager.game_action.disconnect(_on_game_action)
@@ -264,12 +274,10 @@ func _play_intro_fade_in() -> void:
 	add_child(cv)
 	var black = ColorRect.new()
 	black.name = "IntroFadeBlack"
-	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.size = get_viewport_rect().size
-	black.position = Vector2.ZERO
+	cv.add_child(black)
+	black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	black.color = Color(0, 0, 0, 1.0)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cv.add_child(black)
 
 ## 初始化完成后淡出黑屏（1.5s），完成后自动清理遮罩节点
 func _finish_intro_fade_in() -> void:
@@ -277,8 +285,8 @@ func _finish_intro_fade_in() -> void:
 	if not cv: return
 	var black = cv.get_node_or_null("IntroFadeBlack")
 	if not black: return
-	var tw = get_tree().create_tween()
-	tw.tween_property(black, "color:a", 0.0, 1.5).set_trans(Tween.TRANS_SINE)
+	var tw = black.create_tween()
+	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(cv.queue_free)
 
 func _load_hud() -> void:
@@ -351,7 +359,7 @@ func _find_nearby_interactive() -> InteractiveObject:
 	for obj in _all_interactives:
 		if not is_instance_valid(obj) or not obj.is_active or obj.completed: continue
 		var d = p.global_position.distance_to(obj.global_position)
-		if d < 120.0 and d < best_dist: best_dist = d; best = obj
+		if d < level_data.interaction_fallback_radius and d < best_dist: best_dist = d; best = obj
 	if best: best.is_player_in_range = true
 	return best
 
@@ -366,7 +374,7 @@ func _on_object_interacted(data: Dictionary) -> void:
 	var oid: String = data.get("object_id", "")
 	if oid == "guide":
 		if _float_text: _float_text.visible = false
-		_show_narrative("[color=cyan]阿明：[/color]攻击怪物，或被怪物攻击时，世界会瞬间切换。\n这不是规则错误。\n这是裂缝。\n我需要借助世界切换，脱离这里的卡死。")
+		_show_narrative(level_data.guide_text)
 	elif oid == "greeting":
 		_show_floating_text("晚上好，椰汁城")
 	elif oid == "enter_stage2":
@@ -380,6 +388,7 @@ func _on_object_interacted(data: Dictionary) -> void:
 # ============================================================
 
 func _process(delta: float) -> void:
+	_update_narrative(delta)
 	# 切换冷却计数
 	if _swap_cooldown > 0.0: _swap_cooldown -= delta
 
@@ -402,7 +411,7 @@ func _process(delta: float) -> void:
 	# 阶段2 自动世界切换计时
 	if _stage2_auto_swap and current_state == LevelState.STAGE2 and not _narrative_open:
 		_stage2_swap_timer -= delta
-		if not _stage2_warning_active and _stage2_swap_timer <= STAGE2_WARNING_TIME:
+		if not _stage2_warning_active and _stage2_swap_timer <= level_data.stage_2_warning_time:
 			_stage2_warning_active = true
 			_start_stage2_warning()
 		if _stage2_warning_active:
@@ -415,7 +424,7 @@ func _process(delta: float) -> void:
 
 	# 侵蚀值随时间增长（全阶段生效，终局除外）
 	if current_state != LevelState.LEVEL_END_TRANSIT:
-		_modify_erosion(EROSION_RATE * delta)
+		_modify_erosion(level_data.erosion_rate * delta)
 
 	# bg 2-2 掉落死亡 Y 轴兜底检测
 	_check_fall_death()
@@ -463,7 +472,7 @@ func _show_floating_text(txt: String) -> void:
 	var p = GameManager.player_ref
 	if p and is_instance_valid(p):
 		_float_text.global_position = p.global_position + Vector2(-40, -60)
-	_float_text_timer = 1.5
+	_float_text_timer = level_data.floating_text_duration
 
 
 # ============================================================
@@ -534,41 +543,86 @@ func _freeze_player(f: bool) -> void:
 # ---- 叙事 ----
 
 func _show_narrative(text: String, cb: Callable = Callable()) -> void:
-	InputManager.block_input("叙事面板", self)
+	if not level_data:
+		return
 	if _narrative_open:
-		_narrative_panel.hide()
-		_narrative_open = false
+		_close_narrative(false)
+	InputManager.block_input("叙事面板", self)
 	_is_interacting = true
 	_narrative_open = true
-	GameManager.is_dialog_active = true
+	_narrative_enter_pressed = false
+	_narrative_arm_remaining = level_data.narrative_input_arm_delay
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
+	_narrative_callback = cb
+	GameManager.begin_dialog(self)
 	_freeze_player(true)
-	var pages := GameUIStyle.paginate_interaction_text(text)
-	var page_index := 0
+	_narrative_pages.clear()
+	_narrative_pages.append_array(GameUIStyle.paginate_interaction_text(text))
+	if _narrative_pages.is_empty():
+		_narrative_pages.append(text)
+	_narrative_page_index = 0
+	_show_narrative_page()
+
+
+func _update_narrative(delta: float) -> void:
+	if not _narrative_open or not level_data:
+		return
+	if _narrative_arm_remaining > 0.0:
+		_narrative_arm_remaining = maxf(_narrative_arm_remaining - delta, 0.0)
+		if _narrative_arm_remaining <= 0.0:
+			_narrative_enter_pressed = false
+		return
+	_narrative_poll_elapsed += delta
+	var poll_interval := maxf(level_data.narrative_poll_interval, 0.001)
+	if _narrative_poll_elapsed < poll_interval:
+		return
+	_narrative_wait_elapsed += _narrative_poll_elapsed
+	_narrative_poll_elapsed = 0.0
+	if _narrative_enter_pressed:
+		_narrative_enter_pressed = false
+		if _narrative_page_index < _narrative_pages.size() - 1:
+			_narrative_page_index += 1
+			_narrative_wait_elapsed = 0.0
+			_show_narrative_page()
+			return
+		_close_narrative(true)
+		return
+	if _narrative_wait_elapsed >= level_data.narrative_input_timeout:
+		_close_narrative(true)
+
+
+func _show_narrative_page() -> void:
 	if _narrative_panel:
 		if _narrative_text:
-			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
+			GameUIStyle.fit_interaction_text_panel(
+				_narrative_panel,
+				_narrative_text,
+				_narrative_pages[_narrative_page_index]
+			)
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
+
+
+func _close_narrative(invoke_callback: bool) -> void:
+	var callback := _narrative_callback
+	var was_open := _narrative_open
+	_narrative_callback = Callable()
+	_narrative_pages.clear()
+	_narrative_page_index = 0
+	_narrative_arm_remaining = 0.0
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
 	_narrative_enter_pressed = false
-	var w: float = 0.0
-	while _narrative_open and w < NARRATIVE_INPUT_TIMEOUT:
-		if _narrative_enter_pressed:
-			if page_index < pages.size() - 1:
-				page_index += 1
-				_narrative_enter_pressed = false
-				w = 0.0
-				if _narrative_panel and _narrative_text:
-					GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
-			else:
-				break
-		await get_tree().create_timer(0.05).timeout; w += 0.05
-	_narrative_panel.hide()
-	_freeze_player(false)
 	_narrative_open = false
-	GameManager.is_dialog_active = false
+	if _narrative_panel and is_instance_valid(_narrative_panel):
+		_narrative_panel.hide()
+	_freeze_player(false)
+	if was_open:
+		GameManager.end_dialog(self)
+		InputManager.unblock_input("叙事面板", self)
 	_is_interacting = false
-	InputManager.unblock_input("叙事面板")
-	if cb.is_valid(): cb.call()
+	if invoke_callback and callback.is_valid() and is_inside_tree():
+		callback.call()
 
 
 # ---- 地图切换 ----
@@ -579,7 +633,7 @@ func _on_combat_hit(data: Dictionary) -> void:
 	if _narrative_open or _is_interacting: return
 	if _hurt_swap_pending: return
 	if _swap_cooldown > 0.0: return
-	_swap_cooldown = 0.8
+	_swap_cooldown = level_data.world_swap_cooldown
 	# 玩家受击：延迟切换（先播放受击反馈）
 	if data.has("current_health"):
 		if int(data.get("current_health", 1)) <= 0:
@@ -588,7 +642,7 @@ func _on_combat_hit(data: Dictionary) -> void:
 		if hurt_player and is_instance_valid(hurt_player):
 			_prime_hurt_feedback_before_swap(hurt_player)
 		_hurt_swap_pending = true
-		await get_tree().create_timer(HURT_SWAP_DELAY).timeout
+		await get_tree().create_timer(level_data.hurt_swap_delay).timeout
 		_hurt_swap_pending = false
 		# await 后重新检查状态（期间可能进入stage2/对话/死亡）
 		if current_state != LevelState.HOMOMORPHIC_COMBAT: return
@@ -611,43 +665,58 @@ func _prime_hurt_feedback_before_swap(player: Node) -> void:
 func _on_wall_trigger(_body: Node2D) -> void:
 	if _wall_dialog_shown: return
 	_wall_dialog_shown = true
-	_show_narrative("[color=gray]前面没有路了。\n但现实本来就没有铺好的路。\n这次，我自己走过去。[/color]")
+	_show_narrative(level_data.wall_block_text)
 
 func _swap_world() -> void:
 	var p = GameManager.player_ref; if not p or not is_instance_valid(p): return
 	_flash_screen()
 
 	if _current_world == 0:
-		var tgt = LNGN_POSITIONS[_lingnan_spawn_index]
-		var dia = LNGN_DIALOGS[_lingnan_spawn_index]
-		_lingnan_spawn_index = (_lingnan_spawn_index + 1) % LNGN_POSITIONS.size()
+		var tgt = level_data.lingnan_swap_positions[_lingnan_spawn_index]
+		var dia = level_data.lingnan_swap_dialogues[_lingnan_spawn_index]
+		_lingnan_spawn_index = (_lingnan_spawn_index + 1) % level_data.lingnan_swap_positions.size()
 		p.global_position = tgt; _current_world = 1
 		_swap_player_skin("Lingnan"); p = GameManager.player_ref
 		p.velocity = Vector2.ZERO
 		_snap_camera(p)
-		_set_cam_from_group($LingnanCollisions, 904)
+		_set_cam_from_group($LingnanCollisions, level_data.lingnan_camera_top)
 		if not _lingnan_intro_done:
 			_lingnan_intro_done = true
-			_pan_camera_to(Vector2(1581, 1320))
+			_pan_camera_to(level_data.lingnan_intro_pan_target)
 		_spawn_lingnan_enemies_once()
 		if dia != "":
-			get_tree().create_timer(1.0).timeout.connect(func():
-				if _current_world != 1 or _narrative_open: return
-				_show_narrative("[color=cyan]阿明：[/color]" + dia)
-			)
+			_schedule_world_narrative("[color=cyan]阿明：[/color]" + dia, 1)
 	else:
-		p.global_position = CYBER_TELEPORT; _current_world = 0
+		p.global_position = level_data.cyber_teleport; _current_world = 0
 		_swap_player_skin("Cyber"); p = GameManager.player_ref
 		p.velocity = Vector2.ZERO
 		_snap_camera(p)
-		_set_cam_from_group($Stage1Collisions, -696)
+		_set_cam_from_group($Stage1Collisions, level_data.stage_1_camera_top)
 		if not _cyber_return_dialog_shown:
 			_cyber_return_dialog_shown = true
-			get_tree().create_timer(1.0).timeout.connect(func():
-				if _current_world != 0 or _narrative_open: return
-				_show_narrative("[color=cyan]阿明：[/color]我又回来了。\n出口被藏在重复的梦里。\n可能需要多切换几次。")
-			)
+			_schedule_world_narrative(level_data.cyber_return_dialogue, 0)
 	_swap_count += 1
+
+
+func _schedule_world_narrative(text: String, expected_world: int) -> void:
+	var timer := Timer.new()
+	timer.name = "WorldNarrativeTimer"
+	timer.one_shot = true
+	timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	timer.timeout.connect(
+		_on_world_narrative_timeout.bind(timer, text, expected_world),
+		CONNECT_ONE_SHOT
+	)
+	add_child(timer)
+	timer.start(level_data.post_swap_dialogue_delay)
+
+
+func _on_world_narrative_timeout(timer: Timer, text: String, expected_world: int) -> void:
+	if is_instance_valid(timer):
+		timer.queue_free()
+	if not is_inside_tree() or _current_world != expected_world or _narrative_open:
+		return
+	_show_narrative(text)
 
 func _snap_camera(p: CharacterBody2D) -> void:
 	var c = p.get_node_or_null("SmoothCamera")
@@ -664,24 +733,29 @@ func _enter_stage2() -> void:
 	# 黑屏淡入
 	var blk = _create_black_overlay()
 	if not blk: _freeze_player(false); _is_interacting = false; return
-	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, 0.3).finished
+	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, level_data.stage_2_transition_fade_duration).finished
 	# 传送（await 后重新获取玩家引用，避免旧引用已释放）
 	var p = GameManager.player_ref
 	if not p or not is_instance_valid(p):
 		blk.queue_free(); _freeze_player(false); _is_interacting = false; return
-	p.global_position = STAGE2_SPAWN; p.velocity = Vector2.ZERO
+	p.global_position = level_data.stage_2_spawn; p.velocity = Vector2.ZERO
 	_snap_camera(p)
 	_swap_player_skin("Lingnan")
 	p = GameManager.player_ref
 	if not p or not is_instance_valid(p):
 		blk.queue_free(); _freeze_player(false); _is_interacting = false; return
-	_set_camera_limits(0, 7472, 4000, 5032)
+	_set_camera_limits(
+		level_data.stage_2_lingnan_camera_left,
+		level_data.stage_2_lingnan_camera_right,
+		level_data.stage_2_lingnan_camera_top,
+		level_data.stage_2_lingnan_camera_bottom
+	)
 	current_state = LevelState.STAGE2
 	for e in _stage1_enemies:
 		if is_instance_valid(e): e.queue_free()
 	_stage1_enemies.clear()
 	# 黑屏淡出
-	await get_tree().create_tween().tween_property(blk, "color:a", 0.0, 0.3).finished
+	await get_tree().create_tween().tween_property(blk, "color:a", 0.0, level_data.stage_2_transition_fade_duration).finished
 	blk.queue_free()
 	_freeze_player(false)
 	_is_interacting = false
@@ -689,7 +763,7 @@ func _enter_stage2() -> void:
 	_start_stage2_swap_timer()
 	_spawn_stage2_enemies()
 	_start_right_edge_flash()
-	_show_narrative("[color=cyan]阿明：[/color]这里……\n才是真正的出口吗？")
+	_show_narrative(level_data.stage_2_entry_text)
 
 func _create_black_overlay() -> ColorRect:
 	var cv = $CanvasLayerUI
@@ -708,7 +782,7 @@ func _create_black_overlay() -> ColorRect:
 func _start_stage2_swap_timer() -> void:
 	_stage2_auto_swap = true
 	_stage2_warning_active = false
-	_stage2_swap_timer = randf_range(STAGE2_SWAP_MIN, STAGE2_SWAP_MAX)
+	_stage2_swap_timer = randf_range(level_data.stage_2_swap_interval_min, level_data.stage_2_swap_interval_max)
 	print("[Level_04] 阶段2 下次世界切换: %.1f 秒后" % _stage2_swap_timer)
 
 func _start_stage2_warning() -> void:
@@ -722,7 +796,7 @@ func _start_stage2_warning() -> void:
 		_stage2_warning_tween = create_tween()
 		_stage2_warning_tween.tween_method(
 			func(v: float) -> void: m.set_shader_parameter("intensity", v),
-			0.0, 0.85, STAGE2_WARNING_TIME
+			0.0, 0.85, level_data.stage_2_warning_time
 		).set_trans(Tween.TRANS_QUAD)
 
 	# ---- 视觉：目标地图主题色脉冲覆盖 ----
@@ -781,21 +855,31 @@ func _perform_stage2_swap() -> void:
 	if _stage2_current_map == 0:
 		# 岭南 → 赛博
 		_stage2_current_map = 1
-		p.global_position.y += STAGE2_MAP_OFFSET
+		p.global_position.y += level_data.stage_2_map_offset
 		_swap_player_skin("Cyber")
 		p = GameManager.player_ref
 		if p and is_instance_valid(p):
 			p.velocity = old_vel
-		_set_cam_from_group($Stage2_CyberCollisions, 6504, $Stage2_CyberBorders, 7542)
+		_set_cam_from_group(
+			$Stage2_CyberCollisions,
+			level_data.stage_2_cyber_camera_top,
+			$Stage2_CyberBorders,
+			level_data.stage_2_cyber_camera_bottom
+		)
 	else:
 		# 赛博 → 岭南
 		_stage2_current_map = 0
-		p.global_position.y -= STAGE2_MAP_OFFSET
+		p.global_position.y -= level_data.stage_2_map_offset
 		_swap_player_skin("Lingnan")
 		p = GameManager.player_ref
 		if p and is_instance_valid(p):
 			p.velocity = old_vel
-		_set_camera_limits(0, 7472, 4000, 5032)
+		_set_camera_limits(
+			level_data.stage_2_lingnan_camera_left,
+			level_data.stage_2_lingnan_camera_right,
+			level_data.stage_2_lingnan_camera_top,
+			level_data.stage_2_lingnan_camera_bottom
+		)
 
 	if p and is_instance_valid(p):
 		_snap_camera(p)
@@ -820,7 +904,7 @@ func _process_stage2_alarm() -> void:
 	if not _stage2_alarm_playback: return
 	var frames = _stage2_alarm_playback.get_frames_available()
 	# 已经过的预警时间（0 → 2.5）
-	var elapsed: float = STAGE2_WARNING_TIME - maxf(_stage2_swap_timer, 0.0)
+	var elapsed: float = level_data.stage_2_warning_time - maxf(_stage2_swap_timer, 0.0)
 	# 脉冲频率随时间递增：3Hz → 13Hz
 	var pulse_rate: float = 3.0 + elapsed * 4.0
 	# 基音频率随时间微升：280Hz → 480Hz
@@ -913,7 +997,7 @@ func _update_erosion_ui() -> void:
 	if _erosion_bar_bg: _erosion_bar_bg.visible = true
 	_erosion_bar_fill.visible = true
 	_erosion_label.visible = true
-	var ratio: float = _erosion_value / EROSION_MAX
+	var ratio: float = _erosion_value / level_data.erosion_max
 	_erosion_bar_fill.size.x = 280.0 * ratio
 	_erosion_label.text = "侵蚀 %.0f%%" % _erosion_value
 	# 颜色从紫→红逐渐变化
@@ -930,9 +1014,9 @@ func _update_erosion_ui() -> void:
 		_erosion_vignette.material.set_shader_parameter("intensity", vignette_intensity)
 
 func _modify_erosion(delta: float) -> void:
-	_erosion_value = clampf(_erosion_value + delta, 0.0, EROSION_MAX)
+	_erosion_value = clampf(_erosion_value + delta, 0.0, level_data.erosion_max)
 	_update_erosion_ui()
-	if _erosion_value >= EROSION_MAX:
+	if _erosion_value >= level_data.erosion_max:
 		# 侵蚀满 → 播放死亡动画后再触发失败
 		_stage2_auto_swap = false
 		_stop_stage2_warning()
@@ -961,7 +1045,7 @@ func _on_fall_zone_entered(body: Node2D) -> void:
 	if _fall_death_pending: return  # 已在坠落延迟中
 	print("[Level_04] 玩家掉入维度裂隙！延迟1秒后触发失败（让玩家掉落出视野）")
 	_fall_death_pending = true
-	_fall_death_timer = 1.0
+	_fall_death_timer = level_data.fall_death_delay
 
 func _check_fall_death() -> void:
 	# Y轴兜底检测：当玩家在赛博地图(bg 2-2)且掉到Y>=7550时触发失败
@@ -970,10 +1054,10 @@ func _check_fall_death() -> void:
 	var p = GameManager.player_ref
 	if not p or not is_instance_valid(p): return
 	# 判断是否在赛博地图范围内（通过摄像机Y上限）
-	if p.global_position.y > 6800 and p.global_position.y > 7540:
+	if p.global_position.y > level_data.fall_detection_map_min_y and p.global_position.y > level_data.fall_death_y:
 		print("[Level_04] 玩家坠落出界（Y=%.0f）" % p.global_position.y)
 		_fall_death_pending = true
-		_fall_death_timer = 1.0
+		_fall_death_timer = level_data.fall_death_delay
 
 func _check_enemy_vertical_reachability() -> void:
 	# 当敌人追踪玩家但与玩家垂直距离超过阈值时，强制退出追逐状态
@@ -981,12 +1065,11 @@ func _check_enemy_vertical_reachability() -> void:
 	var p = GameManager.player_ref
 	if not p or not is_instance_valid(p): return
 
-	const VERTICAL_THRESHOLD: float = 160.0
 	var all_enemies := _stage2_lingnan_enemies + _stage2_cyber_enemies
 	for e in all_enemies:
 		if not is_instance_valid(e) or e.is_dead: continue
 		var dy := absf(p.global_position.y - e.global_position.y)
-		if dy > VERTICAL_THRESHOLD and (e.current_state == GlobalDefine.EnemyState.CHASE or e.current_state == GlobalDefine.EnemyState.ATTACK):
+		if dy > level_data.enemy_vertical_reachability and (e.current_state == GlobalDefine.EnemyState.CHASE or e.current_state == GlobalDefine.EnemyState.ATTACK):
 			e._change_state(GlobalDefine.EnemyState.PATROL)
 
 
@@ -1009,57 +1092,40 @@ func _spawn_stage2_enemies() -> void:
 
 	# ---- bg 2-1 岭南敌人 ----
 	# 灯笼鬼（漂浮，不会掉落）
-	var lantern_spots: Array[Vector2] = [
-		Vector2(1500, 4200), Vector2(3500, 4450), Vector2(6000, 4600)
-	]
+	var lantern_spots := level_data.stage_2_lantern_spawn_points
 	for sp in lantern_spots:
 		if _enemy_lantern_scene:
 			var e = _enemy_lantern_scene.instantiate()
 			e.global_position = sp
 			add_child(e)
-			GameManager.register_enemy(e)
 			_stage2_lingnan_enemies.append(e)
 
 	# 纸符人（平台中央，远离边缘）
-	var paper_spots: Array[Vector2] = [
-		Vector2(400, 4590),   # P4 中央
-		Vector2(3100, 4335),  # P8 中央
-		Vector2(4700, 4335),  # P12 中央
-	]
+	var paper_spots := level_data.stage_2_paper_spawn_points
 	for sp in paper_spots:
 		if _enemy_paper_effigy_scene:
 			var e = _enemy_paper_effigy_scene.instantiate()
 			e.global_position = sp
 			add_child(e)
-			GameManager.register_enemy(e)
 			_stage2_lingnan_enemies.append(e)
 
 	# ---- bg 2-2 赛博敌人 ----
 	# 赛博狼人（平台中央，远离边缘）
-	var wolf_spots: Array[Vector2] = [
-		Vector2(400, 7130),   # P1 中央
-		Vector2(3400, 7275),  # P4 中央
-		Vector2(4600, 7110),  # P6 中央
-	]
+	var wolf_spots := level_data.stage_2_wolf_spawn_points
 	for sp in wolf_spots:
 		if _enemy_cyber_wolf_scene:
 			var e = _enemy_cyber_wolf_scene.instantiate()
 			e.global_position = sp
 			add_child(e)
-			GameManager.register_enemy(e)
 			_stage2_cyber_enemies.append(e)
 
 	# 赛博冲撞兽（平台中央）
-	var bull_spots: Array[Vector2] = [
-		Vector2(2300, 7105),  # P2 中央
-		Vector2(7100, 6985),  # P15 中央
-	]
+	var bull_spots := level_data.stage_2_bull_spawn_points
 	for sp in bull_spots:
 		if _enemy_cyber_bull_scene:
 			var e = _enemy_cyber_bull_scene.instantiate()
 			e.global_position = sp
 			add_child(e)
-			GameManager.register_enemy(e)
 			_stage2_cyber_enemies.append(e)
 
 	print("[Level_04] 阶段2 敌人生成: 岭南%d只 + 赛博%d只" % [_stage2_lingnan_enemies.size(), _stage2_cyber_enemies.size()])
@@ -1081,7 +1147,7 @@ func _enter_stage3() -> void:
 	# 黑屏过渡 → 跳转到 Level_05
 	var blk = _create_black_overlay()
 	if not blk: _freeze_player(false); _is_interacting = false; return
-	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, 0.5).finished
+	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, level_data.stage_3_transition_fade_duration).finished
 
 	# 清除阶段2敌人
 	for e in _stage2_lingnan_enemies:
@@ -1092,14 +1158,14 @@ func _enter_stage3() -> void:
 	_stage2_cyber_enemies.clear()
 
 	# 传递侵蚀值和血量给 Level_05
-	GameManager.dream_runtime_flags["erosion_value"] = _erosion_value
+	GameManager.set_dream_flag(&"erosion_value", _erosion_value)
 	var pl = GameManager.player_ref
 	if pl and is_instance_valid(pl):
-		GameManager.dream_runtime_flags["player_health"] = pl.current_health
-		GameManager.dream_runtime_flags["player_max_health"] = pl.max_health
+		GameManager.set_dream_flag(&"player_health", pl.current_health)
+		GameManager.set_dream_flag(&"player_max_health", pl.max_health)
 
 	# 跳转
-	SceneTransitionManager.request_scene_change("res://LevelModule/Formal/Level_05.tscn", self)
+	SceneTransitionManager.request_scene_change(level_data.next_level_path, self)
 
 
 func _pan_camera_to(target: Vector2, cb: Callable = Callable()) -> void:
@@ -1111,9 +1177,9 @@ func _pan_camera_to(target: Vector2, cb: Callable = Callable()) -> void:
 	_freeze_player(true)
 	cam.follow_enabled = false
 	var t = create_tween()
-	t.tween_property(cam, "global_position", target, 0.5).set_trans(Tween.TRANS_SINE)
-	t.tween_interval(2.5)
-	t.tween_property(cam, "global_position", p.global_position, 0.5).set_trans(Tween.TRANS_SINE)
+	t.tween_property(cam, "global_position", target, level_data.camera_pan_travel_duration).set_trans(Tween.TRANS_SINE)
+	t.tween_interval(level_data.camera_pan_hold_duration)
+	t.tween_property(cam, "global_position", p.global_position, level_data.camera_pan_travel_duration).set_trans(Tween.TRANS_SINE)
 	await t.finished
 	# await 后重新获取玩家引用（避免旧玩家在 await 期间被切皮肤释放）
 	p = GameManager.player_ref
@@ -1179,9 +1245,11 @@ func _check_stage3_in_view() -> void:
 			return
 
 func _flash_screen() -> void:
-	# 强度随切换次数递增，每次 +0.08，上限 1.0
-	var strength = minf(0.5 + _swap_count * 0.08, 1.0)
-	var duration = 0.25 + _swap_count * 0.04  # 淡出越来越慢
+	var strength = minf(
+		level_data.swap_glitch_base_strength + _swap_count * level_data.swap_glitch_strength_per_swap,
+		level_data.swap_glitch_max_strength
+	)
+	var duration = level_data.swap_glitch_base_duration + _swap_count * level_data.swap_glitch_duration_per_swap
 
 	if _glitch_overlay and _glitch_overlay.material:
 		_glitch_overlay.show()
@@ -1196,17 +1264,20 @@ func _flash_screen() -> void:
 	f.name = "SwapFlash"; f.set_anchors_preset(Control.PRESET_FULL_RECT)
 	f.color = Color.WHITE; f.mouse_filter = Control.MOUSE_FILTER_IGNORE; f.z_index = 100
 	var cv = $CanvasLayerUI; if cv: cv.add_child(f)
-	var t = create_tween(); t.tween_property(f, "color:a", 0.0, 0.3); t.tween_callback(f.queue_free)
+	var t = create_tween(); t.tween_property(f, "color:a", 0.0, level_data.swap_flash_duration); t.tween_callback(f.queue_free)
 
 
 # ---- 敌人 ----
 
 func _spawn_stage1_enemies() -> void:
 	if not _enemy_cyber_wolf_scene: return
-	var sp = level_data.surface_enemy_spawn_points if level_data else []
-	if sp.is_empty(): sp = [Vector2(400, 540), Vector2(600, 540), Vector2(800, 540), Vector2(1000, 540), Vector2(1400, 540)]
+	var sp := level_data.surface_enemy_spawn_points
+	if sp.is_empty():
+		push_error("[Level_04] Level04Data.surface_enemy_spawn_points 不能为空")
+		return
 	var cf = load("res://DataConfig/Enemy/CleanerConfig.tres") as EnemyConfig
-	for s in sp:
+	for i in range(mini(level_data.surface_enemy_count, sp.size())):
+		var s: Vector2 = sp[i]
 		var e = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, s, cf)
 		if e: e.modulate = Color(0.3, 0.3, 0.35, 0.95); _stage1_enemies.append(e)
 	print("[Level_04] 赛博敌人生成: %d 只" % _stage1_enemies.size())
@@ -1216,10 +1287,10 @@ func _spawn_lingnan_enemies_once() -> void:
 	_lingnan_enemies_spawned = true
 	if not _enemy_cyber_wolf_scene: return
 	var cf = load("res://DataConfig/Enemy/CleanerConfig.tres") as EnemyConfig
-	for s in [Vector2(1000, 2100), Vector2(2000, 2150), Vector2(3000, 2100)]:
+	for s in level_data.lingnan_enemy_spawn_points:
 		var e = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, s, cf)
 		if e: e.modulate = Color(0.2, 0.15, 0.35, 0.95); _stage1_enemies.append(e)
-	print("[Level_04] 岭南敌人生成: 3 只")
+	print("[Level_04] 岭南敌人生成: %d 只" % level_data.lingnan_enemy_spawn_points.size())
 
 func _spawn_enemy_with_config(sc: PackedScene, sp: Vector2, cf: EnemyConfig) -> Node2D:
 	if not sc: return null
@@ -1230,10 +1301,10 @@ func _on_enemy_died(data: Dictionary) -> void:
 	var e = data.get("enemy")
 	if not e or not is_instance_valid(e): return
 	if current_state == LevelState.HOMOMORPHIC_COMBAT and e in _stage1_enemies:
-		_stage1_enemies.erase(e); _swap_count += 2
+		_stage1_enemies.erase(e); _swap_count += level_data.stage_1_enemy_swap_progress
 	if e in _stage2_lingnan_enemies or e in _stage2_cyber_enemies:
 		# 击杀降低侵蚀值
-		_modify_erosion(-EROSION_KILL_REDUCE)
+		_modify_erosion(-level_data.erosion_kill_reduction)
 		if e in _stage2_lingnan_enemies:
 			_stage2_lingnan_enemies.erase(e)
 		elif e in _stage2_cyber_enemies:
@@ -1254,10 +1325,12 @@ func _emit_level_complete() -> void:
 	if _level_complete_emitted: return
 	_level_complete_emitted = true
 	_full_cleanup()
-	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"level": self, "next_level": level_data.next_level_path if level_data else ""})
+	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"level": self, "next_level": level_data.next_level_path})
 
 func _full_cleanup() -> void:
 	_disconnect_input_manager()
+	_close_narrative(false)
+	InputManager.release_input_for_owner(self)
 	_stage2_auto_swap = false
 	_stop_stage2_warning()
 	_stop_right_edge_flash()
@@ -1281,10 +1354,10 @@ func _goto_stage1_test() -> void:
 	current_state = LevelState.HOMOMORPHIC_COMBAT
 	var p = GameManager.player_ref
 	if p and is_instance_valid(p):
-		p.global_position = Vector2(400, 550)
+		p.global_position = level_data.stage_1_test_player_position
 		_swap_player_skin("Cyber")
 		_snap_camera(GameManager.player_ref)
-		_set_cam_from_group($Stage1Collisions, -696)
+		_set_cam_from_group($Stage1Collisions, level_data.stage_1_camera_top)
 
 func _goto_stage2_test() -> void:
 	if not _stage2_entered:
@@ -1292,10 +1365,15 @@ func _goto_stage2_test() -> void:
 	else:
 		var p = GameManager.player_ref
 		if p and is_instance_valid(p):
-			p.global_position = STAGE2_SPAWN
+			p.global_position = level_data.stage_2_spawn
 			_swap_player_skin("Lingnan")
 			_snap_camera(GameManager.player_ref)
-			_set_camera_limits(0, 7472, 4000, 5032)
+			_set_camera_limits(
+				level_data.stage_2_lingnan_camera_left,
+				level_data.stage_2_lingnan_camera_right,
+				level_data.stage_2_lingnan_camera_top,
+				level_data.stage_2_lingnan_camera_bottom
+			)
 
 func _goto_stage3_test() -> void:
 	# 直接跳到阶段3交互点附近
@@ -1306,6 +1384,6 @@ func _goto_stage3_test() -> void:
 		# 移动到 enter_stage3 交互点附近
 		for obj in _all_interactives:
 			if obj.object_id == "enter_stage3" and is_instance_valid(obj):
-				p.global_position = obj.global_position + Vector2(-60, 0)
+				p.global_position = obj.global_position + level_data.stage_3_test_player_offset
 				break
 		_snap_camera(p)

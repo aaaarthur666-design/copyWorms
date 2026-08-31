@@ -78,8 +78,14 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # 暂停时仍可处理（用于静音）
 	_load_streams()
 	_init_pool()
-	EventBus.subscribe(GlobalDefine.EventName.GAME_PAUSE, self, "_on_game_pause")
-	EventBus.subscribe(GlobalDefine.EventName.GAME_RESUME, self, "_on_game_resume")
+	EventBus.subscribe_persistent(GlobalDefine.EventName.GAME_PAUSE, self, "_on_game_pause")
+	EventBus.subscribe_persistent(GlobalDefine.EventName.GAME_RESUME, self, "_on_game_resume")
+
+
+func _exit_tree() -> void:
+	stop_all()
+	_streams.clear()
+	_stream_variants.clear()
 
 # ================================================================
 #  初始化
@@ -175,7 +181,7 @@ func set_volume_db(db: float) -> void:
 func set_muted(muted: bool) -> void:
 	_muted = muted
 	if muted:
-		stop_skill_charge_loop()
+		stop_all()
 
 ## 技能蓄力：开始循环播放 Energy Accumulate
 func start_skill_charge_loop() -> void:
@@ -213,6 +219,17 @@ func stop_skill_charge_loop() -> void:
 	_charge_loop_active = false
 	if _charge_player and _charge_player.playing:
 		_charge_player.stop()
+
+
+## 停止并释放所有活动播放实例。转场和自测退出都应调用，避免短音效跨场景残留。
+func stop_all() -> void:
+	stop_skill_charge_loop()
+	if _charge_player:
+		_charge_player.stream = null
+	for player: AudioStreamPlayer in _players:
+		player.stop()
+		player.stream = null
+	_last_play_msec.clear()
 
 # ================================================================
 #  内部

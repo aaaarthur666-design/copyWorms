@@ -6,6 +6,8 @@
 extends LevelBase
 class_name Level_05
 
+@export var level_data: Level05Data = preload("res://DataConfig/Level/Level05Data.tres")
+
 @onready var _top_sprite: Sprite2D = $TopSprite
 @onready var _bot_sprite: Sprite2D = $BotSprite
 @onready var _cyber_collisions: Node2D = $CyberCollisions
@@ -13,7 +15,7 @@ class_name Level_05
 
 var _top_mat: ShaderMaterial = null
 var _edge_tear: ColorRect = null
-var _corruption: float = 0.35
+var _corruption: float = 0.0
 var _top_is_lingnan: bool = true
 var _in_boss_arena: bool = false
 var _boss_instance: Node2D = null
@@ -21,24 +23,16 @@ var _current_player_skin: String = "Cyber"   # 当前玩家皮肤（"Cyber"/"Lin
 var _layer_swap_cd: float = 0.0              # 双世界切换冷却（防战斗中频繁切换）
 
 # ---- 双角色独立血量（Boss战：Cyber/Lingnan 各100血，切人换血条，总200血） ----
-const DUAL_CHAR_MAX_HP: int = 100
-var _cyber_health: int = DUAL_CHAR_MAX_HP
-var _lingnan_health: int = DUAL_CHAR_MAX_HP
+var _cyber_health: int = 0
+var _lingnan_health: int = 0
 var _cyber_hint_shown: bool = false   # 赛博人物首次扣血到50时是否已显示提示
 var _lingnan_hint_shown: bool = false # 岭南人物首次扣血到50时是否已显示提示
-const LAYER_SWAP_COOLDOWN: float = 1.2       # 切换冷却时长
 
 # ---- bg5 区域（Boss击杀后灯笼对话跳转） ----
 var _in_bg5: bool = false
 var _lantern_instance: Node2D = null
 @onready var _bg5_bg: Sprite2D = $Bg5
 @onready var _bg5_collisions: Node2D = $Bg5Collisions
-const BG5_CENTER_X: float = 569.0            # bg5区域x中心（与bg4远离）
-const BG5_PLAYER_POS := Vector2(569, 8076)
-const BG5_CAM_LEFT: int = 200
-const BG5_CAM_RIGHT: int = 2200
-const BG5_CAM_TOP: int = 7700
-const BG5_CAM_BOTTOM: int = 8300
 
 # ---- 交互物 ----
 var _all_interactives: Array[InteractiveObject] = []
@@ -49,7 +43,6 @@ var _boss_bar_fill: ColorRect = null
 var _boss_bar_label: Label = null
 var _boss_toughness_fill: ColorRect = null
 var _boss_toughness_label: Label = null
-const BOSS_BAR_MAX_WIDTH: float = 400.0
 
 # ---- 对话框 ----
 var _dialog_panel: Panel = null
@@ -69,9 +62,6 @@ var _erosion_bar_fill: ColorRect = null
 var _erosion_label: Label = null
 var _code_rain_overlay: CodeRain = null
 var _erosion_growth_locked: bool = false
-const EROSION_MAX: float = 100.0
-const EROSION_RATE: float = 0.7
-const EROSION_KILL_REDUCE: float = 15.0
 
 # ---- 敌人 ----
 ## 所有敌人：换层时清空重建
@@ -87,33 +77,39 @@ var _cyber_enemies: Array[Node2D] = []     # 赛博世界怪物（狼人+冲撞�
 
 
 func _setup_player() -> void:
+	if not level_data:
+		push_error("[Level_05] 缺少 Level05Data，无法创建玩家")
+		return
+	var max_health := level_data.dual_character_max_health
+	if _cyber_health <= 0:
+		_cyber_health = max_health
 	# 清除 lv4 遗留的旧玩家引用
 	if GameManager.player_ref:
 		if is_instance_valid(GameManager.player_ref):
 			GameManager.player_ref.queue_free()
 		GameManager.player_ref = null
 
-	var path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"
+	var path = level_data.cyber_player_scene_path
 	if ResourceLoader.exists(path):
 		GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
 		var p = load(path).instantiate()
-		p.position = Vector2(-1603, 380)
+		p.position = level_data.bg3_player_position
 		_current_player_skin = "Cyber"
 		# Lingnan 角色初始满血100（Cyber 的初始血量由 _on_ready 从 lv4 继承设置）
-		_lingnan_health = DUAL_CHAR_MAX_HP
+		_lingnan_health = max_health
 		add_child(p)
 		GameManager.register_player(p)
 		# _ready 中 _apply_config 会重置血量,需在此之后设为独立血量
-		p.max_health = DUAL_CHAR_MAX_HP
+		p.max_health = max_health
 		p.current_health = _cyber_health
 		var cam = p.get_node_or_null("SmoothCamera") as SmoothCamera
 		if cam:
-			cam.zoom = Vector2(1.33, 1.33)
+			cam.zoom = Vector2(level_data.bg3_camera_zoom, level_data.bg3_camera_zoom)
 			cam.bind_target(p)
 			cam.follow_enabled = true
 			cam.make_current()
 		# 摄像机边界从碰撞体读取（bg3 区域，上边界 80）
-		_set_cam_from_group($CyberCollisions, 80, 648)
+		_set_cam_from_group($CyberCollisions, level_data.bg3_camera_top, level_data.bg3_camera_bottom)
 		# 推送血量到 HUD
 		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {
 			"target": p,
@@ -141,12 +137,12 @@ func _swap_player_skin(skin: String) -> void:
 	if InputManager.game_action.is_connected(old._on_game_action):
 		InputManager.game_action.disconnect(old._on_game_action)
 	# 先创建新玩家，再释放旧的
-	var path = "res://PlayerModule/Formal/Player_Warrior_" + skin + ".tscn"
+	var path = level_data.lingnan_player_scene_path if skin == "Lingnan" else level_data.cyber_player_scene_path
 	if not ResourceLoader.exists(path): return
 	var p = load(path).instantiate()
 	p.global_position = pos
 	# 恢复目标角色的独立血量（不回满）
-	p.max_health = DUAL_CHAR_MAX_HP
+	p.max_health = level_data.dual_character_max_health
 	p.current_health = _cyber_health if skin == "Cyber" else _lingnan_health
 	p.is_facing_right = f; p.velocity = Vector2.ZERO
 	GameManager.player_ref = null
@@ -156,7 +152,7 @@ func _swap_player_skin(skin: String) -> void:
 	old.set_process(false)
 	old.queue_free()
 	# _ready 中 _apply_config 会重置血量为 max_health，需在此之后恢复独立血量
-	p.max_health = DUAL_CHAR_MAX_HP
+	p.max_health = level_data.dual_character_max_health
 	p.current_health = _cyber_health if skin == "Cyber" else _lingnan_health
 	_current_player_skin = skin  # 更新为新skin
 	# 恢复摄像机：设限制 → bind_target(snap+reset) → 激活
@@ -165,7 +161,8 @@ func _swap_player_skin(skin: String) -> void:
 		if saved_limits:
 			cam.limit_left = saved_limits[0]; cam.limit_right = saved_limits[1]
 			cam.limit_top = saved_limits[2]; cam.limit_bottom = saved_limits[3]
-		cam.zoom = Vector2(1.33, 1.33)
+		var zoom_value := level_data.bg5_camera_zoom if _in_bg5 else (level_data.boss_camera_zoom if _in_boss_arena else level_data.bg3_camera_zoom)
+		cam.zoom = Vector2(zoom_value, zoom_value)
 		cam.bind_target(p)
 		cam.follow_enabled = true
 		cam.make_current()
@@ -179,7 +176,7 @@ func _swap_player_skin(skin: String) -> void:
 ## G键切换人物形象（仅bg4 Boss区域）：赛博 ↔ 岭南
 func _toggle_boss_skin() -> void:
 	var new_skin = "Lingnan" if _current_player_skin == "Cyber" else "Cyber"
-	var path = "res://PlayerModule/Formal/Player_Warrior_" + new_skin + ".tscn"
+	var path = level_data.lingnan_player_scene_path if new_skin == "Lingnan" else level_data.cyber_player_scene_path
 	if not ResourceLoader.exists(path):
 		print("[Level_05] 切换皮肤失败，场景不存在: %s" % path)
 		return
@@ -219,23 +216,26 @@ func _set_cam_from_group(group: Node, top: int, bottom: int = -1) -> void:
 
 func _on_ready() -> void:
 	super._on_ready()
+	if not level_data:
+		push_error("[Level_05] Level05Data 加载失败，停止初始化")
+		return
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
+	_corruption = level_data.initial_corruption
 
 	# 入场黑屏遮罩（初始化在黑屏下进行，末尾淡出呈现关卡）
 	_play_intro_fade_in()
 
 	# 继承 lv4 的侵蚀值
-	var flags = GameManager.dream_runtime_flags
-	if flags.has("erosion_value"):
-		_erosion_value = flags["erosion_value"]
+	var flags := GameManager.dream_runtime_state
+	_erosion_value = flags.erosion_value()
 	# 继承 lv4 的玩家血量：作为 Cyber 角色的初始血量（Boss战前玩家的血量延续到Cyber）
 	# Lingnan 角色初始为满血100（Boss战双角色独立血量）
-	if flags.has("player_health"):
-		_cyber_health = clampi(int(flags["player_health"]), 1, DUAL_CHAR_MAX_HP)
-	_lingnan_health = DUAL_CHAR_MAX_HP
+	if flags.has_value(&"player_health"):
+		_cyber_health = clampi(int(flags.get_value(&"player_health")), 1, level_data.dual_character_max_health)
+	_lingnan_health = level_data.dual_character_max_health
 	var p = GameManager.player_ref
 	if p and is_instance_valid(p):
-		p.max_health = DUAL_CHAR_MAX_HP
+		p.max_health = level_data.dual_character_max_health
 		p.current_health = _cyber_health
 		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {
 			"target": p,
@@ -314,7 +314,7 @@ func _on_ready() -> void:
 
 	# 检查点恢复：如果之前在bg4死亡，直接传送玩家到bg4区域重新开始Boss战
 	print("[Level_05] 检查点阶段: %d, 路径: %s" % [GameManager.checkpoint_stage, GameManager.checkpoint_scene_path])
-	if GameManager.checkpoint_stage >= 4:
+	if GameManager.checkpoint_stage >= level_data.boss_checkpoint_stage:
 		# 跳过bg3，直接进入bg4
 		_in_boss_arena = true
 		# 标记交互点已完成（避免重复触发）
@@ -322,18 +322,25 @@ func _on_ready() -> void:
 			if obj.object_id == "enter_boss":
 				obj.mark_completed()
 		# 直接传送到bg4并生成Boss
-		_teleport_and_setup_camera(Vector2(931, 5037), 620, 1710, 4509, 5135, 1.5)
+		_teleport_and_setup_camera(
+			level_data.boss_player_position,
+			level_data.boss_camera_left,
+			level_data.boss_camera_right,
+			level_data.boss_checkpoint_camera_top,
+			level_data.boss_camera_bottom,
+			level_data.boss_checkpoint_camera_zoom
+		)
 		_set_boss_area_active(true)
 		_set_map_sprites_visible(false)
 		_spawn_boss()
 		_show_boss_bar()
 		# 恢复玩家满血（检查点重开：双角色都回满100血）
-		_cyber_health = DUAL_CHAR_MAX_HP
-		_lingnan_health = DUAL_CHAR_MAX_HP
+		_cyber_health = level_data.dual_character_max_health
+		_lingnan_health = level_data.dual_character_max_health
 		var pp = GameManager.player_ref
 		if pp and is_instance_valid(pp):
-			pp.max_health = DUAL_CHAR_MAX_HP
-			pp.current_health = DUAL_CHAR_MAX_HP
+			pp.max_health = level_data.dual_character_max_health
+			pp.current_health = level_data.dual_character_max_health
 			EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {
 				"target": pp,
 				"current_health": pp.current_health,
@@ -343,7 +350,8 @@ func _on_ready() -> void:
 		# 显示"按G切换人物外观"指引
 		_show_skin_hint()
 	# 调试：阶段测试面板（按0开关）
-	_setup_stage_test_panel()
+	if GameManager.dev_tools_enabled():
+		_setup_stage_test_panel()
 
 
 func _setup_stage_test_panel() -> void:
@@ -366,8 +374,8 @@ func _goto_bg3_test() -> void:
 	_set_map_sprites_visible(true)
 	_set_collision_group_active(_cyber_collisions, true)
 	_set_collision_group_active(_lingnan_collisions, false)
-	_teleport_and_setup_camera(Vector2(-1603, 380), 0, 0, 80, 648, 1.33)
-	_set_cam_from_group($CyberCollisions, 80, 648)
+	_teleport_and_setup_camera(level_data.bg3_player_position, 0, 0, level_data.bg3_camera_top, level_data.bg3_camera_bottom, level_data.bg3_camera_zoom)
+	_set_cam_from_group($CyberCollisions, level_data.bg3_camera_top, level_data.bg3_camera_bottom)
 	_despawn_boss()
 	_hide_boss_bar()
 	_spawn_all_enemies(true)
@@ -379,8 +387,15 @@ func _goto_bg4_test() -> void:
 	_set_boss_area_active(true)
 	_set_map_sprites_visible(false)
 	_set_bg5_area_active(false)
-	_teleport_and_setup_camera(Vector2(931, 5037), 620, 1710, 4509, 5135, 1.5)
-	_set_cam_from_group($BossCollisions, 4512)
+	_teleport_and_setup_camera(
+		level_data.boss_player_position,
+		level_data.boss_camera_left,
+		level_data.boss_camera_right,
+		level_data.boss_checkpoint_camera_top,
+		level_data.boss_camera_bottom,
+		level_data.boss_checkpoint_camera_zoom
+	)
+	_set_cam_from_group($BossCollisions, level_data.boss_camera_top)
 	_spawn_boss()
 	_show_boss_bar()
 	_show_skin_hint()
@@ -394,8 +409,8 @@ func _goto_bg5_test() -> void:
 	_set_boss_area_active(false)
 	_set_map_sprites_visible(false)
 	_set_bg5_area_active(true)
-	_teleport_and_setup_camera(BG5_PLAYER_POS, BG5_CAM_LEFT, BG5_CAM_RIGHT, 7448, BG5_CAM_BOTTOM, 1.33)
-	_set_cam_from_group($Bg5Collisions, 7448)
+	_teleport_and_setup_camera(level_data.bg5_player_position, level_data.bg5_camera_left, level_data.bg5_camera_right, level_data.bg5_camera_top, level_data.bg5_camera_bottom, level_data.bg5_camera_zoom)
+	_set_cam_from_group($Bg5Collisions, level_data.bg5_camera_top)
 	_hide_boss_bar()
 	_despawn_boss()
 	_sync_code_rain_for_bg5()
@@ -407,8 +422,7 @@ func _exit_tree() -> void:
 
 func prepare_for_level_exit() -> void:
 	Engine.time_scale = 1.0
-	InputManager.unblock_input("视频演出")
-	InputManager.unblock_input("对话")
+	InputManager.release_input_for_owner(self)
 	_dialog_open = false
 	_dialog_callback = Callable()
 	_clear_all_enemies()
@@ -428,12 +442,10 @@ func _play_intro_fade_in() -> void:
 	add_child(cv)
 	var black = ColorRect.new()
 	black.name = "IntroFadeBlack"
-	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.size = get_viewport_rect().size
-	black.position = Vector2.ZERO
+	cv.add_child(black)
+	black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	black.color = Color(0, 0, 0, 1.0)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cv.add_child(black)
 
 ## 初始化完成后淡出黑屏（1.5s），完成后自动清理遮罩节点
 func _finish_intro_fade_in() -> void:
@@ -441,8 +453,8 @@ func _finish_intro_fade_in() -> void:
 	if not cv: return
 	var black = cv.get_node_or_null("IntroFadeBlack")
 	if not black: return
-	var tw = get_tree().create_tween()
-	tw.tween_property(black, "color:a", 0.0, 1.5).set_trans(Tween.TRANS_SINE)
+	var tw = black.create_tween()
+	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(cv.queue_free)
 
 
@@ -451,8 +463,8 @@ func _process(delta: float) -> void:
 	_layer_swap_cd = maxf(0.0, _layer_swap_cd - delta)
 	# 对话期间暂停侵蚀
 	if not _dialog_open and not _in_bg5 and not _erosion_growth_locked:
-		_modify_erosion(EROSION_RATE * delta)
-	_corruption = _erosion_value / 100.0
+		_modify_erosion(level_data.erosion_rate * delta)
+	_corruption = _erosion_value / level_data.erosion_max
 
 	# player_uv → 玩家在屏幕上的 UV
 	var player_uv = Vector2(0.5, 0.5)
@@ -517,11 +529,11 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("ui_left"):
-		_corruption = maxf(0.0, _corruption - 0.05)
+		_corruption = maxf(0.0, _corruption - level_data.manual_corruption_step)
 		get_viewport().set_input_as_handled()
 		_update_label()
 	elif event.is_action_pressed("ui_right"):
-		_corruption = minf(1.0, _corruption + 0.05)
+		_corruption = minf(1.0, _corruption + level_data.manual_corruption_step)
 		get_viewport().set_input_as_handled()
 		_update_label()
 	elif event.is_action_pressed("ui_accept") or is_left_click:
@@ -571,15 +583,15 @@ func _swap_world_layer() -> void:
 		_show_enemy_group(_lingnan_enemies, false)
 	_update_label()
 	# 抖屏效果：世界撕裂感
-	_trigger_screen_shake(8.0, 0.25)
+	_trigger_screen_shake(level_data.world_swap_shake_strength, level_data.world_swap_shake_duration)
 
 ## 生成双世界怪物（岭南+赛博各一组，各自独立血量，赛博组初始隐藏）
 func _spawn_dual_world_enemies() -> void:
 	_clear_all_enemies()
 	_lingnan_enemies.clear()
 	_cyber_enemies.clear()
-	var ground_spots = [Vector2(-1000, 420), Vector2(0, 415), Vector2(800, 425)]
-	var special_spots = [Vector2(200, 380), Vector2(600, 370)]
+	var ground_spots = level_data.dual_world_ground_spawn_points
+	var special_spots = level_data.dual_world_special_spawn_points
 	# 岭南世界：纸人 + 灯笼（初始显示）
 	for sp in ground_spots:
 		var e = _spawn_one(_enemy_paper_scene, sp)
@@ -631,7 +643,7 @@ func _on_combat_swap_layer(_data: Dictionary) -> void:
 	if _in_boss_arena or _in_bg5: return
 	if _dialog_open: return
 	if _layer_swap_cd > 0.0: return
-	_layer_swap_cd = LAYER_SWAP_COOLDOWN
+	_layer_swap_cd = level_data.layer_swap_cooldown
 	_swap_world_layer()
 
 
@@ -701,18 +713,18 @@ func _on_object_interacted(data: Dictionary) -> void:
 		var grandpa := _get_interactive_by_id("grandpa")
 		if grandpa:
 			grandpa.mark_completed()
-		_show_dialog(["爷爷？\n如果你真的是我记忆里的那盏灯，\n就请照我回去。"], _play_grandpa_video)
+		_show_dialog(level_data.grandpa_prompt_dialogues, _play_grandpa_video)
 
 ## 播放花旦CG过场（进入Boss战前）：淡入黑屏→播放CG→进入Boss战
 func _play_huadan_cg() -> void:
-	var stream := load("res://Assets/huadan-CG.ogv") as VideoStream
+	var stream := load(level_data.huadan_video_path) as VideoStream
 	if stream == null:
 		push_error("[Level_05] huadan-CG.ogv 加载失败，直接进入Boss战")
 		_enter_boss_arena()
 		return
 	# 屏蔽游戏输入
 	InputManager.block_input("视频演出", self)
-	GameManager.is_dialog_active = true
+	GameManager.begin_dialog(self)
 	# 冻结玩家
 	var player = GameManager.player_ref
 	if player and player.has_method("set_frozen"):
@@ -728,7 +740,7 @@ func _play_huadan_cg() -> void:
 	black_bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	layer.add_child(black_bg)
 	var fade_in := black_bg.create_tween()
-	fade_in.tween_property(black_bg, "color:a", 1.0, 0.5)
+	fade_in.tween_property(black_bg, "color:a", 1.0, level_data.huadan_video_fade_duration)
 	await fade_in.finished
 	# 视频播放器
 	var vp := VideoStreamPlayer.new()
@@ -736,7 +748,7 @@ func _play_huadan_cg() -> void:
 	vp.expand = true
 	vp.autoplay = true
 	vp.stream = stream
-	vp.volume_db = -80.0
+	vp.volume_db = level_data.video_volume_db
 	vp.bus = "Master"
 	vp.mouse_filter = Control.MOUSE_FILTER_STOP
 	black_bg.add_child(vp)
@@ -747,8 +759,8 @@ func _play_huadan_cg() -> void:
 	# 清理视频+黑屏
 	vp.queue_free()
 	layer.queue_free()
-	InputManager.unblock_input("视频演出")
-	GameManager.is_dialog_active = false
+	InputManager.unblock_input("视频演出", self)
+	GameManager.end_dialog(self)
 	if player and is_instance_valid(player) and player.has_method("set_frozen"):
 		player.set_frozen(false)
 	# 传送到Boss区域并开始战斗
@@ -758,10 +770,10 @@ func _play_huadan_cg() -> void:
 func _play_grandpa_video() -> void:
 	if not _grandpa_video_started:
 		_grandpa_video_started = true
-	var stream := load("res://Assets/视频演出.ogv") as VideoStream
+	var stream := load(level_data.grandpa_video_path) as VideoStream
 	if stream == null:
 		push_error("[Level_05] 视频演出.ogv 加载失败")
-		_show_dialog(["（视频加载失败）"], Callable())
+		_show_dialog([level_data.video_load_failure_text], Callable())
 		return
 	# 屏蔽游戏输入
 	InputManager.block_input("视频演出", self)
@@ -777,7 +789,7 @@ func _play_grandpa_video() -> void:
 	black_bg.z_index = 200
 	layer.add_child(black_bg)
 	var fade_tween := black_bg.create_tween()
-	fade_tween.tween_property(black_bg, "color:a", 1.0, 1.0)  # 1秒淡入到全黑
+	fade_tween.tween_property(black_bg, "color:a", 1.0, level_data.grandpa_video_fade_duration)
 	await fade_tween.finished
 	print("[Level_05] 淡入黑屏完成，开始播放视频")
 	# 视频播放器（静音视频原声，BGM 继续播放不打断）
@@ -786,7 +798,7 @@ func _play_grandpa_video() -> void:
 	vp.expand = true
 	vp.autoplay = true
 	vp.stream = stream
-	vp.volume_db = -80.0  # 禁用视频原声
+	vp.volume_db = level_data.video_volume_db
 	vp.bus = "Master"
 	vp.mouse_filter = Control.MOUSE_FILTER_STOP
 	black_bg.add_child(vp)
@@ -800,23 +812,21 @@ func _play_grandpa_video() -> void:
 	# 这里把视频移除后让黑屏自然显现，并加一个保险淡入
 	vp.queue_free()
 	black_bg.color.a = 1.0
-	fade_out_tween.tween_interval(1.5)
+	fade_out_tween.tween_interval(level_data.ending_black_hold_duration)
 	await fade_out_tween.finished
 	# 清理
-	InputManager.unblock_input("视频演出")
+	InputManager.unblock_input("视频演出", self)
 	layer.queue_free()
 	print("[Level_05] 黑屏淡入完成，切换到 Level_final")
 	# 切换到终局关卡
 	GameManager.run_mode = GlobalDefine.RunMode.FORMAL
-	SceneTransitionManager.request_scene_change("res://LevelModule/Formal/Level_final.tscn", self)
+	SceneTransitionManager.request_scene_change(level_data.ending_level_path, self)
 
 ## Boss死亡时缓结束后：恢复时缓，生成灯笼，显示死亡对话
 func _on_boss_death_recover(death_pos: Vector2) -> void:
 	Engine.time_scale = 1.0
 	_spawn_lantern(death_pos)
-	_show_dialog([
-		"[color=#ff6b9d]花旦：[/color]为什么要拥抱……残酷的现实……\n明明是你先请求我……\n把痛苦关在门外……",
-	], Callable())
+	_show_dialog(level_data.boss_death_dialogues, Callable())
 
 ## 在Boss死亡位置生成灯笼交互物
 func _spawn_lantern(pos: Vector2) -> void:
@@ -824,7 +834,7 @@ func _spawn_lantern(pos: Vector2) -> void:
 		_lantern_instance.queue_free()
 	var lantern = Node2D.new()
 	lantern.name = "BossLantern"
-	lantern.global_position = pos + Vector2(0, 15)
+	lantern.global_position = pos + level_data.lantern_position_offset
 	# 灯笼背后的发光
 	var glow = Sprite2D.new()
 	glow.name = "Glow"
@@ -846,7 +856,7 @@ func _spawn_lantern(pos: Vector2) -> void:
 	# 交互提示标签
 	var prompt = Label.new()
 	prompt.name = "Prompt"
-	prompt.text = "按 Enter 拾起灯笼"
+	prompt.text = level_data.lantern_prompt_text
 	prompt.visible = false
 	prompt.add_theme_font_size_override("font_size", 16)
 	prompt.add_theme_color_override("font_color", Color(1, 0.9, 0.2, 0.95))
@@ -897,16 +907,14 @@ func _play_lantern_spawn(lantern: Node2D, glow: Sprite2D) -> void:
 ## 玩家与灯笼交互：对话后跳转bg5
 func _on_lantern_interacted() -> void:
 	# 灯笼设为 allow_repeat，不标记 completed，对话结束后仍可再次交互
-	_show_dialog([
-		"[color=cyan]阿明：[/color]这是……爷爷给我的手提灯笼。\n\n小时候停电，他总提着它走在前面。\n他说，路黑不要紧。\n人要自己记得往哪走。\n\n爷爷。\n我回去了。",
-	], _teleport_to_bg5)
+	_show_dialog(level_data.lantern_dialogues, _teleport_to_bg5)
 
 ## 检查玩家是否在灯笼交互范围内（自定义距离检测，不依赖Area2D）
 func _is_player_near_lantern() -> bool:
 	if not _lantern_instance or not is_instance_valid(_lantern_instance): return false
 	var p = GameManager.player_ref
 	if not p or not is_instance_valid(p): return false
-	return p.global_position.distance_to(_lantern_instance.global_position) <= 130.0
+	return p.global_position.distance_to(_lantern_instance.global_position) <= level_data.lantern_interaction_radius
 
 ## 更新灯笼提示标签显隐（每帧调用）
 func _update_lantern_prompt() -> void:
@@ -929,15 +937,15 @@ func _teleport_to_bg5() -> void:
 	_set_boss_area_active(false)
 	_set_map_sprites_visible(false)
 	_set_bg5_area_active(true)
-	_teleport_and_setup_camera(BG5_PLAYER_POS, BG5_CAM_LEFT, BG5_CAM_RIGHT, 7448, BG5_CAM_BOTTOM, 1.33)
-	_set_cam_from_group($Bg5Collisions, 7448)
+	_teleport_and_setup_camera(level_data.bg5_player_position, level_data.bg5_camera_left, level_data.bg5_camera_right, level_data.bg5_camera_top, level_data.bg5_camera_bottom, level_data.bg5_camera_zoom)
+	_set_cam_from_group($Bg5Collisions, level_data.bg5_camera_top)
 	_hide_boss_bar()
 	# 进入 bg5：播放 lv6（不打断，从 bossfight 自然过渡）
-	MusicManager.fade_to("res://Assets/Music/lv6.ogg", 1.5)
+	MusicManager.fade_to(level_data.bg5_music_path, level_data.bg5_music_fade_duration)
 	# bg5 区域玩家移速降为 0.5 倍，禁用闪避/技能/攻击，隐藏所有战斗UI
 	var p = GameManager.player_ref
 	if p and is_instance_valid(p):
-		p.runtime_move_speed_multiplier = 0.5
+		p.runtime_move_speed_multiplier = level_data.bg5_move_speed_multiplier
 		p.can_dash = false
 		p.can_skill = false
 		p.can_attack = false
@@ -993,21 +1001,24 @@ func _enter_boss_arena() -> void:
 		if obj.object_id == "enter_boss":
 			obj.mark_completed()
 	# 显示对话 → 对话结束后传送到 Boss 区域
-	_show_dialog([
-		"[color=#ff6b9d]花旦：[/color]阿明，你瞧。\n技术能给你你想要的一切。",
-		"[color=#ff6b9d]花旦：[/color]它能让回忆拥有形状。\n它能让记忆死而复生。\n它能让失去的人，永远站在原地等你。",
-		"[color=#ff6b9d]花旦：[/color]留下来吧。\n永远留在这个温暖的世界里。\n不要回到那个会失败、会失去、会拆毁一切的现实。",
-	], _play_huadan_cg)
+	_show_dialog(level_data.boss_intro_dialogues, _play_huadan_cg)
 
 func _teleport_to_boss() -> void:
-	_teleport_and_setup_camera(Vector2(931, 5037), 620, 1710, 4512, 5135, 1.33)
-	_set_cam_from_group($BossCollisions, 4512)
+	_teleport_and_setup_camera(
+		level_data.boss_player_position,
+		level_data.boss_camera_left,
+		level_data.boss_camera_right,
+		level_data.boss_camera_top,
+		level_data.boss_camera_bottom,
+		level_data.boss_camera_zoom
+	)
+	_set_cam_from_group($BossCollisions, level_data.boss_camera_top)
 	_set_boss_area_active(true)
 	_set_map_sprites_visible(false)
 	_spawn_boss()
 	_show_boss_bar()
 	# 更新检查点阶段为4（bg4），重新开始时直接回到bg4
-	GameManager.update_checkpoint_stage(4)
+	GameManager.update_checkpoint_stage(level_data.boss_checkpoint_stage)
 	# 显示"按G切换人物外观"指引
 	_show_skin_hint()
 
@@ -1020,7 +1031,7 @@ func _show_skin_hint() -> void:
 	if existing: existing.queue_free()
 	var hint = Label.new()
 	hint.name = "SkinHintLabel"
-	hint.text = "按 G 切换人物外观"
+	hint.text = level_data.skin_hint_text
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 40)
 	hint.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 0.95))
@@ -1033,8 +1044,8 @@ func _show_skin_hint() -> void:
 	cv.add_child(hint)
 	# 3秒后淡出删除
 	var tw = hint.create_tween()
-	tw.tween_interval(3.0)
-	tw.tween_property(hint, "modulate:a", 0.0, 1.0)
+	tw.tween_interval(level_data.skin_hint_hold_duration)
+	tw.tween_property(hint, "modulate:a", 0.0, level_data.skin_hint_fade_duration)
 	tw.tween_callback(hint.queue_free)
 
 ## 血量变化回调：Boss战当前角色首次扣血到50时显示换人提示
@@ -1042,13 +1053,13 @@ func _on_health_changed(data: Dictionary) -> void:
 	if not _in_boss_arena: return
 	var target = data.get("target")
 	if target != GameManager.player_ref: return
-	var hp = int(data.get("current_health", 100))
+	var hp = int(data.get("current_health", level_data.dual_character_max_health))
 	_check_low_hp_hint(_current_player_skin, hp)
 
 ## 检查角色血量是否首次降到50，是则再次显示换人提示
 func _check_low_hp_hint(skin: String, hp: int) -> void:
 	if not _in_boss_arena: return
-	if hp > 50: return
+	if hp > level_data.low_health_hint_threshold: return
 	if skin == "Cyber":
 		if _cyber_hint_shown: return
 		_cyber_hint_shown = true
@@ -1061,8 +1072,8 @@ func _check_low_hp_hint(skin: String, hp: int) -> void:
 
 ## 双血条各回血（Boss召唤小怪全灭奖励）
 func _heal_dual_char(amount: int) -> void:
-	_cyber_health = mini(_cyber_health + amount, DUAL_CHAR_MAX_HP)
-	_lingnan_health = mini(_lingnan_health + amount, DUAL_CHAR_MAX_HP)
+	_cyber_health = mini(_cyber_health + amount, level_data.dual_character_max_health)
+	_lingnan_health = mini(_lingnan_health + amount, level_data.dual_character_max_health)
 	# 当前角色实时回血
 	var p = GameManager.player_ref
 	if p and is_instance_valid(p):
@@ -1077,8 +1088,8 @@ func _heal_dual_char(amount: int) -> void:
 func _spawn_all_enemies(lingnan_on_top: bool) -> void:
 	_clear_all_enemies()
 
-	var ground_spots = [Vector2(-1000, 420), Vector2(0, 415), Vector2(800, 425)]
-	var special_spots = [Vector2(200, 380), Vector2(600, 370)]
+	var ground_spots = level_data.dual_world_ground_spawn_points
+	var special_spots = level_data.dual_world_special_spawn_points
 
 	if lingnan_on_top:
 		# 纸人 + 灯笼
@@ -1098,7 +1109,6 @@ func _spawn_one(scene: PackedScene, pos: Vector2) -> Node2D:
 	var e = scene.instantiate()
 	e.global_position = pos
 	add_child(e)
-	GameManager.register_enemy(e)
 	_all_enemies.append(e)
 	return e
 
@@ -1152,7 +1162,7 @@ func _build_erosion_bar() -> void:
 
 func _update_erosion_bar() -> void:
 	if not _erosion_bar_fill or not _erosion_label: return
-	var ratio = _erosion_value / EROSION_MAX
+	var ratio = _erosion_value / level_data.erosion_max
 	_erosion_bar_fill.size.x = 280.0 * ratio
 	_erosion_label.text = "侵蚀 %.0f%%" % _erosion_value
 	if ratio > 0.7:
@@ -1161,9 +1171,9 @@ func _update_erosion_bar() -> void:
 		_erosion_bar_fill.color = Color(0.8, 0.25, 0.5, 0.95)
 
 func _modify_erosion(delta: float) -> void:
-	_erosion_value = clampf(_erosion_value + delta, 0.0, EROSION_MAX)
+	_erosion_value = clampf(_erosion_value + delta, 0.0, level_data.erosion_max)
 	_update_erosion_bar()
-	if _erosion_value >= EROSION_MAX:
+	if _erosion_value >= level_data.erosion_max:
 		print("[Level_05] 侵蚀值已满！")
 		var p = GameManager.player_ref
 		if p and is_instance_valid(p) and p.current_state != GlobalDefine.PlayerState.DEAD:
@@ -1174,37 +1184,40 @@ func _on_enemy_died(data: Dictionary) -> void:
 	var e = data.get("enemy")
 	if not e or not is_instance_valid(e): return
 	if e in _all_enemies or e in _lingnan_enemies or e in _cyber_enemies:
-		_modify_erosion(-EROSION_KILL_REDUCE)
+		_modify_erosion(-level_data.erosion_kill_reduction)
 		_all_enemies.erase(e)
 		_lingnan_enemies.erase(e)
 		_cyber_enemies.erase(e)
 	# Boss 死亡处理
 	if e == _boss_instance:
 		# 灯笼生成位置：X用Boss位置，Y在5000~5077之间随机（地面高度区间）
-		var death_pos: Vector2 = Vector2(e.global_position.x, randf_range(5000.0, 5077.0))
+		var death_pos: Vector2 = Vector2(
+			e.global_position.x,
+			randf_range(level_data.boss_death_lantern_y_min, level_data.boss_death_lantern_y_max)
+		)
 		_erosion_growth_locked = true
 		_hide_boss_bar()
 		GameManager.boss_target = null
 		_boss_instance = null
 		# Boss死亡 → 直接过渡到 lv6（bg5/结局主题，视频演出不打断）
-		MusicManager.fade_to("res://Assets/Music/lv6.ogg", 2.0)
+		MusicManager.fade_to(level_data.boss_death_music_path, level_data.boss_death_music_fade_duration)
 		# 剧烈抖屏 + 时缓效果
-		_trigger_screen_shake(22.0, 0.8)
-		Engine.time_scale = 0.25
+		_trigger_screen_shake(level_data.boss_death_shake_strength, level_data.boss_death_shake_duration)
+		Engine.time_scale = level_data.boss_death_time_scale
 		# 1.5秒后恢复时缓，生成灯笼并显示死亡对话（ignore_time_scale 不受时缓影响）
-		var t = get_tree().create_timer(1.5, true, false, true)
+		var t = get_tree().create_timer(level_data.boss_death_recovery_delay, true, false, true)
 		t.timeout.connect(_on_boss_death_recover.bind(death_pos))
 
 
 func _spawn_boss() -> void:
 	if _boss_instance and is_instance_valid(_boss_instance):
 		_boss_instance.queue_free()
-	var boss_scene = load("res://EnemyModule/Formal/Enemy_BossHuadan.tscn") as PackedScene
+	var boss_scene = load(level_data.boss_scene_path) as PackedScene
 	if not boss_scene:
 		printerr("[Level_05] 无法加载 Boss 场景")
 		return
 	_boss_instance = boss_scene.instantiate()
-	_boss_instance.global_position = Vector2(1300, 5037)
+	_boss_instance.global_position = level_data.boss_spawn_position
 	add_child(_boss_instance)
 	# 设置 Boss 引用，供弹体自动瞄准
 	GameManager.boss_target = _boss_instance
@@ -1256,7 +1269,7 @@ func _show_dialog(lines: Array[String], callback: Callable = Callable()) -> void
 	_dialog_index = 0
 	_dialog_callback = callback
 	_dialog_open = true
-	GameManager.is_dialog_active = true
+	GameManager.begin_dialog(self)
 	InputManager.block_input("对话", self)
 	if not _dialog_panel:
 		_create_dialog_panel()
@@ -1301,10 +1314,10 @@ func _advance_dialog() -> void:
 
 func _close_dialog() -> void:
 	_dialog_open = false
-	GameManager.is_dialog_active = false
+	GameManager.end_dialog(self)
 	_dialog_panel.visible = false
-	_dialog_close_cooldown = 0.4  # 关闭后0.4秒内不检测交互，防Enter串扰
-	InputManager.unblock_input("对话")
+	_dialog_close_cooldown = level_data.dialog_close_cooldown
+	InputManager.unblock_input("对话", self)
 	if _dialog_callback.is_valid():
 		_dialog_callback.call()
 
@@ -1326,26 +1339,26 @@ func _create_boss_bar() -> void:
 	_boss_bar_container = Control.new()
 	_boss_bar_container.name = "BossBarContainer"
 	_boss_bar_container.position = Vector2(440, 20)
-	_boss_bar_container.size = Vector2(BOSS_BAR_MAX_WIDTH, 46)
+	_boss_bar_container.size = Vector2(level_data.boss_bar_max_width, 46)
 	_boss_bar_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_container.z_index = 150
 	_boss_bar_container.visible = false
 	cv.add_child(_boss_bar_container)
 
 	var bg = ColorRect.new()
-	bg.size = Vector2(BOSS_BAR_MAX_WIDTH, 28)
+	bg.size = Vector2(level_data.boss_bar_max_width, 28)
 	bg.color = Color(0.1, 0.05, 0.12, 0.9)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_container.add_child(bg)
 
 	_boss_bar_fill = ColorRect.new()
-	_boss_bar_fill.size = Vector2(BOSS_BAR_MAX_WIDTH, 28)
+	_boss_bar_fill.size = Vector2(level_data.boss_bar_max_width, 28)
 	_boss_bar_fill.color = Color(0.85, 0.1, 0.3, 0.95)
 	_boss_bar_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_container.add_child(_boss_bar_fill)
 
 	_boss_bar_label = Label.new()
-	_boss_bar_label.size = Vector2(BOSS_BAR_MAX_WIDTH, 28)
+	_boss_bar_label.size = Vector2(level_data.boss_bar_max_width, 28)
 	_boss_bar_label.text = "花旦"
 	_boss_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_bar_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1356,21 +1369,21 @@ func _create_boss_bar() -> void:
 
 	var toughness_bg = ColorRect.new()
 	toughness_bg.position = Vector2(0, 32)
-	toughness_bg.size = Vector2(BOSS_BAR_MAX_WIDTH, 10)
+	toughness_bg.size = Vector2(level_data.boss_bar_max_width, 10)
 	toughness_bg.color = Color(0.05, 0.08, 0.12, 0.9)
 	toughness_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_container.add_child(toughness_bg)
 
 	_boss_toughness_fill = ColorRect.new()
 	_boss_toughness_fill.position = Vector2(0, 32)
-	_boss_toughness_fill.size = Vector2(BOSS_BAR_MAX_WIDTH, 10)
+	_boss_toughness_fill.size = Vector2(level_data.boss_bar_max_width, 10)
 	_boss_toughness_fill.color = Color(0.35, 0.75, 1.0, 0.95)
 	_boss_toughness_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar_container.add_child(_boss_toughness_fill)
 
 	_boss_toughness_label = Label.new()
 	_boss_toughness_label.position = Vector2(0, 28)
-	_boss_toughness_label.size = Vector2(BOSS_BAR_MAX_WIDTH, 18)
+	_boss_toughness_label.size = Vector2(level_data.boss_bar_max_width, 18)
 	_boss_toughness_label.text = "韧性"
 	_boss_toughness_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_toughness_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1388,13 +1401,13 @@ func _update_boss_bar() -> void:
 	var hp = _boss_instance.current_health
 	var max_hp = _boss_instance.max_health
 	var ratio = clampf(float(hp) / float(max_hp), 0.0, 1.0)
-	_boss_bar_fill.size.x = BOSS_BAR_MAX_WIDTH * ratio
+	_boss_bar_fill.size.x = level_data.boss_bar_max_width * ratio
 	_boss_bar_label.text = "花旦  %d / %d" % [hp, max_hp]
 	if _boss_toughness_fill and "toughness" in _boss_instance and "max_toughness" in _boss_instance:
 		var toughness = float(_boss_instance.get("toughness"))
 		var max_toughness = maxf(float(_boss_instance.get("max_toughness")), 1.0)
 		var toughness_ratio = clampf(toughness / max_toughness, 0.0, 1.0)
-		_boss_toughness_fill.size.x = BOSS_BAR_MAX_WIDTH * toughness_ratio
+		_boss_toughness_fill.size.x = level_data.boss_bar_max_width * toughness_ratio
 		if toughness_ratio <= 0.01:
 			_boss_toughness_fill.color = Color(0.15, 0.35, 0.55, 0.7)
 			_boss_toughness_label.text = "破韧"

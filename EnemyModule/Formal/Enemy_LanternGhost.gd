@@ -11,39 +11,29 @@ var _anim_sprite: AnimatedSprite2D = null
 # 漂浮系统
 var _float_base_y: float = 0.0
 var _float_phase: float = 0.0
-const FLOAT_AMPLITUDE: float = 12.0
-const FLOAT_SPEED: float = 2.5
 
 # 火球攻击
 var _fireball_cooldown: float = 0.0
-const FIREBALL_CD: float = 2.0
-const FIREBALL_SPEED: float = 300.0
-const FIREBALL_DAMAGE: int = 10
-const FIREBALL_MAX_DIST: float = 500.0
 
 # 悬停距离：不会靠近玩家，保持在此距离
-const HOVER_MIN_DIST: float = 150.0
-const HOVER_MAX_DIST: float = 300.0
 
 # 追踪方向滞后
 var _chase_dir: int = 0
-const CHASE_DIR_THRESHOLD: float = 8.0
 
 # 朝向死区
-const FACING_DEAD_ZONE: float = 5.0
+
+func _get_default_config_path() -> String:
+	return "res://DataConfig/Enemy/LanternGhostConfig.tres"
 
 func _on_ready() -> void:
 	super._on_ready()
-	if not config:
-		config = load("res://DataConfig/Enemy/LanternGhostConfig.tres") as EnemyConfig
-		_apply_config()
 	_init_anim_sprite()
 	# 飞行模式：不受地面吸附
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	# 飞行但仍受地形碰撞限制，避免穿越关卡碰撞层
 	collision_mask = GlobalDefine.Collision.TERRAIN
 	# 初始漂浮高度：在生成位置上方60px
-	_float_base_y = global_position.y - 60.0
+	_float_base_y = global_position.y - config.float_height_offset
 	_float_phase = randf() * TAU
 	is_facing_right = patrol_direction > 0
 	if _anim_sprite:
@@ -80,14 +70,14 @@ func _apply_gravity(_delta: float) -> void:
 
 func _handle_ai(delta: float) -> void:
 	if stun_timer > 0:
-		velocity.x = move_toward(velocity.x, 0, 500 * delta)
-		velocity.y = move_toward(velocity.y, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.stunned_deceleration * delta)
+		velocity.y = move_toward(velocity.y, 0, config.stunned_vertical_deceleration * delta)
 		return
 
 	# 漂浮始终生效
-	_float_phase += FLOAT_SPEED * delta
-	var float_y = _float_base_y + sin(_float_phase) * FLOAT_AMPLITUDE
-	velocity.y = (float_y - global_position.y) * 5.0
+	_float_phase += config.float_speed * delta
+	var float_y = _float_base_y + sin(_float_phase) * config.float_amplitude
+	velocity.y = (float_y - global_position.y) * config.float_vertical_response
 
 	match current_state:
 		GlobalDefine.EnemyState.IDLE:
@@ -104,19 +94,19 @@ func _handle_ai(delta: float) -> void:
 # ---- 巡逻：缓慢水平移动 + 漂浮 ----
 
 func _ai_idle(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 200 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	if patrol_wait_timer <= 0:
-		patrol_wait_timer = config.patrol_wait_time if config else 2.0
+		patrol_wait_timer = config.patrol_wait_time
 		_change_state(GlobalDefine.EnemyState.PATROL)
 	if _can_detect_target():
 		_change_state(GlobalDefine.EnemyState.CHASE)
 
 func _ai_patrol(delta: float) -> void:
-	var speed = (config.move_speed if config else 100.0) * 0.5
+	var speed = config.move_speed * config.flying_patrol_speed_multiplier
 	velocity.x = patrol_direction * speed
 
 	var dist_from_start = global_position.x - patrol_start_pos.x
-	var wander = config.wander_radius if config else 100.0
+	var wander = config.wander_radius
 	if abs(dist_from_start) > wander:
 		patrol_direction *= -1
 		_change_state(GlobalDefine.EnemyState.IDLE)
@@ -140,24 +130,24 @@ func _ai_chase(delta: float) -> void:
 	var dist: float = absf(x_diff)
 
 	# 方向
-	if absf(x_diff) > CHASE_DIR_THRESHOLD:
+	if absf(x_diff) > config.chase_direction_threshold:
 		_chase_dir = signf(x_diff)
 
 	# 水平保持距离
-	if dist < HOVER_MIN_DIST:
+	if dist < config.hover_min_distance:
 		# 太近，后退
-		velocity.x = -_chase_dir * (config.move_speed if config else 100.0)
-	elif dist > HOVER_MAX_DIST:
+		velocity.x = -_chase_dir * config.move_speed
+	elif dist > config.hover_max_distance:
 		# 太远，靠近一点
 		if _chase_dir != 0:
-			var speed: float = config.move_speed if config else 100.0
+			var speed: float = config.move_speed
 			velocity.x = _chase_dir * speed
 	else:
 		# 合适距离，减速悬停
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 
 	# 悬停范围内且冷却完毕 → 发射火球
-	if dist <= HOVER_MAX_DIST and attack_cooldown_timer <= 0:
+	if dist <= config.hover_max_distance and attack_cooldown_timer <= 0:
 		_change_state(GlobalDefine.EnemyState.ATTACK)
 		return
 
@@ -169,10 +159,10 @@ func _ai_chase(delta: float) -> void:
 # ---- 攻击：发射火球 ----
 
 func _ai_attack(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 300 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	_fire_fireball()
-	attack_cooldown_timer = config.attack_cooldown if config else 2.0
-	_post_attack_pause = 0.7
+	attack_cooldown_timer = config.attack_cooldown
+	_post_attack_pause = config.post_attack_pause
 	_change_state(GlobalDefine.EnemyState.CHASE)
 
 # ---- 覆写攻击判定：用火球射程代替近战距离 ----
@@ -180,7 +170,7 @@ func _ai_attack(delta: float) -> void:
 func _can_attack_target() -> bool:
 	if not target or not is_instance_valid(target):
 		return false
-	var detect_range = config.detect_range if config else 300.0
+	var detect_range = config.detect_range
 	return global_position.distance_to(target.global_position) <= detect_range
 
 # ---- 火球发射 ----
@@ -198,8 +188,8 @@ func _fire_fireball() -> void:
 	var parent = get_parent()
 	if parent:
 		parent.add_child(fireball)
-		fireball.global_position = global_position + dir * 20
-		fireball.setup(dir, config.attack_damage if config else FIREBALL_DAMAGE, self, FIREBALL_MAX_DIST, FIREBALL_SPEED)
+		fireball.global_position = global_position + dir * config.projectile_spawn_offset
+		fireball.setup(dir, config.attack_damage, config.attack_damage_type, self, config.projectile_max_distance, config.projectile_speed)
 
 # ---- 无接触伤害 ----
 
@@ -216,14 +206,14 @@ func _update_facing() -> void:
 	var should_face_right: bool = is_facing_right
 	if target and is_instance_valid(target):
 		var x_diff: float = target.global_position.x - global_position.x
-		if x_diff > FACING_DEAD_ZONE:
+		if x_diff > config.facing_dead_zone:
 			should_face_right = true
-		elif x_diff < -FACING_DEAD_ZONE:
+		elif x_diff < -config.facing_dead_zone:
 			should_face_right = false
 	else:
-		if velocity.x > 5:
+		if velocity.x > config.velocity_facing_threshold:
 			should_face_right = true
-		elif velocity.x < -5:
+		elif velocity.x < -config.velocity_facing_threshold:
 			should_face_right = false
 	is_facing_right = should_face_right
 	if _anim_sprite:

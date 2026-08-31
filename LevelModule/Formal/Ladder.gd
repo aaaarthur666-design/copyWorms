@@ -6,13 +6,13 @@ class_name Ladder
 
 @export var ladder_top_y: float = -344.0     # 顶端 Y（小值=上方）
 @export var ladder_bottom_y: float = 15.0    # 底端 Y（大值=下方）
-@export var climb_speed: float = 250.0
 @export var ladder_width: float = 40.0
 @export var ladder_vertical_pad: float = 30.0
 
 var _player: CharacterBody2D = null
 var _climbing: bool = false
 var _last_climb_dir: float = 0.0
+var _active_climb_speed: float = 0.0
 
 var _label_w: Label = null
 var _label_s: Label = null
@@ -101,6 +101,11 @@ func _process(delta: float) -> void:
 
 
 func _start_climb(dir: float) -> void:
+	var player_config := _player.get("config") as PlayerConfig
+	if not player_config:
+		push_error("[Ladder] 玩家缺少 PlayerConfig，无法开始攀爬")
+		return
+	_active_climb_speed = player_config.ladder_climb_speed
 	_climbing = true
 	_last_climb_dir = dir
 	_label_w.visible = false
@@ -133,7 +138,7 @@ func _climb_tick(delta: float) -> void:
 	if input_dir != 0.0:
 		_last_climb_dir = input_dir
 		_player.global_position.y = clampf(
-			_player.global_position.y + input_dir * climb_speed * delta,
+			_player.global_position.y + input_dir * _active_climb_speed * delta,
 			ladder_top_y,
 			ladder_bottom_y
 		)

@@ -12,7 +12,7 @@ class_name DamageCalculator
 ## crit_rate: 暴击率 (0.0 ~ 1.0)
 ## crit_mult: 暴击倍率
 ## 返回: { "damage": int, "is_crit": bool }
-static func calculate(attacker_atk: int, target_def: int = 0, damage_type: int = GlobalDefine.DamageType.PHYSICAL, crit_rate: float = 0.05, crit_mult: float = 1.5) -> Dictionary:
+static func calculate(attacker_atk: int, target_def: int = 0, damage_type: int = GlobalDefine.DamageType.PHYSICAL, crit_rate: float = 0.05, crit_mult: float = 1.5, rng: RandomNumberGenerator = null) -> Dictionary:
 	var base_damage := float(attacker_atk)
 	var final_damage := 0.0
 
@@ -24,7 +24,8 @@ static func calculate(attacker_atk: int, target_def: int = 0, damage_type: int =
 		GlobalDefine.DamageType.TRUE_DAMAGE:
 			final_damage = base_damage  # 真实伤害无视防御
 
-	var is_crit := randf() < crit_rate
+	var crit_roll := rng.randf() if rng else randf()
+	var is_crit := crit_roll < clampf(crit_rate, 0.0, 1.0)
 	if is_crit:
 		final_damage *= crit_mult
 
@@ -32,6 +33,12 @@ static func calculate(attacker_atk: int, target_def: int = 0, damage_type: int =
 		"damage": int(maxf(final_damage, 1.0)),
 		"is_crit": is_crit
 	}
+
+## 统一结算目标侧的伤害倍率。倍率在扣血前应用，避免“先死亡再回补”的竞态。
+static func resolve_incoming(raw_damage: int, multiplier: float = 1.0, minimum_damage: int = 1) -> int:
+	if raw_damage <= 0:
+		return 0
+	return maxi(int(round(float(raw_damage) * maxf(multiplier, 0.0))), minimum_damage)
 
 ## 计算击退方向
 ## attacker_pos: 攻击者位置

@@ -1,0 +1,120 @@
+[gd_resource type="Resource" script_class="BossHuadanBehaviorConfig" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Enemy/BossHuadanBehaviorConfig.gd" id="1_behavior"]
+[ext_resource type="Script" path="res://DataConfig/Enemy/BossDecisionProfile.gd" id="2_profile"]
+
+[sub_resource type="Resource" id="BossDecisionProfile_phase1"]
+script = ExtResource("2_profile")
+far_distance = 500.0
+mid_distance = 250.0
+near_distance = 120.0
+hover_chance = 0.0
+far_actions = PackedStringArray("APPROACH", "RANGED", "IDLE")
+far_weights = PackedFloat32Array(0.55, 0.3, 0.15)
+mid_actions = PackedStringArray("RANGED", "APPROACH", "IDLE")
+mid_weights = PackedFloat32Array(0.5, 0.25, 0.25)
+near_actions = PackedStringArray("APPROACH", "RANGED", "MELEE", "IDLE")
+near_weights = PackedFloat32Array(0.4, 0.3, 0.15, 0.15)
+close_actions = PackedStringArray("MELEE", "RANGED", "RETREAT")
+close_weights = PackedFloat32Array(0.5, 0.3, 0.2)
+
+[sub_resource type="Resource" id="BossDecisionProfile_phase2"]
+script = ExtResource("2_profile")
+far_distance = 450.0
+mid_distance = 220.0
+near_distance = 120.0
+hover_chance = 0.0
+far_actions = PackedStringArray("APPROACH", "RANGED", "IDLE")
+far_weights = PackedFloat32Array(0.6, 0.3, 0.1)
+mid_actions = PackedStringArray("RANGED", "APPROACH", "IDLE")
+mid_weights = PackedFloat32Array(0.45, 0.3, 0.25)
+near_actions = PackedStringArray("APPROACH", "RANGED", "MELEE", "IDLE")
+near_weights = PackedFloat32Array(0.4, 0.25, 0.2, 0.15)
+close_actions = PackedStringArray("MELEE", "RANGED", "RETREAT")
+close_weights = PackedFloat32Array(0.45, 0.35, 0.2)
+
+[sub_resource type="Resource" id="BossDecisionProfile_phase3"]
+script = ExtResource("2_profile")
+far_distance = 400.0
+mid_distance = 180.0
+near_distance = 0.0
+hover_chance = 0.33
+far_actions = PackedStringArray("APPROACH", "RANGED", "IDLE")
+far_weights = PackedFloat32Array(0.6, 0.3, 0.1)
+mid_actions = PackedStringArray("APPROACH", "RANGED", "MELEE", "IDLE")
+mid_weights = PackedFloat32Array(0.4, 0.25, 0.2, 0.15)
+near_actions = PackedStringArray()
+near_weights = PackedFloat32Array()
+close_actions = PackedStringArray("MELEE", "RANGED", "APPROACH", "RETREAT")
+close_weights = PackedFloat32Array(0.45, 0.25, 0.2, 0.1)
+
+[sub_resource type="Resource" id="BossDecisionProfile_phase4"]
+script = ExtResource("2_profile")
+far_distance = 300.0
+mid_distance = 130.0
+near_distance = 0.0
+hover_chance = 0.4
+far_actions = PackedStringArray("APPROACH", "RANGED", "IDLE")
+far_weights = PackedFloat32Array(0.65, 0.25, 0.1)
+mid_actions = PackedStringArray("APPROACH", "MELEE", "RANGED", "IDLE")
+mid_weights = PackedFloat32Array(0.45, 0.25, 0.2, 0.1)
+near_actions = PackedStringArray()
+near_weights = PackedFloat32Array()
+close_actions = PackedStringArray("MELEE", "RANGED", "APPROACH", "RETREAT")
+close_weights = PackedFloat32Array(0.5, 0.25, 0.15, 0.1)
+
+[resource]
+script = ExtResource("1_behavior")
+phase_profiles = Array[BossDecisionProfile]([null, SubResource("BossDecisionProfile_phase1"), SubResource("BossDecisionProfile_phase2"), SubResource("BossDecisionProfile_phase3"), SubResource("BossDecisionProfile_phase4")])
+player_stationary_speed = 30.0
+approaching_player_bias = 0.25
+fleeing_player_bias = -0.25
+ambient_jump_chance = 0.08
+kite_entry_retreat_duration = 0.5
+kite_exit_chance = 0.5
+kite_retry_duration_multiplier = 0.7
+kite_melee_distance = 120.0
+kite_ranged_distance = 250.0
+phase4_reactive_chance_multiplier = 0.5
+skill_reactive_chance_multiplier = 0.8
+fleeing_distance_delta = 30.0
+fleeing_speed_threshold = 50.0
+fleeing_reactive_chance_multiplier = 0.5
+reactive_action_lock = 0.2
+evade_duration = 0.3
+evade_action_lock = 0.3
+airborne_sword_delay = 0.15
+landing_grace_time = 0.08
+hover_activation_delay = 0.1
+hover_horizontal_speed_multiplier = 0.3
+hover_horizontal_acceleration_multiplier = 2.0
+hover_rise_speed = 400.0
+hover_first_sword_delay = 0.2
+forced_hover_airborne_time = 0.2
+forced_hover_action_lock = 0.2
+approach_duration = 1.0
+retreat_duration = 0.8
+idle_duration = 0.4
+approach_stop_distance = 100.0
+approach_speed_multiplier = 0.85
+normal_retreat_distance = 280.0
+kite_retreat_distance = 400.0
+normal_retreat_speed_multiplier = 0.7
+kite_retreat_speed_multiplier = 1.2
+ranged_action_lock = 0.5
+melee_approach_distance = 80.0
+evade_speed_multiplier = 1.5
+jump_action_lock = 0.2
+airborne_horizontal_speed_multiplier = 0.8
+movement_acceleration_multiplier = 3.0
+ground_projectile_count = 1
+empowered_projectile_count = 3
+projectile_spread_angles = PackedFloat32Array(-0.21, 0.0, 0.21)
+projectile_forward_offset = 60.0
+projectile_vertical_start = -30.0
+projectile_vertical_step = 30.0
+melee_projectile_vertical_direction = -0.3
+melee_projectile_forward_offset = 50.0
+melee_projectile_vertical_offset = -20.0
+melee_hitbox_offset = 65.0
+minion_positive_side_chance = 0.5

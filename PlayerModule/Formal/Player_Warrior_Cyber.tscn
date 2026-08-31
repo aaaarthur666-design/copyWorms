@@ -8,7 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://dog52n55w6hod" path="res://Assets/Sprites/player_cyber Ani/赛博人物攻击.png" id="5_attack"]
 [ext_resource type="Texture2D" uid="uid://dsji3xnml136q" path="res://Assets/Sprites/player_cyber Ani/赛博人物失败.png" id="5_owtq6"]
 [ext_resource type="Texture2D" uid="uid://dnmbxj7rihfby" path="res://Assets/Sprites/player_cyber Ani/赛博人物受击.png" id="6_x5old"]
-[ext_resource type="Script" uid="uid://cxjirtog0ewa1" path="res://PlayerModule/Formal/SmoothCamera.gd" id="cam_script"]
+[ext_resource type="Script" uid="uid://np73qk11obav" path="res://PlayerModule/Formal/SmoothCamera.gd" id="cam_script"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_uvyaf"]
 atlas = ExtResource("5_attack")

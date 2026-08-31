@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Tests/SelfTest/TransitionSmokeRunner.gd" id="1_transition_smoke"]
+
+[node name="TransitionSmokeRunner" type="Node"]
+script = ExtResource("1_transition_smoke")

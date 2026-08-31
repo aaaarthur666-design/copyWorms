@@ -26,6 +26,11 @@ var _current_level_node: Node = null
 var _switching_level: bool = false
 var _transition_canvas: CanvasLayer = null
 var _transition_black: ColorRect = null
+var _overlay_fade_active: bool = false
+var _overlay_fade_duration: float = 0.0
+var _overlay_fade_elapsed: float = 0.0
+var _overlay_fade_start_alpha: float = 1.0
+var _overlay_fade_completion: Callable = Callable()
 const LEVEL_SWITCH_FADE_OUT_DURATION: float = 0.8
 
 func _ready() -> void:
@@ -42,7 +47,17 @@ func _ready() -> void:
 	_load_formal_level()
 
 
+func _process(delta: float) -> void:
+	_update_level_switch_overlay(delta)
+
+
+func _exit_tree() -> void:
+	_cancel_level_switch_overlay_fade()
+	EventBus.unsubscribe_all(self)
+
+
 func prepare_for_level_exit() -> void:
+	_cancel_level_switch_overlay_fade()
 	if _current_level_node and is_instance_valid(_current_level_node) and _current_level_node.has_method("prepare_for_level_exit"):
 		_current_level_node.call("prepare_for_level_exit")
 
@@ -56,7 +71,7 @@ func _on_level_complete(data: Dictionary) -> void:
 	print("[MainEntry] 收到 LEVEL_COMPLETE, next_level=", next_path)
 	_switching_level = true
 	var overlay_color := Color.WHITE if data.get("transition_white", false) else Color.BLACK
-	await _switch_to_level(next_path, overlay_color)
+	_switch_to_level(next_path, overlay_color)
 
 func _switch_to_level(next_path: String, overlay_color: Color = Color.BLACK) -> void:
 	_show_level_switch_overlay(overlay_color)
@@ -79,37 +94,74 @@ func _switch_to_level(next_path: String, overlay_color: Color = Color.BLACK) -> 
 		push_warning("[MainEntry] 下一关不存在: %s — 安全降级显示提示" % next_path)
 		_show_end_placeholder()
 	await get_tree().process_frame
-	await _fade_out_level_switch_overlay()
-	_switching_level = false
+	_fade_out_level_switch_overlay(LEVEL_SWITCH_FADE_OUT_DURATION, _finish_level_switch)
 
 func _show_level_switch_overlay(color: Color) -> void:
+	_cancel_level_switch_overlay_fade()
 	if not _transition_canvas or not is_instance_valid(_transition_canvas):
 		_transition_canvas = CanvasLayer.new()
 		_transition_canvas.layer = 1000
 		add_child(_transition_canvas)
 	if not _transition_black or not is_instance_valid(_transition_black):
 		_transition_black = ColorRect.new()
-		_transition_black.set_anchors_preset(Control.PRESET_FULL_RECT)
-		# CanvasLayer 不是 Control，anchors 无法自动撑满，需显式设置尺寸为视口大小
-		var vp_size = get_viewport_rect().size
-		_transition_black.size = vp_size
-		_transition_black.position = Vector2.ZERO
-		_transition_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_transition_canvas.add_child(_transition_black)
+		_transition_black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_transition_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_transition_black.color = Color(color.r, color.g, color.b, 1.0)
 	_transition_black.show()
 
-func _fade_out_level_switch_overlay(duration: float = LEVEL_SWITCH_FADE_OUT_DURATION) -> void:
+func _fade_out_level_switch_overlay(
+	duration: float = LEVEL_SWITCH_FADE_OUT_DURATION,
+	completion: Callable = Callable()
+) -> void:
 	if not _transition_black or not is_instance_valid(_transition_black):
+		if completion.is_valid():
+			completion.call()
 		return
-	# 用 get_tree().create_tween() 绑定到 SceneTree，避免节点 process_mode 影响
-	var tween = get_tree().create_tween()
-	tween.tween_property(_transition_black, "color:a", 0.0, duration).set_trans(Tween.TRANS_SINE)
-	await tween.finished
+	_overlay_fade_active = true
+	_overlay_fade_duration = maxf(duration, 0.001)
+	_overlay_fade_elapsed = 0.0
+	_overlay_fade_start_alpha = _transition_black.color.a
+	_overlay_fade_completion = completion
+
+
+func _update_level_switch_overlay(delta: float) -> void:
+	if not _overlay_fade_active:
+		return
+	if not is_instance_valid(_transition_black):
+		_complete_level_switch_overlay()
+		return
+	_overlay_fade_elapsed = minf(_overlay_fade_elapsed + maxf(delta, 0.0), _overlay_fade_duration)
+	var progress := _overlay_fade_elapsed / _overlay_fade_duration
+	var eased := 0.5 - cos(progress * PI) * 0.5
+	var color := _transition_black.color
+	color.a = lerpf(_overlay_fade_start_alpha, 0.0, eased)
+	_transition_black.color = color
+	if progress >= 1.0:
+		_complete_level_switch_overlay()
+
+
+func _complete_level_switch_overlay() -> void:
+	var completion := _overlay_fade_completion
+	_cancel_level_switch_overlay_fade()
 	if _transition_canvas and is_instance_valid(_transition_canvas):
 		_transition_canvas.queue_free()
 	_transition_canvas = null
 	_transition_black = null
+	if completion.is_valid() and is_inside_tree():
+		completion.call()
+
+
+func _cancel_level_switch_overlay_fade() -> void:
+	_overlay_fade_active = false
+	_overlay_fade_duration = 0.0
+	_overlay_fade_elapsed = 0.0
+	_overlay_fade_start_alpha = 1.0
+	_overlay_fade_completion = Callable()
+
+
+func _finish_level_switch() -> void:
+	_switching_level = false
 
 ## 后续关卡尚未制作时的安全降级画面
 func _show_end_placeholder() -> void:
@@ -142,8 +194,7 @@ func _load_formal_level() -> void:
 		EventBus.emit(GlobalDefine.EventName.LEVEL_LOADED, { "level": level })
 		print("[MainEntry] 关卡加载成功: Level_01")
 		# HUD 由关卡模块自行管理，MainEntry 不再插手
-		await get_tree().process_frame
-		await _fade_out_level_switch_overlay(1.5)
+		call_deferred("_fade_out_level_switch_overlay", 1.5)
 		return
 	else:
 		# 关卡不存在时加载临时占位场景

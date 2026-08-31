@@ -6,6 +6,8 @@
 extends CharacterBody2D
 class_name PlayerBase
 
+const DEFAULT_PLAYER_CONFIG_PATH := "res://DataConfig/Player/WarriorConfig.tres"
+
 @export var config: PlayerConfig = null
 
 # 能力开关
@@ -21,8 +23,8 @@ var runtime_move_speed_multiplier: float = 1.0
 
 # 状态变量
 var current_state: int = GlobalDefine.PlayerState.IDLE
-var current_health: int = 100
-var max_health: int = 100
+var current_health: int = 0
+var max_health: int = 0
 var is_invincible: bool = false
 var is_facing_right: bool = true
 var _is_super_armor: bool = false  # 霸体：受击不击退不中断
@@ -32,8 +34,7 @@ var has_double_jumped: bool = false
 # 跳跃系统
 var is_jump_held: bool = false
 var jump_hold_time: float = 0.0
-var max_jump_hold_time: float = 0.25
-const JUMP_INVINCIBLE_TIME: float = 0.18
+var max_jump_hold_time: float = 0.0
 
 # 冷却计时器
 var attack_cooldown_timer: float = 0.0
@@ -43,7 +44,6 @@ var invincible_timer: float = 0.0
 # 击退缓动
 var _knockback_force: float = 0.0
 var _knockback_timer: float = 0.0
-const KNOCKBACK_DURATION: float = 0.35
 
 # 冲刺
 var is_dashing: bool = false
@@ -59,7 +59,6 @@ var _attack_started_in_air: bool = false
 # 攻击前摇
 var _attack_windup_pending: bool = false
 var _attack_windup_timer: float = 0.0
-const ATTACK_WINDUP_TIME: float = 0.1
 
 # 闪烁
 var _blink_timer: float = 0.0
@@ -68,18 +67,18 @@ var _sprite_node: Node = null
 
 # 地面防抖
 var _air_time: float = 0.0
-const AIR_THRESHOLD: float = 0.05
 
 # 行走音效计时器
 var _walk_sfx_timer: float = 0.0
-const WALK_SFX_INTERVAL: float = 0.45
 
 # ---- 生命周期 ----
 
 func _ready() -> void:
 	collision_layer = GlobalDefine.Collision.PLAYER
 	collision_mask = GlobalDefine.Collision.TERRAIN
+	_ensure_config()
 	_apply_config()
+	_apply_camera_config()
 	_setup_collision()
 	# 阶段3: 订阅 InputManager 的游戏操作信号
 	# attack/dash/skill 由信号驱动(单次触发)，跳跃/移动保留轮询(需连续状态)
@@ -94,12 +93,28 @@ func _exit_tree() -> void:
 			InputManager.game_action.disconnect(_on_game_action)
 
 func _apply_config() -> void:
+	max_health = config.max_health
+	current_health = max_health
+	max_jump_hold_time = config.max_jump_hold_time
+
+
+func _apply_camera_config() -> void:
+	var camera := get_node_or_null("SmoothCamera") as SmoothCamera
+	if not camera:
+		return
+	camera.lerp_speed = config.camera_follow_lerp_speed
+	camera.deadzone_size = config.camera_deadzone_size
+	camera.lookahead_offset = config.camera_lookahead_offset
+	camera.lookahead_lerp = config.camera_lookahead_lerp
+
+func _ensure_config() -> void:
 	if config:
-		max_health = config.max_health
-		current_health = max_health
-	else:
-		max_health = 100
-		current_health = 100
+		return
+	config = load(DEFAULT_PLAYER_CONFIG_PATH) as PlayerConfig
+	if config:
+		return
+	push_error("[PlayerBase] 玩家配置加载失败，使用 PlayerConfig 安全默认值: %s" % DEFAULT_PLAYER_CONFIG_PATH)
+	config = PlayerConfig.new()
 
 func _setup_collision() -> void:
 	var col = CollisionShape2D.new()
@@ -112,7 +127,7 @@ func _setup_collision() -> void:
 func _physics_process(delta: float) -> void:
 	# 死亡状态下仍允许动画更新（播放死亡动画），但不处理其他逻辑
 	if current_state == GlobalDefine.PlayerState.DEAD:
-		velocity.x = move_toward(velocity.x, 0, 500 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.death_deceleration * delta)
 		if has_method("_update_animation"):
 			call("_update_animation")
 		return
@@ -152,7 +167,7 @@ func _update_timers(delta: float) -> void:
 			has_hit_this_attack = false
 			_attack_started_in_air = false
 			if is_on_floor():
-				if abs(_get_input_direction().x) > 0.1:
+				if abs(_get_input_direction().x) > config.input_dead_zone:
 					_change_state(GlobalDefine.PlayerState.RUN)
 				else:
 					_change_state(GlobalDefine.PlayerState.IDLE)
@@ -199,13 +214,13 @@ func _apply_gravity(delta: float) -> void:
 	if is_dashing: return
 	# 空中攻击时悬浮，不施加重力
 	if is_attacking and _attack_started_in_air and not is_on_floor(): return
-	var grav = config.gravity if config else 1200.0
+	var grav = config.gravity
 	if current_state == GlobalDefine.PlayerState.JUMP and not is_on_floor():
 		if is_jump_held and jump_hold_time < max_jump_hold_time:
 			jump_hold_time += delta
-			grav *= config.jump_hold_gravity_scale if config else 0.35
+			grav *= config.jump_hold_gravity_scale
 		else:
-			grav *= config.jump_release_gravity_scale if config else 2.5
+			grav *= config.jump_release_gravity_scale
 	if not is_on_floor():
 		velocity.y += grav * delta
 	else:
@@ -227,15 +242,15 @@ func _handle_state(delta: float) -> void:
 func _update_facing() -> void:
 	if is_dashing: return
 	if current_state == GlobalDefine.PlayerState.HURT: return
-	if velocity.x > 10: is_facing_right = true; scale.x = 1
-	elif velocity.x < -10: is_facing_right = false; scale.x = -1
+	if velocity.x > config.facing_velocity_threshold: is_facing_right = true; scale.x = 1
+	elif velocity.x < -config.facing_velocity_threshold: is_facing_right = false; scale.x = -1
 
 # ---- 闪烁 ----
 
 func _update_blink(delta: float) -> void:
 	if not is_invincible: return
 	_blink_timer += delta
-	if _blink_timer >= 0.08:
+	if _blink_timer >= config.invincible_blink_interval:
 		_blink_timer = 0.0
 		_blink_visible = !_blink_visible
 		if _sprite_node: _sprite_node.visible = _blink_visible
@@ -258,22 +273,22 @@ func _check_enemy_contact(_delta: float) -> void:
 		if mr.intersects(er): _take_contact_damage(enemy); return
 
 func _take_contact_damage(enemy: Node2D) -> void:
-	var atk = 8
+	var atk = config.default_contact_damage
 	if enemy.config:
 		atk = enemy.config.attack_damage
 	current_health = maxi(current_health - atk, 0)
 	# 霸体：只扣血，不击退不中断，但仍需无敌帧防止连续受伤
 	if _is_super_armor:
 		is_invincible = true
-		invincible_timer = config.hurt_invincible_time if config else 1.0
-		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, 0.92, 1.08)
+		invincible_timer = config.hurt_invincible_time
+		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
 		EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": atk, "current_health": current_health})
 		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
 		if current_health <= 0:
 			die()
 		return
 	is_invincible = true
-	invincible_timer = 1.5
+	invincible_timer = config.contact_invincible_time
 	is_attacking = false
 	attack_timer = 0.0
 	_attack_started_in_air = false
@@ -284,10 +299,10 @@ func _take_contact_damage(enemy: Node2D) -> void:
 	var kb_dir = signf(global_position.x - enemy.global_position.x)
 	if kb_dir == 0:
 		kb_dir = 1.0
-	velocity = Vector2(kb_dir * 300.0, -200.0)
+	velocity = Vector2(kb_dir * config.contact_knockback_horizontal, config.contact_knockback_vertical)
 	# 受击时推开周围敌人，防止无敌结束后立刻再次被贴身
-	_push_nearby_enemies(120.0)
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, 0.92, 1.08)
+	_push_nearby_enemies()
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
 	EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": atk, "current_health": current_health})
 	EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
 	if current_health <= 0:
@@ -296,19 +311,19 @@ func _take_contact_damage(enemy: Node2D) -> void:
 		_change_state(GlobalDefine.PlayerState.HURT)
 
 ## 受击时推开周围敌人，防止贴身连击
-func _push_nearby_enemies(push_force: float) -> void:
+func _push_nearby_enemies() -> void:
 	for enemy in GameManager.get_enemies():
 		if not is_instance_valid(enemy):
 			continue
 		var dist = global_position.distance_to(enemy.global_position)
-		if dist < 80.0:
+		if dist < config.nearby_enemy_push_range:
 			var push_dir = signf(enemy.global_position.x - global_position.x)
 			if push_dir == 0:
 				push_dir = 1.0
-			enemy.velocity.x = push_dir * push_force
-			enemy.velocity.y = -80.0
+			enemy.velocity.x = push_dir * config.nearby_enemy_push_force
+			enemy.velocity.y = config.nearby_enemy_push_vertical
 			if enemy.has_method("set") and "stun_timer" in enemy:
-				enemy.stun_timer = 0.3
+				enemy.stun_timer = config.nearby_enemy_stun_time
 
 func _change_state(new_state: int) -> void:
 	if current_state == GlobalDefine.PlayerState.DEAD: return
@@ -372,14 +387,14 @@ func end_ladder_climb() -> void:
 # ---- 状态处理 ----
 
 func _handle_idle(delta: float) -> void:
-	if abs(_get_input_direction().x) > 0.1:
+	if abs(_get_input_direction().x) > config.input_dead_zone:
 		_change_state(GlobalDefine.PlayerState.RUN)
 		return
-	velocity.x = move_toward(velocity.x, 0, _get_move_speed() * 10 * delta)
+	velocity.x = move_toward(velocity.x, 0, _get_move_speed() * config.movement_acceleration_multiplier * delta)
 	_walk_sfx_timer = 0.0  # 停止行走，重置计时器
 	if not is_on_floor():
 		_air_time += delta
-		if _air_time > AIR_THRESHOLD:
+		if _air_time > config.air_state_threshold:
 			_change_state(GlobalDefine.PlayerState.FALL)
 	else:
 		_air_time = 0.0
@@ -388,21 +403,21 @@ func _handle_idle(delta: float) -> void:
 
 func _handle_run(delta: float) -> void:
 	var id = _get_input_direction()
-	if abs(id.x) < 0.1:
+	if abs(id.x) < config.input_dead_zone:
 		_change_state(GlobalDefine.PlayerState.IDLE)
 		return
-	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * 10 * delta)
+	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * config.movement_acceleration_multiplier * delta)
 	# 行走音效：周期性播放脚步声
 	if is_on_floor():
 		_walk_sfx_timer -= delta
 		if _walk_sfx_timer <= 0.0:
-			SFXManager.play_pitched(SFXManager.SFX.PLAYER_WALK, 0.92, 1.08, 0.0)
-			_walk_sfx_timer = WALK_SFX_INTERVAL
+			SFXManager.play_pitched(SFXManager.SFX.PLAYER_WALK, config.walk_sfx_pitch_min, config.walk_sfx_pitch_max, 0.0)
+			_walk_sfx_timer = config.walk_sfx_interval
 	else:
 		_walk_sfx_timer = 0.0  # 空中不响，落地后立即响
 	if not is_on_floor():
 		_air_time += delta
-		if _air_time > AIR_THRESHOLD:
+		if _air_time > config.air_state_threshold:
 			_change_state(GlobalDefine.PlayerState.FALL)
 	else:
 		_air_time = 0.0
@@ -411,21 +426,21 @@ func _handle_run(delta: float) -> void:
 
 func _handle_jump(delta: float) -> void:
 	var id = _get_input_direction()
-	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * 10 * delta)
-	if not Input.is_action_pressed("player_jump"):
+	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * config.movement_acceleration_multiplier * delta)
+	if not InputManager.is_gameplay_input_blocked() and not Input.is_action_pressed("player_jump"):
 		is_jump_held = false
 	if velocity.y >= 0:
 		_change_state(GlobalDefine.PlayerState.FALL)
 
 func _handle_fall(delta: float) -> void:
 	var id = _get_input_direction()
-	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * 10 * delta)
+	velocity.x = move_toward(velocity.x, id.x * _get_move_speed(), _get_move_speed() * config.movement_acceleration_multiplier * delta)
 	if is_on_floor():
 		_air_time = 0.0
 		has_double_jumped = false
 		is_jump_held = false
 		jump_hold_time = 0.0
-		if abs(id.x) > 0.1:
+		if abs(id.x) > config.input_dead_zone:
 			_change_state(GlobalDefine.PlayerState.RUN)
 		else:
 			_change_state(GlobalDefine.PlayerState.IDLE)
@@ -435,7 +450,7 @@ func _handle_fall(delta: float) -> void:
 func _handle_attack_state(delta: float) -> void:
 	if _attack_started_in_air:
 		# 空中攻击：保持横向操控，悬浮
-		velocity.x = move_toward(velocity.x, _get_input_direction().x * _get_move_speed(), _get_move_speed() * 3 * delta)
+		velocity.x = move_toward(velocity.x, _get_input_direction().x * _get_move_speed(), _get_move_speed() * config.air_attack_acceleration_multiplier * delta)
 		if not is_on_floor():
 			velocity.y = 0.0
 			# 空中攻击期间允许二段跳
@@ -445,18 +460,18 @@ func _handle_attack_state(delta: float) -> void:
 	elif is_on_floor():
 		# 地面攻击：行走时保留一半水平速度，站立时减速到0
 		var target_x = 0.0
-		if abs(velocity.x) > 10.0:
-			target_x = signf(velocity.x) * _get_move_speed() * 0.5
-		velocity.x = move_toward(velocity.x, target_x, _get_move_speed() * 5 * delta)
+		if abs(velocity.x) > config.facing_velocity_threshold:
+			target_x = signf(velocity.x) * _get_move_speed() * config.ground_attack_speed_multiplier
+		velocity.x = move_toward(velocity.x, target_x, _get_move_speed() * config.ground_attack_acceleration_multiplier * delta)
 	else:
 		# 地面攻击但走出悬崖：正常下落
-		velocity.x = move_toward(velocity.x, _get_input_direction().x * _get_move_speed(), _get_move_speed() * 3 * delta)
+		velocity.x = move_toward(velocity.x, _get_input_direction().x * _get_move_speed(), _get_move_speed() * config.air_attack_acceleration_multiplier * delta)
 
 func _handle_hurt(delta: float) -> void:
 	# 击退缓动：sin 曲线 0→max→0，避免瞬移
 	if _knockback_force != 0.0:
 		_knockback_timer += delta
-		var t = clampf(_knockback_timer / KNOCKBACK_DURATION, 0.0, 1.0)
+		var t = clampf(_knockback_timer / config.knockback_duration, 0.0, 1.0)
 		var eased = sin(t * PI)
 		velocity.x = _knockback_force * eased
 		if t >= 1.0:
@@ -464,14 +479,14 @@ func _handle_hurt(delta: float) -> void:
 			_knockback_timer = 0.0
 			velocity.x = 0.0
 	else:
-		velocity.x = move_toward(velocity.x, 0, _get_move_speed() * 5 * delta)
+		velocity.x = move_toward(velocity.x, 0, _get_move_speed() * config.ground_attack_acceleration_multiplier * delta)
 	# hit 动画可被跳跃取消
 	if _can_cancel_hurt() and can_jump and _input_jump_just_pressed():
 		_cancel_hurt()
 		_perform_jump()
 		return
 	# 正常恢复
-	if is_on_floor() and abs(velocity.x) < 10:
+	if is_on_floor() and abs(velocity.x) < config.facing_velocity_threshold:
 		_change_state(GlobalDefine.PlayerState.IDLE)
 
 ## 判断受击状态是否可被操作取消（子类可覆盖）
@@ -481,7 +496,7 @@ func _can_cancel_hurt() -> bool:
 ## 取消受击状态，恢复为可操作状态（保留无敌时间，防止立刻再次被击中）
 func _cancel_hurt() -> void:
 	if is_on_floor():
-		if abs(_get_input_direction().x) > 0.1:
+		if abs(_get_input_direction().x) > config.input_dead_zone:
 			_change_state(GlobalDefine.PlayerState.RUN)
 		else:
 			_change_state(GlobalDefine.PlayerState.IDLE)
@@ -489,7 +504,7 @@ func _cancel_hurt() -> void:
 		_change_state(GlobalDefine.PlayerState.FALL)
 
 func _handle_dead(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 500 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.death_deceleration * delta)
 
 # ---- 动作 ----
 
@@ -498,16 +513,16 @@ func _grant_short_invincibility(duration: float) -> void:
 	invincible_timer = maxf(invincible_timer, duration)
 
 func _perform_jump() -> void:
-	velocity.y = (config.jump_velocity if config else -650.0) * 1.15
+	velocity.y = config.jump_velocity * config.jump_velocity_multiplier
 	is_jump_held = true
 	jump_hold_time = 0.0
-	_air_time = AIR_THRESHOLD + 0.01
-	_grant_short_invincibility(JUMP_INVINCIBLE_TIME)
+	_air_time = config.air_state_threshold + 0.01
+	_grant_short_invincibility(config.jump_invincible_time)
 	_change_state(GlobalDefine.PlayerState.JUMP)
 
 func _perform_double_jump() -> void:
 	has_double_jumped = true
-	velocity.y = (config.jump_velocity if config else -650.0) * 0.9
+	velocity.y = config.jump_velocity * config.double_jump_velocity_multiplier
 	is_jump_held = true
 	jump_hold_time = 0.0
 	_change_state(GlobalDefine.PlayerState.JUMP)
@@ -517,29 +532,29 @@ func perform_attack() -> void:
 		return
 	is_attacking = true
 	has_hit_this_attack = false
-	attack_timer = 0.25 + ATTACK_WINDUP_TIME
-	attack_cooldown_timer = config.attack_cooldown if config else 0.4
+	attack_timer = config.ground_attack_duration + config.attack_windup_time
+	attack_cooldown_timer = config.attack_cooldown
 	_attack_started_in_air = not is_on_floor()
 	if _attack_started_in_air:
 		velocity.y = 0.0
-		attack_timer = 0.35 + ATTACK_WINDUP_TIME
+		attack_timer = config.air_attack_duration + config.attack_windup_time
 	_change_state(GlobalDefine.PlayerState.ATTACK)
 	# 前摇延迟：动画立即播放，0.1s 后才打出伤害
 	_attack_windup_pending = true
-	_attack_windup_timer = ATTACK_WINDUP_TIME
+	_attack_windup_timer = config.attack_windup_time
 	# 攻击音效
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_ATTACK, 0.95, 1.08)
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_ATTACK, config.attack_sfx_pitch_min, config.attack_sfx_pitch_max)
 
 func perform_dash() -> void:
 	if dash_cooldown_timer > 0 or is_dashing:
 		return
 	is_dashing = true
-	dash_timer = config.dash_duration if config else 0.2
-	dash_cooldown_timer = config.dash_cooldown if config else 0.8
+	dash_timer = config.dash_duration
+	dash_cooldown_timer = config.dash_cooldown
 	var dir = 1.0 if is_facing_right else -1.0
 	dash_velocity = Vector2(dir * _get_dash_speed(), 0)
 	is_invincible = true
-	invincible_timer = dash_timer + 0.3
+	invincible_timer = dash_timer + config.dash_invincible_bonus
 	_on_dash()
 
 func perform_skill() -> void:
@@ -550,22 +565,22 @@ func perform_skill() -> void:
 func perform_skill_2() -> void:
 	perform_skill()
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO) -> void:
+func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: Node = null) -> void:
 	if is_invincible or current_state == GlobalDefine.PlayerState.DEAD:
 		return
 	current_health = maxi(current_health - damage, 0)
 	# 霸体：只扣血，不击退不中断不进入HURT，但仍需无敌帧防止连续受伤
 	if _is_super_armor:
 		is_invincible = true
-		invincible_timer = config.hurt_invincible_time if config else 1.0
-		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, 0.92, 1.08)
+		invincible_timer = config.hurt_invincible_time
+		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
 		EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": damage, "current_health": current_health})
 		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
 		if current_health <= 0:
 			die()
 		return
 	is_invincible = true
-	invincible_timer = config.hurt_invincible_time if config else 1.0
+	invincible_timer = config.hurt_invincible_time
 	is_attacking = false
 	attack_timer = 0.0
 	_attack_started_in_air = false
@@ -574,13 +589,13 @@ func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO) -> void:
 	dash_timer = 0.0
 	attack_cooldown_timer = 0.0
 	if knockback_dir != Vector2.ZERO:
-		var kb_speed = config.hurt_knockback if config else 300.0
+		var kb_speed = config.hurt_knockback
 		_knockback_force = signf(knockback_dir.x) * kb_speed
 		_knockback_timer = 0.0
-		velocity.y = -120.0
+		velocity.y = config.hurt_knockback_vertical
 	# 受击时推开周围敌人，防止贴身连击
-	_push_nearby_enemies(120.0)
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, 0.92, 1.08)
+	_push_nearby_enemies()
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
 	EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": damage, "current_health": current_health})
 	EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
 	if current_health <= 0:
@@ -602,18 +617,20 @@ func heal(amount: int) -> void:
 # 以下仅保留 jump（需 is_action_pressed 连续状态）和方向键（需 get_vector 每帧向量）
 
 func _get_input_direction() -> Vector2:
+	if InputManager.is_gameplay_input_blocked():
+		return Vector2.ZERO
 	return Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 
 func _input_jump_just_pressed() -> bool:
-	if InputManager.is_action_blocked(&"player_jump"):
+	if InputManager.is_gameplay_input_blocked() or InputManager.is_action_blocked(&"player_jump"):
 		return false
 	return Input.is_action_just_pressed("player_jump")
 
 # ---- 取值器 ----
 
-func _get_move_speed() -> float: return (config.move_speed if config else 300.0) * runtime_move_speed_multiplier
-func _get_dash_speed() -> float: return config.dash_speed if config else 800.0
-func _get_gravity() -> float: return config.gravity if config else 1200.0
+func _get_move_speed() -> float: return config.move_speed * runtime_move_speed_multiplier
+func _get_dash_speed() -> float: return config.dash_speed
+func _get_gravity() -> float: return config.gravity
 
 func _get_collision_size() -> Vector2:
 	return Vector2(40, 60)
@@ -628,13 +645,13 @@ func _on_skill() -> void: pass
 
 func _play_skill_release_sfx() -> void:
 	_stop_skill_charge_sfx()
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_SKILL, 0.95, 1.05)
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_SKILL, config.skill_sfx_pitch_min, config.skill_sfx_pitch_max)
 
 func _play_charge_attack_sfx() -> void:
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_CHARGE_ATTACK, 0.95, 1.08)
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_CHARGE_ATTACK, config.charge_sfx_pitch_min, config.charge_sfx_pitch_max)
 
 func _play_cyber_skill_sfx() -> void:
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_CYBER_SKILL, 0.95, 1.05)
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_CYBER_SKILL, config.skill_sfx_pitch_min, config.skill_sfx_pitch_max)
 
 func _start_skill_charge_sfx() -> void:
 	SFXManager.start_skill_charge_loop()

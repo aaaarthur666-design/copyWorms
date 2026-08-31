@@ -9,7 +9,7 @@ var _anim_sprite: AnimatedSprite2D = null
 var _last_anim: String = ""
 var _anim_map: Dictionary = {}
 var _skill_cooldown_timer: float = 0.0  # 技能独立CD，不影响普攻
-const SKILL_COOLDOWN := 3.0
+@export var skill_config: SkillConfig = preload("res://DataConfig/Skill/SlashConfig.tres")
 
 # 子类标记：是否有专属 hit / defeated 动画
 var _has_hit_anim: bool = false
@@ -20,9 +20,9 @@ var _attack_effect_node: ColorRect = null
 
 func _on_ready() -> void:
 	super._on_ready()
-	if not config:
-		config = load("res://DataConfig/Player/WarriorConfig.tres") as PlayerConfig
-		_apply_config()
+	if not skill_config:
+		push_error("[Player_Warrior] SlashConfig.tres 加载失败，使用 SkillConfig 安全默认值")
+		skill_config = SkillConfig.new()
 	can_double_jump = true
 	# 订阅命中事件，生成刀光特效
 	EventBus.subscribe(GlobalDefine.EventName.PLAYER_ATTACK_HIT, self, "_on_player_attack_hit")
@@ -119,10 +119,10 @@ func _get_anim_for_state() -> String:
 func _update_facing_override() -> void:
 	if is_dashing: return
 	if current_state == GlobalDefine.PlayerState.HURT: return
-	if velocity.x > 10:
+	if velocity.x > config.facing_velocity_threshold:
 		scale.x = 1; is_facing_right = true
 		if _anim_sprite: _anim_sprite.flip_h = false
-	elif velocity.x < -10:
+	elif velocity.x < -config.facing_velocity_threshold:
 		scale.x = 1; is_facing_right = false
 		if _anim_sprite: _anim_sprite.flip_h = true
 
@@ -136,14 +136,14 @@ func _on_attack() -> void:
 
 	# _spawn_attack_effect()  # 白色方块演示特效已隐藏
 	var attack_dir := _get_attack_direction()
-	var attack_center = global_position + attack_dir * 40
-	var attack_range = config.attack_range if config else 80.0
+	var attack_center = global_position + attack_dir * config.attack_center_distance
+	var attack_range = config.attack_range
 
 	for enemy in GameManager.get_enemies():
 		if not is_instance_valid(enemy):
 			continue
 		if attack_center.distance_to(enemy.global_position) <= attack_range:
-			var result = DamageCalculator.calculate(config.attack_damage if config else 25, 0, GlobalDefine.DamageType.PHYSICAL)
+			var result = DamageCalculator.calculate(config.attack_damage, 0, GlobalDefine.DamageType.PHYSICAL)
 			var kb_dir = attack_dir.normalized() if attack_dir != Vector2.ZERO else Vector2(1, 0)
 			if enemy.has_method("take_damage"):
 				enemy.take_damage(result["damage"], kb_dir)
@@ -177,9 +177,9 @@ func _update_attack_effect() -> void:
 		_attack_effect_node.color.a = 0
 
 func _get_attack_direction() -> Vector2:
-	if is_on_floor(): return Vector2(1.0 if is_facing_right else -1.0, -0.2)
-	var id = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-	if abs(id.x) > 0.1 or abs(id.y) > 0.1: return Vector2(id.x, id.y).normalized()
+	if is_on_floor(): return Vector2(1.0 if is_facing_right else -1.0, config.attack_direction_y_bias)
+	var id = _get_input_direction()
+	if abs(id.x) > config.input_dead_zone or abs(id.y) > config.input_dead_zone: return Vector2(id.x, id.y).normalized()
 	return Vector2(1.0 if is_facing_right else -1.0, 0.0)
 
 # ---- 技能 ----
@@ -187,32 +187,29 @@ func _get_attack_direction() -> Vector2:
 # 闪电剑气：前方扇形电弧 + 飞行剑气弹体
 func _on_skill() -> void:
 	super._on_skill()
-	var skill_config = load("res://DataConfig/Skill/SlashConfig.tres") as SkillConfig
-	if not skill_config:
-		return
 	is_attacking = true
 	has_hit_this_attack = false
-	attack_timer = 0.5
+	attack_timer = skill_config.action_duration
 	attack_cooldown_timer = 0.0  # 不占用普攻CD
-	_skill_cooldown_timer = SKILL_COOLDOWN  # 技能独立CD
+	_skill_cooldown_timer = skill_config.cooldown  # 技能独立CD
 	_change_state(GlobalDefine.PlayerState.SKILL)
 	
 	var facing_dir := 1.0 if is_facing_right else -1.0
-	var attack_dir := Vector2(facing_dir, -0.2).normalized()
+	var attack_dir := Vector2(facing_dir, skill_config.direction_y_bias).normalized()
 	
-	# 1. 扇形区域判定（120°，半径150px）
-	var attack_center = global_position + Vector2(facing_dir * 40, -10)
+	# 1. 扇形区域判定（range_y 为半角度数）
+	var attack_center = global_position + Vector2(skill_config.center_offset.x * facing_dir, skill_config.center_offset.y)
 	for enemy in GameManager.get_enemies():
 		if not is_instance_valid(enemy):
 			continue
 		var to_enemy = enemy.global_position - attack_center
 		var dist = to_enemy.length()
-		if dist > 150.0:
+		if dist > skill_config.range_x:
 			continue
 		var angle = attack_dir.angle_to(to_enemy.normalized())
-		if abs(angle) > deg_to_rad(60):
+		if abs(angle) > deg_to_rad(skill_config.range_y):
 			continue
-		var result = DamageCalculator.calculate(20, 0, GlobalDefine.DamageType.MAGIC, 0.15)
+		var result = DamageCalculator.calculate(skill_config.damage, 0, skill_config.damage_type, skill_config.crit_chance)
 		var kb_dir = to_enemy.normalized() if to_enemy != Vector2.ZERO else Vector2(facing_dir, 0)
 		if enemy.has_method("take_damage"):
 			enemy.take_damage(result["damage"], kb_dir)
@@ -225,8 +222,16 @@ func _on_skill() -> void:
 	var parent = get_parent()
 	if parent:
 		parent.add_child(projectile)
-		projectile.global_position = global_position + Vector2(facing_dir * 25, -10)
-		projectile.setup(Vector2(facing_dir, 0), 25, self, 350.0)
+		projectile.global_position = global_position + Vector2(skill_config.projectile_spawn_offset.x * facing_dir, skill_config.projectile_spawn_offset.y)
+		projectile.setup(
+			Vector2(facing_dir, 0),
+			skill_config.projectile_damage,
+			self,
+			skill_config.projectile_max_distance,
+			skill_config.projectile_speed,
+			skill_config.projectile_crit_chance,
+			skill_config.damage_type
+		)
 	
 	# 3. 扇形电弧视觉
 	_spawn_arc_effect(attack_dir, facing_dir)
@@ -234,7 +239,7 @@ func _on_skill() -> void:
 	# 4. 震屏
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
-		cam.shake(6.0, 0.15)
+		cam.shake(skill_config.camera_shake_strength, skill_config.camera_shake_duration)
 
 ## 生成扇形电弧视觉（Line2D 随机折线）
 func _spawn_arc_effect(attack_dir: Vector2, facing_dir: float) -> void:
@@ -297,4 +302,7 @@ func _spawn_slash_effect(target: Node2D, is_crit: bool = false) -> void:
 	# 震屏
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
-		cam.shake(8.0 if is_crit else 4.0, 0.15)
+		cam.shake(
+			config.critical_hit_camera_shake_strength if is_crit else config.hit_camera_shake_strength,
+			config.hit_camera_shake_duration
+		)

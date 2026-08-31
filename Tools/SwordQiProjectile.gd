@@ -6,18 +6,16 @@
 extends Area2D
 
 var direction: Vector2 = Vector2.RIGHT
-var speed: float = 800.0
-var damage: int = 20
-var damage_type: int = 1  # GlobalDefine.DamageType.MAGIC
-var crit_chance: float = 0.15
-var knockback_force: float = 250.0
-var max_distance: float = 350.0
+var speed: float = 0.0
+var damage: int = 0
+var damage_type: int = GlobalDefine.DamageType.MAGIC
+var crit_chance: float = 0.0
+var max_distance: float = 0.0
 var _traveled: float = 0.0
 var _hit_enemies: Array = []  # 已命中敌人ID，防止重复
 var _owner: Node2D = null
 var _homing: bool = false  # 是否追踪（仅Boss战特定弹体启用）
 var _homing_delay: float = 0.0  # 追踪延迟（先沿散射方向飞行，延迟结束后才追踪）
-const HOMING_DELAY_TIME: float = 0.25  # 散射飞行0.25秒后才开始追踪
 
 # 视觉
 var _trail_line: Line2D = null
@@ -64,19 +62,40 @@ func _ready() -> void:
 	# 初始朝向
 	rotation = direction.angle()
 
-func setup(dir: Vector2, dmg: int, owner: Node2D, dist: float = 350.0) -> void:
+func setup(
+	dir: Vector2,
+	dmg: int,
+	owner: Node2D,
+	dist: float,
+	projectile_speed: float,
+	projectile_crit_chance: float,
+	projectile_damage_type: int
+) -> void:
 	direction = dir.normalized()
 	rotation = direction.angle()
 	damage = dmg
 	_owner = owner
 	max_distance = dist
+	speed = projectile_speed
+	crit_chance = projectile_crit_chance
+	damage_type = projectile_damage_type
 
 ## 带追踪参数的初始化（homing=true 时弹体追踪 boss_target）
-func setup_homing(dir: Vector2, dmg: int, owner: Node2D, dist: float = 350.0, homing: bool = false) -> void:
-	setup(dir, dmg, owner, dist)
+func setup_homing(
+	dir: Vector2,
+	dmg: int,
+	owner: Node2D,
+	dist: float,
+	homing: bool,
+	projectile_speed: float,
+	projectile_crit_chance: float,
+	projectile_damage_type: int,
+	homing_delay: float
+) -> void:
+	setup(dir, dmg, owner, dist, projectile_speed, projectile_crit_chance, projectile_damage_type)
 	_homing = homing
 	if homing:
-		_homing_delay = HOMING_DELAY_TIME  # 先散射飞行，延迟后才追踪
+		_homing_delay = homing_delay  # 先散射飞行，延迟后才追踪
 
 func _physics_process(delta: float) -> void:
 	# 追踪逻辑：延迟结束后才开始追踪（保留散射效果）
@@ -126,7 +145,7 @@ func _on_body_entered(body: Node2D) -> void:
 	# 造成伤害
 	var result = DamageCalculator.calculate(damage, 0, damage_type, crit_chance)
 	var kb_dir = direction.normalized() if direction != Vector2.ZERO else Vector2(1, 0)
-	body.take_damage(result["damage"], kb_dir)
+	body.take_damage(result["damage"], kb_dir, _owner if _owner and is_instance_valid(_owner) else self)
 	
 	# 发出命中事件（用于刀光特效等）
 	EventBus.emit(GlobalDefine.EventName.PLAYER_ATTACK_HIT, {

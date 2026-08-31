@@ -11,8 +11,8 @@ class_name EnemyBase
 
 # 状态变量
 var current_state: int = GlobalDefine.EnemyState.IDLE
-var current_health: int = 50
-var max_health: int = 50
+var current_health: int = 0
+var max_health: int = 0
 var is_facing_right: bool = false
 var is_dead: bool = false
 
@@ -32,18 +32,14 @@ var target: Node2D = null
 # 残血闪烁（独立节点，不绑定敌人模型）
 var _low_hp_blink: ColorRect = null
 var _blink_timer: float = 0.0
-const LOW_HP_RATIO: float = 0.3  # 血量低于30%开始闪烁
 
 # 待机/行走音效计时器（周期性有概率播放）
 var _idle_walk_sfx_timer: float = 0.0
-const IDLE_WALK_SFX_MIN: float = 1.8       # 最小间隔
-const IDLE_WALK_SFX_MAX: float = 3.5       # 最大间隔
-const IDLE_WALK_SFX_CHANCE: float = 0.25   # 触发时播放概率
-const IDLE_WALK_SFX_MAX_DIST: float = 1500.0  # 超过此距离不播放（防跨bg区域泄漏）
 
 # ---- 生命周期（子类不要重写，用虚函数扩展） ----
 
 func _ready() -> void:
+	_ensure_config()
 	_apply_config()
 	_setup_visual()
 	_setup_collision()
@@ -52,12 +48,19 @@ func _ready() -> void:
 	_on_ready()
 
 func _apply_config() -> void:
+	max_health = config.max_health
+	current_health = max_health
+
+func _ensure_config() -> void:
 	if config:
-		max_health = config.max_health
-		current_health = max_health
-	else:
-		max_health = 50
-		current_health = 50
+		return
+	var default_path := _get_default_config_path()
+	if default_path != "" and ResourceLoader.exists(default_path):
+		config = load(default_path) as EnemyConfig
+	if config:
+		return
+	push_error("[EnemyBase] 敌人配置加载失败，使用 EnemyConfig 安全默认值: %s" % default_path)
+	config = EnemyConfig.new()
 
 func _setup_visual() -> void:
 	var sprite = ColorRect.new()
@@ -118,7 +121,7 @@ func _update_timers(delta: float) -> void:
 func _apply_gravity(delta: float) -> void:
 	if stun_timer > 0:
 		return
-	var grav = config.gravity if config else 1200.0
+	var grav = config.gravity
 	if not is_on_floor():
 		velocity.y += grav * delta
 
@@ -138,10 +141,10 @@ func _update_facing() -> void:
 	# 攻击锁定：完成此次攻击前禁止转向
 	if _is_attack_locked():
 		return
-	if velocity.x > 5:
+	if velocity.x > config.velocity_facing_threshold:
 		is_facing_right = true
 		scale.x = 1
-	elif velocity.x < -5:
+	elif velocity.x < -config.velocity_facing_threshold:
 		is_facing_right = false
 		scale.x = -1
 
@@ -152,13 +155,14 @@ func _update_low_hp_blink(delta: float) -> void:
 		return
 
 	var hp_ratio = float(current_health) / float(max_health)
-	if hp_ratio > LOW_HP_RATIO or hp_ratio <= 0:
+	var low_health_ratio := config.low_health_ratio
+	if hp_ratio > low_health_ratio or hp_ratio <= 0:
 		_low_hp_blink.color.a = 0
 		return
 
 	_blink_timer += delta
 	# 闪烁频率随血量降低而加快
-	var blink_speed = lerpf(0.3, 0.08, 1.0 - hp_ratio / LOW_HP_RATIO)
+	var blink_speed = lerpf(config.low_health_blink_slow_interval, config.low_health_blink_fast_interval, 1.0 - hp_ratio / low_health_ratio)
 	if _blink_timer >= blink_speed:
 		_blink_timer = 0.0
 		if _low_hp_blink.color.a > 0.1:
@@ -173,7 +177,7 @@ func _update_idle_walk_sfx(delta: float) -> void:
 	var player = GameManager.player_ref
 	if not player or not is_instance_valid(player):
 		return
-	if global_position.distance_to(player.global_position) > IDLE_WALK_SFX_MAX_DIST:
+	if global_position.distance_to(player.global_position) > config.idle_sfx_max_distance:
 		return
 	# 攻击/受击/stun 状态下不播放环境音
 	if stun_timer > 0:
@@ -186,15 +190,15 @@ func _update_idle_walk_sfx(delta: float) -> void:
 	if _idle_walk_sfx_timer > 0.0:
 		return
 	# 到达间隔：按概率播放，并重置下一轮随机间隔
-	_idle_walk_sfx_timer = randf_range(IDLE_WALK_SFX_MIN, IDLE_WALK_SFX_MAX)
-	if randf() < IDLE_WALK_SFX_CHANCE:
-		SFXManager.play_pitched(SFXManager.SFX.ENEMY_IDLE_WALK, 0.88, 1.12, 0.0)
+	_idle_walk_sfx_timer = randf_range(config.idle_sfx_interval_min, config.idle_sfx_interval_max)
+	if randf() < config.idle_sfx_chance:
+		SFXManager.play_pitched(SFXManager.SFX.ENEMY_IDLE_WALK, config.idle_sfx_pitch_min, config.idle_sfx_pitch_max, 0.0)
 
 # ---- AI 状态机 ----
 
 func _handle_ai(delta: float) -> void:
 	if stun_timer > 0:
-		velocity.x = move_toward(velocity.x, 0, 500 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.stunned_deceleration * delta)
 		return
 
 	match current_state:
@@ -210,20 +214,20 @@ func _handle_ai(delta: float) -> void:
 			_ai_hurt(delta)
 
 func _ai_idle(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 300 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	if patrol_wait_timer <= 0:
-		patrol_wait_timer = config.patrol_wait_time if config else 2.0
+		patrol_wait_timer = config.patrol_wait_time
 		_change_state(GlobalDefine.EnemyState.PATROL)
 	if _can_detect_target():
 		_change_state(GlobalDefine.EnemyState.CHASE)
 
 func _ai_patrol(delta: float) -> void:
-	var speed = config.move_speed if config else 100.0
+	var speed = config.move_speed
 	velocity.x = patrol_direction * speed
 
 	# 巡逻范围检测
 	var dist_from_start = global_position.x - patrol_start_pos.x
-	var wander = config.wander_radius if config else 100.0
+	var wander = config.wander_radius
 	if abs(dist_from_start) > wander:
 		patrol_direction *= -1
 		_change_state(GlobalDefine.EnemyState.IDLE)
@@ -242,18 +246,18 @@ func _ai_chase(delta: float) -> void:
 		return
 
 	var dist = global_position.distance_to(target.global_position)
-	var attack_range = config.attack_range if config else 40.0
+	var attack_range = config.attack_range
 
 	if dist <= attack_range:
 		# 到达攻击范围，减速停下
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		if _can_attack_target():
 			_change_state(GlobalDefine.EnemyState.ATTACK)
 			return
 	else:
 		var dir = signf(target.global_position.x - global_position.x)
-		var speed = config.move_speed if config else 100.0
-		var multiplier = config.chase_speed_multiplier if config else 1.8
+		var speed = config.move_speed
+		var multiplier = config.chase_speed_multiplier
 		velocity.x = dir * speed * multiplier
 
 	if not _can_detect_target():
@@ -261,12 +265,12 @@ func _ai_chase(delta: float) -> void:
 		return
 
 func _ai_attack(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 300 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	if attack_cooldown_timer <= 0 and target and is_instance_valid(target):
 		_perform_attack()
-		attack_cooldown_timer = config.attack_cooldown if config else 1.5
+		attack_cooldown_timer = config.attack_cooldown
 		# 攻击锁定：完成此次攻击前禁止转向与移动（不再后退制造间距）
-		_post_attack_pause = 0.7
+		_post_attack_pause = config.post_attack_pause
 		velocity.x = 0.0
 		return  # 保持 ATTACK 状态，攻击动作完成前不进入决策
 	# 攻击锁定结束后才切回 CHASE
@@ -274,12 +278,12 @@ func _ai_attack(delta: float) -> void:
 		_change_state(GlobalDefine.EnemyState.CHASE)
 
 func _ai_hurt(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 300 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	if is_on_floor() and abs(velocity.x) < 10:
 		_change_state(GlobalDefine.EnemyState.IDLE)
 
 func _change_state(new_state: int) -> void:
-	if is_dead:
+	if is_dead and new_state != GlobalDefine.EnemyState.DEAD:
 		return
 	if current_state == new_state:
 		return
@@ -293,13 +297,13 @@ func _can_detect_target() -> bool:
 	# 对话/叙事期间敌人不可锁定玩家
 	if GameManager.is_dialog_active:
 		return false
-	var detect_range = config.detect_range if config else 300.0
+	var detect_range = config.detect_range
 	return global_position.distance_to(target.global_position) <= detect_range
 
 func _can_attack_target() -> bool:
 	if not target or not is_instance_valid(target):
 		return false
-	var attack_range = config.attack_range if config else 40.0
+	var attack_range = config.attack_range
 	return global_position.distance_to(target.global_position) <= attack_range
 
 # ---- 攻击 ----
@@ -309,26 +313,37 @@ func _perform_attack() -> void:
 
 # ---- 伤害与死亡 ----
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO) -> void:
+func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, source: Node = null, raw_damage: int = -1) -> void:
 	if is_dead:
+		return
+	var incoming_raw := damage if raw_damage < 0 else raw_damage
+	damage = maxi(damage, 0)
+	if damage == 0:
 		return
 
 	current_health = maxi(current_health - damage, 0)
 
 
 	if knockback_dir != Vector2.ZERO:
-		var resist = config.knockback_resistance if config else 0.3
+		var resist = config.knockback_resistance
 		# 击退：水平为主，向上分量较小（防止飞出屏幕）
-		var kb_x = knockback_dir.x * 250.0 * (1.0 - resist)
-		var kb_y = -100.0 * (1.0 - resist)  # 固定向上的小力
+		var kb_x = knockback_dir.x * config.hurt_knockback_horizontal * (1.0 - resist)
+		var kb_y = -config.hurt_knockback_vertical * (1.0 - resist)
 		velocity = Vector2(kb_x, kb_y)
-		stun_timer = 0.3
+		stun_timer = config.hurt_stun_time
 
-	SFXManager.play_pitched(SFXManager.SFX.ENEMY_HURT, 0.90, 1.12)
+	SFXManager.play_pitched(SFXManager.SFX.ENEMY_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
 	EventBus.emit(GlobalDefine.EventName.ENEMY_HURT, {
 		"enemy": self,
 		"damage": damage,
 		"current_health": current_health
+	})
+	EventBus.emit(GlobalDefine.EventName.DAMAGE_APPLIED, {
+		"target": self,
+		"source": source,
+		"raw_damage": incoming_raw,
+		"damage": damage,
+		"current_health": current_health,
 	})
 
 	if current_health <= 0:
@@ -337,21 +352,22 @@ func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO) -> void:
 		_change_state(GlobalDefine.EnemyState.HURT)
 
 func die() -> void:
-	is_dead = true
+	if is_dead:
+		return
 	_change_state(GlobalDefine.EnemyState.DEAD)
+	is_dead = true
 	GameManager.unregister_enemy(self)
 	set_physics_process(false)
 	# 白闪：致命伤害命中反馈
 	modulate = Color(5, 5, 5, 1)
 	EventBus.emit(GlobalDefine.EventName.ENEMY_DIED, {
 		"enemy": self,
-		"exp_reward": config.exp_reward if config else 10
+		"exp_reward": config.exp_reward
 	})
 	_on_die()
-	# 延迟释放：EventBus 用 call_deferred 发回调，queue_free 也用 call_deferred
-	# 必须保证命中特效回调在敌人释放前执行，否则 is_instance_valid(target) 为 false
+	# EventBus 同步完成全部回调后，再开始淡出与释放。
 	var tween = create_tween()
-	tween.tween_property(self, "modulate", Color(1, 1, 1, 0), 0.3)
+	tween.tween_property(self, "modulate", Color(1, 1, 1, 0), config.death_fade_duration)
 	tween.tween_callback(queue_free)
 
 # ---- 占位视觉（子类可重写） ----
@@ -368,7 +384,7 @@ func _get_collision_size() -> Vector2:
 # ---- 取值器 ----
 
 func _get_move_speed() -> float:
-	return config.move_speed if config else 100.0
+	return config.move_speed
 
 # ---- 虚函数（子类重写点，不要修改基类源码） ----
 
@@ -380,6 +396,10 @@ func _is_attack_locked() -> bool:
 ## 节点就绪后的初始化
 func _on_ready() -> void:
 	pass
+
+## 子类返回对应的权威 .tres。生成器在 add_child() 前注入的 config 仍优先。
+func _get_default_config_path() -> String:
+	return ""
 
 ## 每帧物理更新后
 func _on_physics_process(_delta: float) -> void:

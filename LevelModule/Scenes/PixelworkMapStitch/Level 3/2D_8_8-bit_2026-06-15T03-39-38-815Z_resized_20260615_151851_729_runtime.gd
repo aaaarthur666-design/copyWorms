@@ -77,11 +77,33 @@ func _ready() -> void:
 		_update_visible_tiles(true)
 
 func _exit_tree() -> void:
+	set_process(false)
+	_drain_pending_tile_loads()
 	_clear_all_adjust_ghosts()
 	_clear_air_wall_hint()
 	for index in range(_tile_records.size()):
 		var record: Dictionary = _tile_records[index]
 		_unload_tile(record)
+		_tile_records[index] = record
+
+func _drain_pending_tile_loads() -> void:
+	var pending_paths: Dictionary = {}
+	for record_value in _tile_records:
+		var record: Dictionary = record_value as Dictionary
+		if not bool(record.get("loading", false)):
+			continue
+		var path: String = String(record.get("loading_path", ""))
+		if not path.is_empty():
+			pending_paths[path] = true
+	for path_value in pending_paths.keys():
+		var path: String = String(path_value)
+		var status := ResourceLoader.load_threaded_get_status(path)
+		if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS or status == ResourceLoader.THREAD_LOAD_LOADED:
+			ResourceLoader.load_threaded_get(path)
+	for index in range(_tile_records.size()):
+		var record: Dictionary = _tile_records[index]
+		record["loading"] = false
+		record["loading_path"] = ""
 		_tile_records[index] = record
 
 func _process(delta: float) -> void:

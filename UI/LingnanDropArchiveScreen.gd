@@ -248,7 +248,7 @@ func _restore_game_state() -> void:
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player) and player.has_method("set_frozen"):
 		player.set_frozen(false)
-	InputManager.unblock_input("岭南图鉴")
+	InputManager.unblock_input("岭南图鉴", self)
 	InputManager.set_pause_allowed(true)
 
 

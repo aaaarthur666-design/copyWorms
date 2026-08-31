@@ -246,7 +246,7 @@ func _finish_listening() -> void:
 		var rebind_btn: TextureButton = row_data["button"]
 		GameUIStyle.set_texture_button_disabled(rebind_btn, false)
 	_listening_action = &""
-	InputManager.unblock_input("按键设置-监听结束")
+	InputManager.unblock_input("按键设置-监听中", self)
 
 ## 检查鼠标点击是否落在按钮上（避免把点击按钮误绑定为按键）
 func _is_click_on_button(event: InputEventMouse) -> bool:

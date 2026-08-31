@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="CyberPlayerConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Player/CyberPlayerConfig.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+action_deceleration = 600.0
+blocked_action_deceleration = 900.0
+normal_attack_hit_delay = 0.1
+attack_hold_threshold = 0.18
+dash_cooldown = 3.0
+dash_windup_time = 0.2
+dash_speed = 1200.0
+dash_duration = 0.25
+dash_hit_radius = 70.0
+dash_path_hit_radius = 75.0
+dash_damage = 30
+dash_damage_type = 1
+dash_crit_chance = 0.15
+dash_afterimage_interval = 0.04
+dash_action_time_bonus = 0.1
+dash_invincible_bonus = 0.3
+dash_camera_shake_strength = 5.0
+dash_camera_shake_duration = 0.12
+skill_cooldown = 4.0
+skill_charge_tier_1 = 0.2
+skill_charge_tier_2 = 0.5
+skill_projectile_counts = Array[int]([1, 3, 5])
+skill_action_duration = 0.6
+skill_projectile_damage = 19
+skill_projectile_damage_type = 1
+skill_projectile_speed = 800.0
+skill_projectile_distance = 600.0
+skill_projectile_crit_chance = 0.15
+skill_projectile_homing_delay = 0.25
+skill_spread_degrees = 60.0
+skill_projectile_vertical_spacing = 8.0
+skill_projectile_spawn_offset = Vector2(25, -10)
+skill_camera_shake_strength = 6.0
+skill_camera_shake_duration = 0.15
+counter_window = 2.0
+counter_cooldown = 5.0
+counter_front_offset = 64.0
+counter_stab_distance = 92.0
+counter_pose_target_height = 66.0
+counter_camera_zoom = 1.18
+counter_invincible_bonus = 1.0
+counter_action_duration = 1.1
+counter_open_delay = 0.16
+counter_first_hit_delay = 0.3
+counter_second_hit_delay = 0.36
+counter_stab_duration = 0.2
+counter_missing_target_delay = 0.12
+counter_manual_dash_wait_bonus = 0.08
+counter_first_damage = 18
+counter_second_damage = 22
+counter_damage_type = 1
+counter_crit_chance = 0.15
+counter_first_shake_strength = 10.0
+counter_first_shake_duration = 0.18
+counter_second_shake_strength = 12.0
+counter_second_shake_duration = 0.2
+counter_manual_shake_strength = 9.0
+counter_manual_shake_duration = 0.16
+counter_hitstop_duration = 0.045
+counter_hitstop_time_scale = 0.08
+counter_direction_match_score_multiplier = 0.45

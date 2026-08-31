@@ -5,10 +5,7 @@
 extends LevelBase
 class_name Level_02_03
 
-@export var level_data: Level02Data = null
-@export var map_left: int = 0
-@export var map_right: int = 2000
-@export var ground_y: int = 576
+@export var level_data: Level02Data = preload("res://DataConfig/Level/Level02Data.tres")
 
 enum LevelState {
 	DREAM_STREET,            # 梦境街区
@@ -39,22 +36,13 @@ var wake_hold_time: float = 0.0
 var _red_tween: Tween = null
 var _shadow_spawn_timer: Timer = null
 var _shadow_enemies: Array[Node2D] = []
-const SHADOW_MAX_ALIVE: int = 8
-const SHADOW_MAX_ONSCREEN: int = 6
-const SHADOW_SPAWN_INTERVAL: float = 1.5
-const INTERFERENCE_MOVE_MULTIPLIER: float = 0.55
-const DEATH_GUARD_HEALTH: int = 10
 
 # ---- 睁眼 ----
-var wake_hold_required: float = 1.5
+var wake_hold_required: float = 0.0
 const VIEW_W: float = 1280.0
 const VIEW_H: float = 720.0
 const REALITY_SPACE_CONFIG_PATH: String = "res://DataConfig/Level/Level01Config.tres"
-const REALITY_PLAYER_SCENE_PATH: String = "res://PlayerModule/Formal/Player_Warrior.tscn"
 const SUB01_SCENE_PATH: String = "res://LevelModule/Formal/Level_02_sub01.tscn"
-const FINAL_BLACKOUT_FADE_DURATION: float = 0.8
-const FINAL_BLACKOUT_DURATION: float = 4.0
-const REALITY_MOVE_MULTIPLIER: float = 0.5
 
 # ---- 场景节点引用 ----
 var _dream_root: Node2D = null
@@ -69,7 +57,7 @@ var _reality_bed_node: InteractiveObject = null
 # ---- 现实流程变量 ----
 var has_read_reality_phone: bool = false
 var current_chat_index: int = 0
-var config_flags: Dictionary = { "player_damage_reduction": false, "base_jump_height": 10, "allow_external_signal": true }
+var config_flags: Dictionary = {}
 var recompilation_done: bool = false
 
 # ---- UI 引用 ----
@@ -119,7 +107,6 @@ var _is_interacting: bool = false
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
 var _transition_running: bool = false
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
 
 # ---- 其它 ----
 var _level_complete_emitted: bool = false
@@ -138,7 +125,10 @@ var _reality_player_rules_active: bool = false
 func _setup_player() -> void:
 	if GameManager.player_ref and is_instance_valid(GameManager.player_ref):
 		return
-	var player_path: String = level_config.player_scene_path if level_config else "res://PlayerModule/Formal/Player_Warrior_Lingnan.tscn"
+	if not level_config:
+		push_error("[Level_02_03] 缺少 LevelConfig，无法创建玩家")
+		return
+	var player_path: String = level_config.player_scene_path
 	if not ResourceLoader.exists(player_path):
 		return
 	var player = load(player_path).instantiate()
@@ -151,7 +141,10 @@ func _get_spawn_position() -> Vector2:
 	var spawn = get_node_or_null("SpawnPoints/LevelSpawn") as Marker2D
 	if spawn:
 		return spawn.position
-	return Vector2(32, 512)
+	if not level_data:
+		push_error("[Level_02_03] 缺少 Level02Data，无法取得备用出生点")
+		return Vector2.ZERO
+	return level_data.segment_03_player_spawn_fallback
 
 
 func _on_ready() -> void:
@@ -163,7 +156,11 @@ func _on_ready() -> void:
 		_apply_config()
 	if not level_data:
 		level_data = load("res://DataConfig/Level/Level02Data.tres") as Level02Data
-	wake_hold_required = level_data.wake_hold_required if level_data else 1.5
+	if not level_data:
+		push_error("[Level_02_03] Level02Data 加载失败，停止初始化")
+		return
+	_initialize_config_flags()
+	wake_hold_required = level_data.wake_hold_required
 
 	_dream_root = get_node_or_null("DreamWorldRoot") as Node2D
 	if not _dream_root:
@@ -184,7 +181,7 @@ func _on_ready() -> void:
 
 	_shadow_spawn_timer = Timer.new()
 	_shadow_spawn_timer.name = "ShadowSpawnTimer"
-	_shadow_spawn_timer.wait_time = SHADOW_SPAWN_INTERVAL
+	_shadow_spawn_timer.wait_time = level_data.shadow_spawn_interval
 	_shadow_spawn_timer.one_shot = false
 	_shadow_spawn_timer.autostart = false
 	_shadow_spawn_timer.timeout.connect(_on_shadow_spawn_timer_timeout)
@@ -306,7 +303,7 @@ func _restore_player_mechanics() -> void:
 	player.can_attack = true
 	player.can_skill = true
 	player.can_double_jump = false
-	player.runtime_move_speed_multiplier = 1.0
+	player.runtime_move_speed_multiplier = level_data.dream_move_speed_multiplier
 
 
 func _enforce_level_restrictions() -> void:
@@ -326,7 +323,7 @@ func _apply_interference_restrictions() -> void:
 	player.can_dash = false
 	player.can_skill = false
 	player.can_attack = true
-	player.runtime_move_speed_multiplier = INTERFERENCE_MOVE_MULTIPLIER
+	player.runtime_move_speed_multiplier = level_data.interference_move_multiplier
 
 
 func _freeze_player(freeze: bool) -> void:
@@ -352,13 +349,13 @@ func _setup_camera_limits() -> void:
 	var cam = player.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam:
 		return
-	cam.limit_left = map_left
-	cam.limit_right = 1136
-	cam.limit_top = 0
-	cam.limit_bottom = 640
-	cam.zoom = Vector2(1.5, 1.5)
+	cam.limit_left = level_data.segment_03_camera_left
+	cam.limit_right = level_data.segment_03_camera_right
+	cam.limit_top = level_data.segment_03_camera_top
+	cam.limit_bottom = level_data.segment_03_camera_bottom
+	cam.zoom = level_data.segment_03_camera_zoom
 	cam.offset = Vector2.ZERO
-	cam.lerp_speed = 2.5
+	cam.lerp_speed = level_data.segment_03_camera_lerp_speed
 	cam.bind_target(player)
 
 
@@ -378,7 +375,7 @@ func _on_game_action(action: StringName, _event: InputEvent) -> void:
 	if current_state in [LevelState.REALITY_FREE_CHAT, LevelState.REALITY_CONFIG_EDIT, LevelState.REALITY_RECOMPILE]:
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running or _fall_reset_running:
-		if not _transition_running and not _fall_reset_running and _interact_cooldown > 0.5:
+		if not _transition_running and not _fall_reset_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	_handle_reality_interaction()
@@ -400,7 +397,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running or _fall_reset_running:
-		if not _transition_running and not _fall_reset_running and _interact_cooldown > 0.5:
+		if not _transition_running and not _fall_reset_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	if _handle_reality_interaction():
@@ -409,15 +406,15 @@ func _input(event: InputEvent) -> void:
 
 func _handle_reality_interaction() -> bool:
 	if current_state == LevelState.REALITY_PHONE_LOCKED and _reality_phone_node and is_instance_valid(_reality_phone_node) and _reality_phone_node.is_player_in_range:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		_handle_reality_phone()
 		return true
 	if current_state == LevelState.REALITY_PHONE_READ and _reality_computer_node and is_instance_valid(_reality_computer_node) and _reality_computer_node.is_player_in_range:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		_enter_ide_chat()
 		return true
 	if current_state == LevelState.REALITY_BED_READY and _reality_bed_node and is_instance_valid(_reality_bed_node) and _reality_bed_node.is_player_in_range:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		_trigger_level_end()
 		return true
 	return false
@@ -494,22 +491,22 @@ func _trigger_fall_reset() -> void:
 	InputManager.block_input("坠落重置", self)
 	_freeze_player(true)
 
-	await _fade_blackout(1.0, 0.5)
+	await _fade_blackout(1.0, level_data.fall_reset_fade_in_duration)
 
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player):
-		var spawn_pos = _cliff_safe_spawn.position if _cliff_safe_spawn else Vector2(232, 440)
+		var spawn_pos = _cliff_safe_spawn.position if _cliff_safe_spawn else level_data.cliff_safe_spawn_fallback
 		player.global_position = spawn_pos
 		player.velocity = Vector2.ZERO
 
-	await _fade_blackout(0.0, 0.3)
+	await _fade_blackout(0.0, level_data.fall_reset_fade_out_duration)
 
 	_freeze_player(false)
-	InputManager.unblock_input("坠落重置")
+	InputManager.unblock_input("坠落重置", self)
 	_fall_reset_running = false
 	_safe_end_interaction()
 
-	var threshold = level_data.interference_fall_threshold if level_data else 1
+	var threshold = level_data.interference_fall_threshold
 	if fall_count >= threshold and not interference_triggered:
 		_trigger_reality_interference()
 
@@ -531,11 +528,11 @@ func _trigger_reality_interference() -> void:
 		_kill_red_tween()
 		_red_tween = create_tween()
 		_red_tween.set_loops()
-		_red_tween.tween_property(_red_overlay, "color:a", 0.4, 0.6)
-		_red_tween.tween_property(_red_overlay, "color:a", 0.12, 0.6)
+		_red_tween.tween_property(_red_overlay, "color:a", 0.4, level_data.interference_pulse_duration)
+		_red_tween.tween_property(_red_overlay, "color:a", 0.12, level_data.interference_pulse_duration)
 	if _dream_root:
 		var gt = create_tween()
-		gt.tween_property(_dream_root, "modulate", Color(0.55, 0.55, 0.65), 1.5)
+		gt.tween_property(_dream_root, "modulate", Color(0.55, 0.55, 0.65), level_data.interference_dim_duration)
 
 	if _phone_msg_panel and level_data:
 		_phone_msg_panel.show()
@@ -547,8 +544,8 @@ func _trigger_reality_interference() -> void:
 		_eye_overlay.show()
 		_update_eye_overlay(0.0)
 
-	_sfx_phone_player = _play_sfx_loop_safe(level_data.sfx_phone_vibrate_path if level_data else "")
-	_sfx_noise_player = _play_sfx_loop_safe(level_data.sfx_electric_noise_path if level_data else "")
+	_sfx_phone_player = _play_sfx_loop_safe(level_data.sfx_phone_vibrate_path)
+	_sfx_noise_player = _play_sfx_loop_safe(level_data.sfx_electric_noise_path)
 
 	_apply_interference_restrictions()
 
@@ -568,21 +565,25 @@ func _on_shadow_spawn_timer_timeout() -> void:
 	if not _enemy_scene:
 		return
 	_shadow_enemies = _shadow_enemies.filter(func(e): return is_instance_valid(e))
-	if _shadow_enemies.size() >= SHADOW_MAX_ALIVE:
+	if _shadow_enemies.size() >= level_data.shadow_max_alive:
 		return
 	var player = GameManager.player_ref
 	if not player or not is_instance_valid(player):
 		return
 	var onscreen := 0
 	for e in _shadow_enemies:
-		if e.global_position.distance_to(player.global_position) < 700.0:
+		if e.global_position.distance_to(player.global_position) < level_data.shadow_onscreen_distance:
 			onscreen += 1
-	if onscreen >= SHADOW_MAX_ONSCREEN:
+	if onscreen >= level_data.shadow_max_onscreen:
 		return
-	var side = 1.0 if randf() > 0.5 else -1.0
-	var spawn_x = clampf(player.global_position.x + side * randf_range(150.0, 300.0), 50.0, 420.0)
+	var side = 1.0 if randf() < level_data.shadow_positive_side_chance else -1.0
+	var spawn_x = clampf(
+		player.global_position.x + side * randf_range(level_data.shadow_spawn_distance_min, level_data.shadow_spawn_distance_max),
+		level_data.shadow_spawn_min_x,
+		level_data.shadow_spawn_max_x
+	)
 	var config = load("res://DataConfig/Enemy/ShadowConfig.tres") as EnemyConfig
-	var shadow = _spawn_enemy(_enemy_scene, Vector2(spawn_x, 336), config)
+	var shadow = _spawn_enemy(_enemy_scene, Vector2(spawn_x, level_data.shadow_spawn_y), config)
 	if shadow:
 		shadow.modulate = Color(0, 0, 0, 0.9)
 		_shadow_enemies.append(shadow)
@@ -605,9 +606,9 @@ func _check_interference_death_guard() -> void:
 	var player = GameManager.player_ref
 	if not player or not is_instance_valid(player):
 		return
-	if player.current_health <= DEATH_GUARD_HEALTH:
+	if player.current_health <= level_data.death_guard_health:
 		player.is_invincible = true
-		player.invincible_timer = 999.0
+		player.invincible_timer = level_data.interference_invincibility_duration
 		print("[Level_02_03] 死亡兜底触发 — 噩梦惊醒")
 		_complete_wake_up_transition()
 
@@ -627,7 +628,7 @@ func _update_wake_hold(delta: float) -> void:
 		if wake_hold_time >= wake_hold_required:
 			_complete_wake_up_transition()
 	else:
-		wake_hold_time = maxf(wake_hold_time - delta * 2.0, 0.0)
+		wake_hold_time = maxf(wake_hold_time - delta * level_data.wake_hold_decay_multiplier, 0.0)
 		if current_state == LevelState.WAKING_HOLD_TAB and wake_hold_time <= 0.0:
 			current_state = LevelState.DREAM_INTERFERENCE
 		_update_eye_overlay(wake_hold_time / wake_hold_required)
@@ -675,7 +676,7 @@ func _complete_wake_up_transition() -> void:
 	if _blackout_overlay:
 		_blackout_overlay.color.a = 1.0
 		_blackout_overlay.show()
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(level_data.wake_transition_hold_duration).timeout
 
 	_cleanup_dream_interference()
 
@@ -692,10 +693,10 @@ func _complete_wake_up_transition() -> void:
 
 	if _eye_overlay:
 		_eye_overlay.hide()
-	await _fade_blackout(0.0, 1.0)
+	await _fade_blackout(0.0, level_data.wake_transition_fade_duration)
 
 	_freeze_player(false)
-	InputManager.unblock_input("睁眼转场")
+	InputManager.unblock_input("睁眼转场", self)
 	_transition_running = false
 	_safe_end_interaction()
 	print("[Level_02_03] 进入 REALITY_PHONE_LOCKED")
@@ -731,7 +732,7 @@ func _load_reality_room() -> void:
 	_reality_root.visible = true
 	_set_space_collision(_reality_root, true)
 
-	_swap_to_reality_player(Vector2(1512, 608))
+	_swap_to_reality_player(level_data.reality_player_spawn)
 
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player):
@@ -758,7 +759,9 @@ func _load_reality_room() -> void:
 
 
 func _play_reality_room_bgm() -> void:
-	MusicManager.fade_to(LevelFuzhanSub01.NIGHTFALL_BGM_PATH, 1.0)
+	var cfg := _get_reality_space_config()
+	if cfg:
+		MusicManager.fade_to(cfg.bgm_path, level_data.reality_bgm_fade_duration)
 
 
 func _setup_reality_after_memory_return() -> void:
@@ -794,14 +797,18 @@ func _find_interactive_in_node(root: Node, target_name: String) -> InteractiveOb
 
 func _swap_to_reality_player(spawn_pos: Vector2) -> void:
 	var old_player = GameManager.player_ref
-	var max_health := 100
+	var max_health := 0
 	if old_player and is_instance_valid(old_player):
 		max_health = old_player.max_health
 		old_player.queue_free()
-	if not ResourceLoader.exists(REALITY_PLAYER_SCENE_PATH):
-		push_error("[Level_02_03] 现实子空间玩家场景不存在: %s" % REALITY_PLAYER_SCENE_PATH)
+	var reality_config := _get_reality_space_config()
+	var reality_player_path := reality_config.player_scene_path if reality_config else ""
+	if not ResourceLoader.exists(reality_player_path):
+		push_error("[Level_02_03] 现实子空间玩家场景不存在: %s" % reality_player_path)
 		return
-	var player = load(REALITY_PLAYER_SCENE_PATH).instantiate()
+	var player = load(reality_player_path).instantiate()
+	if max_health <= 0:
+		max_health = player.max_health
 	player.global_position = spawn_pos
 	player.velocity = Vector2.ZERO
 	player.max_health = max_health
@@ -840,10 +847,10 @@ func _apply_reality_space_settings() -> void:
 
 
 func _apply_reality_player_rules() -> void:
-	InputManager.block_action(&"player_attack", "现实子空间禁止攻击")
-	InputManager.block_action(&"player_jump", "现实子空间禁止跳跃")
-	InputManager.block_action(&"player_dash", "现实子空间禁止闪身")
-	InputManager.block_action(&"player_skill", "现实子空间禁止技能")
+	InputManager.block_action(&"player_attack", "现实子空间禁止攻击", self)
+	InputManager.block_action(&"player_jump", "现实子空间禁止跳跃", self)
+	InputManager.block_action(&"player_dash", "现实子空间禁止闪身", self)
+	InputManager.block_action(&"player_skill", "现实子空间禁止技能", self)
 	var player = GameManager.player_ref
 	if not player:
 		return
@@ -851,14 +858,14 @@ func _apply_reality_player_rules() -> void:
 	player.can_attack = false
 	player.can_dash = false
 	player.can_skill = false
-	player.runtime_move_speed_multiplier = REALITY_MOVE_MULTIPLIER
+	player.runtime_move_speed_multiplier = level_data.reality_move_multiplier
 
 
 func _clear_reality_player_rules() -> void:
-	InputManager.unblock_action(&"player_attack")
-	InputManager.unblock_action(&"player_jump")
-	InputManager.unblock_action(&"player_dash")
-	InputManager.unblock_action(&"player_skill")
+	InputManager.unblock_action(&"player_attack", self)
+	InputManager.unblock_action(&"player_jump", self)
+	InputManager.unblock_action(&"player_dash", self)
+	InputManager.unblock_action(&"player_skill", self)
 	var player = GameManager.player_ref
 	if not player:
 		return
@@ -866,7 +873,7 @@ func _clear_reality_player_rules() -> void:
 	player.can_dash = true
 	player.can_attack = true
 	player.can_skill = true
-	player.runtime_move_speed_multiplier = 1.0
+	player.runtime_move_speed_multiplier = level_data.dream_move_speed_multiplier
 
 
 func _apply_full_camera_settings(cfg: LevelConfig) -> void:
@@ -880,9 +887,9 @@ func _apply_full_camera_settings(cfg: LevelConfig) -> void:
 	cam.limit_right = cfg.camera_limit_right
 	cam.limit_top = cfg.camera_limit_top
 	cam.limit_bottom = cfg.camera_limit_bottom
-	cam.zoom = Vector2(2, 2)
+	cam.zoom = level_data.reality_camera_zoom
 	cam.offset = Vector2.ZERO
-	cam.lerp_speed = 2.5
+	cam.lerp_speed = level_data.reality_camera_lerp_speed
 	cam.bind_target(player)
 
 
@@ -983,7 +990,7 @@ func _render_next_chat_line() -> void:
 			"System": ft = "[color=yellow][SYSTEM] " + text + "[/color]\n"
 			"CodeBuddy", "AI": ft = "[color=cyan]CodeBuddy: " + text + "[/color]\n"
 			_: ft = text + "\n"
-		await get_tree().create_timer(1.2).timeout
+		await get_tree().create_timer(level_data.ide_line_delay).timeout
 		if _chat_window:
 			_chat_window.append_text(ft)
 		call_deferred("_render_next_chat_line")
@@ -1027,7 +1034,7 @@ func _on_chat_submitted(text: String) -> void:
 	# ── 预写对话模式（IDE_CHAT）：确认后延迟动画展示，推进下一行 ──
 	if current_state == LevelState.REALITY_IDE_CHAT:
 		if _chat_window and _pending_chat_text != "":
-			await get_tree().create_timer(1.2).timeout
+			await get_tree().create_timer(level_data.ide_line_delay).timeout
 			_chat_window.append_text(_pending_chat_text)
 			_pending_chat_text = ""
 			_prefilled_chat_text = ""
@@ -1079,7 +1086,7 @@ func _on_chat_submitted(text: String) -> void:
 			_chat_input.text = ""
 
 		# CodeBuddy AI 回复（异步，模拟思考延迟）
-		await get_tree().create_timer(0.4).timeout
+		await get_tree().create_timer(level_data.free_chat_reply_delay).timeout
 		var reply = _generate_ai_reply(msg)
 		if _chat_window:
 			_chat_window.append_text("[color=cyan]CodeBuddy: %s[/color]\n" % reply)
@@ -1094,7 +1101,7 @@ func _start_memory_recovery_area(area: int) -> void:
 	flags[LevelFuzhanSub01.KEY_CURRENT_AREA] = area
 	flags[LevelFuzhanSub01.KEY_RESUME_REALITY] = false
 	GameManager.dream_runtime_flags = flags
-	await get_tree().create_timer(0.45).timeout
+	await get_tree().create_timer(level_data.memory_launch_prepare_delay).timeout
 	if _ide_ui:
 		_ide_ui.hide()
 	_stop_drop_archive_button_highlight()
@@ -1105,9 +1112,9 @@ func _start_memory_recovery_area(area: int) -> void:
 		_blackout_overlay.show()
 	var tw := create_tween()
 	if _blackout_overlay:
-		tw.tween_property(_blackout_overlay, "color:a", 1.0, FINAL_BLACKOUT_FADE_DURATION).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(_blackout_overlay, "color:a", 1.0, level_data.final_blackout_fade_duration).set_trans(Tween.TRANS_SINE)
 	else:
-		tw.tween_interval(FINAL_BLACKOUT_FADE_DURATION)
+		tw.tween_interval(level_data.final_blackout_fade_duration)
 
 	var canvas = _blackout_overlay.get_parent() if _blackout_overlay else null
 	var text_panel := Control.new()
@@ -1129,7 +1136,7 @@ func _start_memory_recovery_area(area: int) -> void:
 	label.add_theme_color_override("font_color", Color(0.74, 0.92, 0.78))
 	text_panel.add_child(label)
 
-	tw.tween_interval(2.2)
+	tw.tween_interval(level_data.memory_launch_intro_hold_duration)
 	tw.tween_callback(func():
 		_switch_to_memory_scene(area)
 	)
@@ -1169,7 +1176,7 @@ func _generate_ai_reply(user_msg: String) -> String:
 	if msg_lower.contains("凉茶") or msg_lower.contains("铺"):
 		return "凉茶铺位于梦境深层。\n\n根据您的记忆，它是“家”和“安全感”的中心。\n也是本项目最稳定、最危险的区域。"
 	if msg_lower.contains("帮助") or msg_lower.contains("help") or msg_lower.contains("怎么"):
-		return "输入 /config 可修改梦境配置。\n\n完成三项修改后，请点击“重新编译并注入梦境”。\n如果感到不适，请尝试退出。\n前提是出口仍然存在。"
+		return "输入 /config 可修改梦境配置。\n\n完成 %d 项修改后，请点击“重新编译并注入梦境”。\n如果感到不适，请尝试退出。\n前提是出口仍然存在。" % level_data.config_item_ids.size()
 
 	# 默认回复
 	var defaults: Array[String] = [
@@ -1183,17 +1190,41 @@ func _generate_ai_reply(user_msg: String) -> String:
 	return defaults[randi() % defaults.size()]
 
 
+func _parse_config_value(raw_value: String) -> Variant:
+	var normalized := raw_value.strip_edges()
+	match normalized.to_lower():
+		"true":
+			return true
+		"false":
+			return false
+	if normalized.is_valid_int():
+		return int(normalized)
+	if normalized.is_valid_float():
+		return float(normalized)
+	return raw_value
+
+
+func _initialize_config_flags() -> void:
+	config_flags.clear()
+	if not level_data:
+		return
+	var item_count := mini(level_data.config_item_ids.size(), level_data.config_initial_values.size())
+	for i in range(item_count):
+		config_flags[level_data.config_item_ids[i]] = _parse_config_value(level_data.config_initial_values[i])
+
+
 func _enter_config_edit() -> void:
 	current_state = LevelState.REALITY_CONFIG_EDIT
 	if not level_data:
 		return
-	for i in range(3):
-		if i < level_data.config_item_labels.size() and i < _config_value_labels.size():
-			var il = _config_ui.get_node_or_null("ItemLabel_%d" % i)
-			if il:
-				il.text = level_data.config_item_labels[i]
-			var init_d = level_data.config_initial_display[i] if i < level_data.config_initial_display.size() else level_data.config_initial_values[i]
-			_config_value_labels[i].text = "= " + init_d
+	var item_count := mini(level_data.config_item_labels.size(), _config_value_labels.size())
+	for i in range(item_count):
+		var item_label := _config_ui.get_node_or_null("ItemLabel_%d" % i) as Label
+		if item_label:
+			item_label.text = level_data.config_item_labels[i]
+		var initial_value := level_data.config_initial_values[i] if i < level_data.config_initial_values.size() else ""
+		var initial_display := level_data.config_initial_display[i] if i < level_data.config_initial_display.size() else initial_value
+		_config_value_labels[i].text = "= " + initial_display
 	if _config_ui:
 		_config_ui.show()
 
@@ -1203,15 +1234,11 @@ func _on_config_button_pressed(index: int) -> void:
 		return
 	if not level_data:
 		return
-	if index >= level_data.config_item_ids.size():
+	if index >= level_data.config_item_ids.size() or index >= level_data.config_target_values.size():
 		return
-	var id = level_data.config_item_ids[index]
-	var val = level_data.config_target_values[index]
-	match id:
-		"player_damage_reduction": config_flags[id] = (val == "true")
-		"base_jump_height": config_flags[id] = int(val)
-		"allow_external_signal": config_flags[id] = (val == "true")
-		_: config_flags[id] = val
+	var id: String = level_data.config_item_ids[index]
+	var val: String = level_data.config_target_values[index]
+	config_flags[id] = _parse_config_value(val)
 	if index < _config_value_labels.size():
 		var td = level_data.config_target_display[index] if level_data and index < level_data.config_target_display.size() else val
 		_config_value_labels[index].text = "= " + td
@@ -1225,9 +1252,17 @@ func _on_config_button_pressed(index: int) -> void:
 
 
 func _can_recompile() -> bool:
-	return config_flags.get("player_damage_reduction", false) == true \
-		and config_flags.get("base_jump_height", 10) == 99 \
-		and config_flags.get("allow_external_signal", true) == false
+	if not level_data or level_data.config_item_ids.is_empty():
+		return false
+	if level_data.config_item_ids.size() != level_data.config_target_values.size():
+		return false
+	for i in range(level_data.config_item_ids.size()):
+		var item_id: String = level_data.config_item_ids[i]
+		if not config_flags.has(item_id):
+			return false
+		if config_flags[item_id] != _parse_config_value(level_data.config_target_values[i]):
+			return false
+	return true
 
 
 func _on_recompile_pressed() -> void:
@@ -1247,25 +1282,22 @@ func _run_recompile_sequence() -> void:
 	if _recompile_log:
 		_recompile_log.text = ""
 
-	var lines: Array[String] = []
-	if level_data:
-		lines = level_data.recompilation_lines
+	var lines: Array[String] = level_data.recompilation_lines
 	for line in lines:
 		if _recompile_log:
 			var c = "orange" if line.begins_with("[WARN]") else "lime"
 			_recompile_log.append_text("[color=%s]%s[/color]\n" % [c, line])
-		await get_tree().create_timer(0.45).timeout
+		await get_tree().create_timer(level_data.recompile_line_interval).timeout
 
 	recompilation_done = true
 	var runtime_flags := LevelFuzhanSub01.ensure_state()
-	runtime_flags["player_damage_reduction"] = config_flags.get("player_damage_reduction", true)
-	runtime_flags["base_jump_height"] = config_flags.get("base_jump_height", 99)
-	runtime_flags["allow_external_signal"] = config_flags.get("allow_external_signal", false)
-	runtime_flags["dream_version"] = "2.0"
+	for item_id in level_data.config_item_ids:
+		runtime_flags[item_id] = config_flags.get(item_id)
+	runtime_flags["dream_version"] = level_data.dream_version
 	GameManager.dream_runtime_flags = runtime_flags
 	LevelFuzhanSub01.apply_core_flags()
 
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(level_data.recompile_finish_delay).timeout
 	if _recompile_panel:
 		_recompile_panel.hide()
 	if _ide_ui:
@@ -1273,11 +1305,11 @@ func _run_recompile_sequence() -> void:
 	_stop_drop_archive_button_highlight()
 	get_viewport().gui_release_focus()
 	_freeze_player(false)
-	InputManager.unblock_input("IDE对话")
+	InputManager.unblock_input("IDE对话", self)
 	_is_interacting = false
 	_interact_cooldown = 0.0
 
-	_show_narrative(level_data.compile_success_text if level_data else "编译完成。", func():
+	_show_narrative(level_data.compile_success_text, func():
 		_unlock_reality_bed()
 	)
 
@@ -1307,7 +1339,7 @@ func _trigger_level_end() -> void:
 		_blackout_overlay.color = Color(0, 0, 0, 0)
 		_blackout_overlay.show()
 	var tw = create_tween()
-	tw.tween_property(_blackout_overlay, "color:a", 1.0, FINAL_BLACKOUT_FADE_DURATION).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_blackout_overlay, "color:a", 1.0, level_data.final_blackout_fade_duration).set_trans(Tween.TRANS_SINE)
 
 	# 居中提示文字（挂到 CanvasLayer，否则 Node2D 层级不渲染 UI）
 	var canvas = _blackout_overlay.get_parent() if _blackout_overlay else null
@@ -1321,7 +1353,7 @@ func _trigger_level_end() -> void:
 		add_child(text_panel)
 	var end_label = Label.new()
 	end_label.name = "EndLabel"
-	end_label.text = "西关梦境 V2.0 已构建成功\n\n童年回忆补全完成。\n核心区域：凉茶铺，已开放。\n\n沉入梦乡……\n回到那个地方……\n见到爷爷……"
+	end_label.text = level_data.rebuilt_dream_transition_text
 	end_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	end_label.anchor_right = 1.0; end_label.anchor_bottom = 1.0
@@ -1329,8 +1361,8 @@ func _trigger_level_end() -> void:
 	end_label.add_theme_color_override("font_color", Color(0.522, 0.357, 0.227))
 	text_panel.add_child(end_label)
 
-	# 黑屏展示 (2.5s) → 在黑屏中切换关卡 → MainEntry 遮罩淡出即见 Level_03
-	tw.tween_interval(2.5)
+	# 黑屏展示后，在黑屏中切换关卡；MainEntry 遮罩淡出即见 Level_03。
+	tw.tween_interval(level_data.rebuilt_dream_hold_duration)
 	tw.tween_callback(_emit_level_complete)
 
 
@@ -1338,7 +1370,7 @@ func _emit_level_complete() -> void:
 	if _level_complete_emitted:
 		return
 	_level_complete_emitted = true
-	var next_path = level_data.next_level_path if level_data else "res://LevelModule/Formal/Level_03.tscn"
+	var next_path = level_data.next_level_path
 	get_viewport().gui_release_focus()
 	InputManager.force_unblock_all()
 	_cleanup_dream_interference()
@@ -1758,7 +1790,8 @@ func _build_all_ui() -> void:
 	# 配置编辑器
 	_config_ui = Panel.new()
 	_config_ui.name = "ConfigEditorUI"; _config_ui.visible = false
-	_config_ui.size = Vector2(840, 460); _config_ui.position = Vector2(220, 130)
+	var config_item_count := level_data.config_item_ids.size()
+	_config_ui.size = Vector2(840, maxf(460.0, 180.0 + config_item_count * 100.0)); _config_ui.position = Vector2(220, 130)
 	GameUIStyle.apply_panel(_config_ui, 0.94)
 	var ctitle = Label.new()
 	ctitle.name = "ConfigTitle"; ctitle.text = "[+] Xiguan_Dream.ini - 配置编辑器"
@@ -1767,7 +1800,7 @@ func _build_all_ui() -> void:
 	ctitle.position = Vector2(24, 16)
 	_config_ui.add_child(ctitle)
 	_config_value_labels.clear(); _config_feedback_labels.clear(); _config_buttons.clear()
-	for i in range(3):
+	for i in range(config_item_count):
 		var row_y = 70 + i * 100
 		var il = Label.new()
 		il.name = "ItemLabel_%d" % i
@@ -1794,7 +1827,7 @@ func _build_all_ui() -> void:
 		_config_ui.add_child(fb); _config_feedback_labels.append(fb)
 	_recompile_button = Button.new()
 	_recompile_button.name = "RecompileButton"; _recompile_button.text = "重新编译并注入梦境"
-	_recompile_button.disabled = true; _recompile_button.position = Vector2(270, 380)
+	_recompile_button.disabled = true; _recompile_button.position = Vector2(270, 80 + config_item_count * 100)
 	_recompile_button.size = Vector2(300, 48)
 	GameUIStyle.apply_code_button(_recompile_button, 16)
 	_config_ui.add_child(_recompile_button)
@@ -1905,10 +1938,10 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 		if _narrative_text:
 			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(level_data.narrative_input_arm_delay).timeout
 	_narrative_enter_pressed = false
 	var elapsed: float = 0.0
-	while _narrative_open and elapsed < NARRATIVE_INPUT_TIMEOUT:
+	while _narrative_open and elapsed < level_data.narrative_input_timeout:
 		if _narrative_enter_pressed:
 			if page_index < pages.size() - 1:
 				page_index += 1
@@ -1918,14 +1951,14 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 					GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
 			else:
 				break
-		await get_tree().create_timer(0.05).timeout
-		elapsed += 0.05
+		await get_tree().create_timer(level_data.narrative_poll_interval).timeout
+		elapsed += level_data.narrative_poll_interval
 	if _narrative_panel: _narrative_panel.hide()
 	_freeze_player(false)
 	_narrative_open = false
 	_is_interacting = false
 	_interact_cooldown = 0.0
-	InputManager.unblock_input("叙事面板")
+	InputManager.unblock_input("叙事面板", self)
 	if callback.is_valid():
 		callback.call()
 

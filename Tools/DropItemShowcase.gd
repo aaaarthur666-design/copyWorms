@@ -83,7 +83,7 @@ func _finish() -> void:
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player) and player.has_method("set_frozen"):
 		player.set_frozen(false)
-	InputManager.unblock_input("掉落物展示")
+	InputManager.unblock_input("掉落物展示", self)
 	if _callback.is_valid():
 		_callback.call()
 	queue_free()

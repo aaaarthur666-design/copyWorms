@@ -14,9 +14,6 @@ class_name WarningBarrier
 
 # ---- 配置 ----
 
-## 警戒触发距离（像素）
-@export var detect_range: float = 220.0
-
 ## 警戒文字内容
 @export var warning_text: String = "[!] RESTRICTED AREA [!] ACCESS DENIED [!] UNAUTHORIZED ENTRY [!]"
 
@@ -47,7 +44,9 @@ var _is_breaching: bool = false
 # ============================================================
 
 func _exit_tree() -> void:
-	_kill_all_tweens()
+	# create_tween() 已绑定当前节点，离树时由 SceneTree 自动取消并回收。
+	# 此时再次 kill() 会让 Godot 4.6 在退出帧遗留零引用 Tween/Tweener。
+	_scroll_tween = null
 
 
 func _kill_all_tweens() -> void:

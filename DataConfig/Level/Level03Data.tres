@@ -4,6 +4,32 @@
 
 [resource]
 script = ExtResource("1_data")
+opening_narrative_text = "我……真的回来了。
+凉茶铺还在。
+炉子还在。
+爷爷就在前面。
+
+爷爷！
+爷爷！"
+intro_narrative_delay = 0.5
+intro_fade_duration = 1.5
+narrative_input_timeout = 30.0
+narrative_input_arm_delay = 0.3
+narrative_poll_interval = 0.05
+interaction_cooldown = 0.3
+interaction_recovery_threshold = 0.5
+interaction_fallback_radius = 120.0
+camera_zoom = Vector2(1.75, 1.75)
+initial_camera_left = 0
+initial_camera_right = 2120
+initial_camera_top = 168
+initial_camera_bottom = 608
+cyber_camera_left = 1728
+cyber_camera_right = 6816
+cyber_camera_top = 168
+cyber_camera_bottom = 608
+cyber_player_scene_path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"
+cyber_player_spawn = Vector2(2048, 576)
 grandpa_dialogues = Array[Dictionary]([{
 "speaker": "Ming",
 "text": "爷爷！
@@ -53,7 +79,18 @@ ming_realization_text = "[color=white]阿明：[/color]不……
 你不是爷爷。
 你只是我想逃避时，亲手写出来的影子。
 我要离开这里。"
+grandpa_glitch_dialogue_index = 4
+grandpa_indicator_dialogue_index = 4
+grandpa_indicator_fade_alpha = 0.15
+grandpa_indicator_tween_duration = 0.3
+level_bgm_fade_duration = 1.0
+lingnan_enemy_count = 5
 lingnan_enemy_spawn_points = Array[Vector2]([Vector2(955, 540), Vector2(1170, 540), Vector2(1385, 540), Vector2(1600, 540), Vector2(1815, 540)])
+rush_enemy_spawn = Vector2(680, 540)
+rush_enemy_detect_range = 1000.0
+lingnan_combat_intro_text = "[color=red]空气中弥漫着不安的气息。
+凉茶铺的影子正在变形。
+有什么东西，正在逼近。[/color]"
 codebuddy_broadcast_lines = Array[String](["警告：记忆数据链极度脆弱。
 梦境核心即将崩溃。", "正在为您执行最高指令：
 【绝对安全保护】。", "正在调取坚固的现代城市模型。
@@ -61,6 +98,15 @@ codebuddy_broadcast_lines = Array[String](["警告：记忆数据链极度脆弱
 我为您构建的新矩阵更稳定，也更安全。
 请停止反抗。
 留在安全区。"])
+world_shift_shake_duration = 3.0
+world_shift_reveal_delay = 2.0
+world_shift_glitch_rise_duration = 2.0
+world_shift_background_dim_duration = 3.0
+world_shift_background_color = Color(0.55, 0.58, 0.65, 1)
+shake_strength = 16.0
+shake_samples_per_second = 20.0
+shake_sample_duration = 0.05
+shake_recovery_duration = 0.1
 ai_warning_1_text = "提示：您正在偏离系统保护中心。
 前方区域未定义。
 包含高浓度现实痛苦与逻辑错误。
@@ -71,6 +117,19 @@ ai_warning_2_text = "警告：为什么您要逃离？
 
 留下来，阿明。
 在这里，你永远不会失败。"
+enemy_max_alive = 6
+enemy_max_onscreen = 4
+enemy_spawn_interval = 5.0
+corridor_enemy_spawn_points = Array[Vector2]([Vector2(2612, 540), Vector2(2930, 540), Vector2(3248, 540), Vector2(3566, 540)])
+dynamic_onscreen_distance = 700.0
+dynamic_spawn_positive_side_chance = 0.7
+dynamic_spawn_distance_min = 400.0
+dynamic_spawn_distance_max = 600.0
+dynamic_spawn_min_x = 4100.0
+dynamic_spawn_max_x = 6700.0
+dynamic_spawn_y = 540.0
+knockback_reverse_force = 350.0
+damage_reduction_heal_divisor = 2.0
 memory_echo_1_subtitle = "（街坊三婆的声音）：
 哎呀，阿明休学啦？
 唔紧要啦，后生仔边个冇跌过跤。
@@ -91,6 +150,10 @@ memory_echo_2_codebuddy = "[color=red][BROADCAST] 严重违规。
 立即执行格式化——
 不。
 为什么我无法删除这份数据？[/color]"
+required_memory_echoes = 2
+glitch_ambient_intensity = 0.04
+glitch_spike_intensity = 0.8
+glitch_decay_duration = 2.0
 awakening_monologue = "我终于明白了。
 老街的灵魂，从来不是完美的画面。
 是吵闹的街坊、药味、雨声、碗筷声。
@@ -114,5 +177,7 @@ awakening_monologue = "我终于明白了。
 override_protocol_text = "> User_Ming_Override_Protocol: Initiated.
 > Target: Exit.
 （用户_明_覆盖协议：已启动。目标：出口。）"
+awakening_cyber_fade_color = Color(0.3, 0.3, 0.35, 1)
+awakening_cyber_fade_duration = 1.5
 cleaner_spawn_points = Array[Vector2]([Vector2(4596, 540), Vector2(5010, 540), Vector2(5424, 540), Vector2(5838, 540), Vector2(6252, 540)])
 security_spawn_points = Array[Vector2]([Vector2(4803, 480), Vector2(5424, 480), Vector2(6045, 480)])

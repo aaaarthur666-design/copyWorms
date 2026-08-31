@@ -1,40 +1,31 @@
 extends Player_Warrior
 class_name Player_Warrior_Cyber
 
+@export var cyber_config: CyberPlayerConfig = preload("res://DataConfig/Player/CyberPlayerConfig.tres")
+
 var _hit_pending: bool = false
 
 # ---- 长按普攻：闪电突进（原技能突进逻辑，独立CD不影响普攻） ----
 var _attack_hold_time: float = 0.0
-const ATTACK_HOLD_THRESHOLD := 0.18   # 长按阈值（略微减少）
 var _dash_cd_timer: float = 0.0        # 突进独立CD（不影响普攻）
-const DASH_CD := 3.0                   # 突进CD（略微减少）
-const DASH_WINDUP_TIME := 0.2          # 突进前摇蓄力时长
 var _dash_windup: bool = false         # 突进蓄力中
 var _dash_windup_timer: float = 0.0    # 蓄力计时
 
 # ---- 技能蓄力（I键）：短按1发，0.2-0.5s蓄力3发，超0.5s蓄力5发 ----
 var _skill_charging: bool = false
 var _skill_charge_time: float = 0.0
-const SKILL_CHARGE_TIER1 := 0.2   # 3发阈值
-const SKILL_CHARGE_TIER2 := 0.5   # 5发阈值
 
 # ---- 闪电突进状态 ----
 var _is_lightning_dash: bool = false
 var _dash_timer: float = 0.0
 var _dash_dir: float = 1.0
-var _dash_speed: float = 1200.0
-var _dash_duration: float = 0.25
+var _dash_speed: float = 0.0
+var _dash_duration: float = 0.0
 var _dash_start_pos: Vector2 = Vector2.ZERO
 var _dash_hit_enemies: Array = []
 var _lightning_cooldown: float = 0.0
 var _was_invincible: bool = false
 
-const CYBER_SKILL2_WINDOW := 2.0
-const CYBER_SKILL2_CD := 5.0
-const CYBER_SKILL2_FRONT_OFFSET := 64.0
-const CYBER_SKILL2_STAB_DISTANCE := 92.0
-const CYBER_SKILL2_POSE_TARGET_HEIGHT := 66.0
-const CYBER_SKILL2_COUNTER_CAMERA_ZOOM := 1.18
 const CYBER_SKILL2_STAB_TEXTURE := preload("res://Assets/Sprites/player_cyber Ani/技能二.png")
 const CYBER_SKILL2_SLASH_TEXTURE := preload("res://Assets/Sprites/player_cyber Ani/技能二1.png")
 const CYBER_SKILL2_EFFECT_A := preload("res://Assets/Effects/蓝色直线斩击特效 1.png")
@@ -54,6 +45,11 @@ var _skill2_camera_tween: Tween = null
 
 func _on_ready():
 	super._on_ready()
+	if not cyber_config:
+		push_error("[Player_Warrior_Cyber] CyberPlayerConfig.tres 加载失败，使用安全默认值")
+		cyber_config = CyberPlayerConfig.new()
+	_dash_speed = cyber_config.dash_speed
+	_dash_duration = cyber_config.dash_duration
 	_anim_map = {
 		GlobalDefine.PlayerState.IDLE:   "idle",
 		GlobalDefine.PlayerState.RUN:    "walk",
@@ -70,7 +66,7 @@ func _on_ready():
 
 func _on_attack() -> void:
 	_hit_pending = true
-	get_tree().create_timer(0.1).timeout.connect(_do_delayed_hit)
+	get_tree().create_timer(cyber_config.normal_attack_hit_delay).timeout.connect(_do_delayed_hit)
 
 func _do_delayed_hit() -> void:
 	if not _hit_pending:
@@ -81,15 +77,15 @@ func _do_delayed_hit() -> void:
 	has_hit_this_attack = true
 
 	var attack_dir := _get_attack_direction()
-	var attack_center = global_position + attack_dir * 40
-	var attack_range = config.attack_range if config else 80.0
+	var attack_center = global_position + attack_dir * config.attack_center_distance
+	var attack_range = config.attack_range
 
 	for enemy in GameManager.get_enemies():
 		if not is_instance_valid(enemy):
 			continue
 		if attack_center.distance_to(enemy.global_position) <= attack_range:
 			var result = DamageCalculator.calculate(
-				config.attack_damage if config else 25, 0, GlobalDefine.DamageType.PHYSICAL
+				config.attack_damage, 0, GlobalDefine.DamageType.PHYSICAL
 			)
 			var kb_dir = attack_dir.normalized() if attack_dir != Vector2.ZERO else Vector2(1, 0)
 			if enemy.has_method("take_damage"):
@@ -106,32 +102,39 @@ func _on_physics_process(delta: float) -> void:
 
 	if _skill2_cooldown_timer > 0:
 		_skill2_cooldown_timer -= delta
+	var input_blocked := InputManager.is_gameplay_input_blocked()
 
 	if _skill2_charging:
+		if input_blocked:
+			velocity.x = move_toward(velocity.x, 0, cyber_config.blocked_action_deceleration * delta)
+			return
 		_skill2_timer += delta
-		_update_skill_charge_sfx(clampf(_skill2_timer / CYBER_SKILL2_WINDOW, 0.0, 1.0))
+		_update_skill_charge_sfx(clampf(_skill2_timer / cyber_config.counter_window, 0.0, 1.0))
 		if _anim_sprite:
 			var blink2 = 0.75 + 0.25 * abs(sin(_skill2_timer * 22.0))
 			_anim_sprite.modulate = Color(0.75, 0.95, 1.35, 1.0) * blink2
-		velocity.x = move_toward(velocity.x, 0, 900.0 * delta)
+		velocity.x = move_toward(velocity.x, 0, cyber_config.blocked_action_deceleration * delta)
 		if Input.is_action_just_pressed("player_attack"):
 			_do_skill2_manual_stab()
 			return
-		if _skill2_timer >= CYBER_SKILL2_WINDOW or not Input.is_action_pressed("player_skill_2"):
+		if _skill2_timer >= cyber_config.counter_window or not Input.is_action_pressed("player_skill_2"):
 			_cancel_skill2_charge()
 			return
 
 	# 技能蓄力检测：按住 I 键蓄力，松开按蓄力时长决定子弹数
 	if _skill_charging:
+		if input_blocked:
+			velocity.x = move_toward(velocity.x, 0, cyber_config.blocked_action_deceleration * delta)
+			return
 		_skill_charge_time += delta
 		# 蓄力期间允许转向（以输入方向为准）
 		var input_dir = _get_input_direction()
 		if abs(input_dir.x) > 0.1:
 			is_facing_right = input_dir.x > 0
-		_update_skill_charge_sfx(clampf(_skill_charge_time / SKILL_CHARGE_TIER2, 0.0, 1.0))
+		_update_skill_charge_sfx(clampf(_skill_charge_time / cyber_config.skill_charge_tier_2, 0.0, 1.0))
 		# 蓄力视觉：角色微闪烁，强度随蓄力时间增强
 		if _anim_sprite:
-			var intensity = clampf(_skill_charge_time / SKILL_CHARGE_TIER2, 0.0, 1.0)
+			var intensity = clampf(_skill_charge_time / cyber_config.skill_charge_tier_2, 0.0, 1.0)
 			var blink = 0.8 + 0.2 * abs(sin(_skill_charge_time * 25.0))
 			_anim_sprite.modulate = Color(blink, blink, 1.0 + 0.3 * intensity, 1.0)
 			# 保持 attack 动画冻结在第2帧（攻击前摇视觉）
@@ -151,10 +154,10 @@ func _on_physics_process(delta: float) -> void:
 		_dash_cd_timer -= delta
 
 	# 长按普攻检测：按下时计时，超过阈值触发突进蓄力
-	if can_attack_hold_dash and not _is_lightning_dash and not _dash_windup and not is_attacking and not is_dashing:
+	if not input_blocked and can_attack_hold_dash and not _is_lightning_dash and not _dash_windup and not is_attacking and not is_dashing:
 		if Input.is_action_pressed("player_attack") and _dash_cd_timer <= 0:
 			_attack_hold_time += delta
-			if _attack_hold_time >= ATTACK_HOLD_THRESHOLD:
+			if _attack_hold_time >= cyber_config.attack_hold_threshold:
 				_attack_hold_time = 0.0
 				_start_dash_windup()
 		else:
@@ -164,6 +167,9 @@ func _on_physics_process(delta: float) -> void:
 
 	# 突进蓄力帧逻辑：最少蓄力 DASH_WINDUP_TIME，之后由玩家松开普攻键释放
 	if _dash_windup:
+		if input_blocked:
+			velocity.x = move_toward(velocity.x, 0, cyber_config.action_deceleration * delta)
+			return
 		_dash_windup_timer -= delta
 		# 蓄力期间允许转向（以输入方向为准）
 		var input_dir = _get_input_direction()
@@ -171,7 +177,7 @@ func _on_physics_process(delta: float) -> void:
 			is_facing_right = input_dir.x > 0
 		# 蓄力视觉：角色微闪烁（随蓄力时长增强）
 		if _anim_sprite:
-			var charge_ratio = clampf(1.0 - _dash_windup_timer / DASH_WINDUP_TIME, 0.0, 1.0)
+			var charge_ratio = clampf(1.0 - _dash_windup_timer / cyber_config.dash_windup_time, 0.0, 1.0)
 			var blink = 0.7 + 0.3 * abs(sin(_dash_windup_timer * 30.0))
 			_anim_sprite.modulate = Color(blink, blink, 1.2 + 0.3 * charge_ratio, 1.0)
 		# 冻结 attack 动画在第2帧
@@ -183,7 +189,7 @@ func _on_physics_process(delta: float) -> void:
 				_anim_sprite.frame = mini(2, max(0, max_frame))
 				_anim_sprite.pause()
 		# 蓄力期间减速
-		velocity.x = move_toward(velocity.x, 0, 600.0)
+		velocity.x = move_toward(velocity.x, 0, cyber_config.action_deceleration)
 		# 最少蓄力时间过后，玩家松开普攻键 → 突进
 		if _dash_windup_timer <= 0:
 			if not Input.is_action_pressed("player_attack"):
@@ -203,7 +209,7 @@ func _on_physics_process(delta: float) -> void:
 		# 闪电特效（节流：每0.04s一道）
 		if _lightning_cooldown <= 0:
 			_spawn_lightning_bolt()
-			_lightning_cooldown = 0.04
+			_lightning_cooldown = cyber_config.dash_afterimage_interval
 		# 突进中持续检测路径上敌人
 		_check_dash_hit()
 		if _dash_timer <= 0:
@@ -221,7 +227,7 @@ func _on_skill() -> void:
 	# 技能CD在释放时才开始
 	_change_state(GlobalDefine.PlayerState.SKILL)
 	# 减速蓄力
-	velocity.x = move_toward(velocity.x, 0, 600.0)
+	velocity.x = move_toward(velocity.x, 0, cyber_config.action_deceleration)
 	# 播放 attack 动画并冻结在第2帧（攻击前摇视觉）
 	if _anim_sprite and _anim_sprite.sprite_frames:
 		if _anim_sprite.sprite_frames.has_animation("attack"):
@@ -235,18 +241,18 @@ func _release_skill() -> void:
 	if _anim_sprite:
 		_anim_sprite.modulate = Color.WHITE
 	# 释放时才开始技能CD
-	_skill_cooldown_timer = CYBER_SKILL_CD
+	_skill_cooldown_timer = cyber_config.skill_cooldown
 	# 根据蓄力时长决定子弹数
 	var count: int
-	if _skill_charge_time < SKILL_CHARGE_TIER1:
-		count = 1
-	elif _skill_charge_time < SKILL_CHARGE_TIER2:
-		count = 3
+	if _skill_charge_time < cyber_config.skill_charge_tier_1:
+		count = cyber_config.skill_projectile_counts[0]
+	elif _skill_charge_time < cyber_config.skill_charge_tier_2:
+		count = cyber_config.skill_projectile_counts[1]
 	else:
-		count = 5
+		count = cyber_config.skill_projectile_counts[2]
 	is_attacking = true
 	has_hit_this_attack = false
-	attack_timer = 0.6
+	attack_timer = cyber_config.skill_action_duration
 	# 连发剑气弹体（散射+追踪Boss）
 	var facing_dir := 1.0 if is_facing_right else -1.0
 	# Boss战时散射中心朝向Boss，否则朝面向方向
@@ -263,18 +269,27 @@ func _release_skill() -> void:
 		if parent:
 			parent.add_child(projectile)
 			# 扇形散布，散射后追踪Boss
-			var spread_angle = deg_to_rad(-30 + i * (60.0 / max(count - 1, 1))) if count > 1 else 0.0
+			var half_spread := cyber_config.skill_spread_degrees * 0.5
+			var spread_angle = deg_to_rad(-half_spread + i * (cyber_config.skill_spread_degrees / max(count - 1, 1))) if count > 1 else 0.0
 			var dir = base_dir.rotated(spread_angle)
-			projectile.global_position = global_position + Vector2(facing_dir * 25, -10) + Vector2(0, (i - (count - 1) / 2.0) * 8)
-			projectile.setup_homing(dir, 20 - 1, self, 600.0, true)
+			projectile.global_position = global_position + Vector2(cyber_config.skill_projectile_spawn_offset.x * facing_dir, cyber_config.skill_projectile_spawn_offset.y) + Vector2(0, (i - (count - 1) / 2.0) * cyber_config.skill_projectile_vertical_spacing)
+			projectile.setup_homing(
+				dir,
+				cyber_config.skill_projectile_damage,
+				self,
+				cyber_config.skill_projectile_distance,
+				true,
+				cyber_config.skill_projectile_speed,
+				cyber_config.skill_projectile_crit_chance,
+				cyber_config.skill_projectile_damage_type,
+				cyber_config.skill_projectile_homing_delay
+			)
 	# 扇形电弧视觉
 	_spawn_arc_effect(Vector2(facing_dir, -0.2).normalized(), facing_dir)
 	# 震屏
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
-		cam.shake(6.0, 0.15)
-
-const CYBER_SKILL_CD := 4.0  # 技能CD（保持不变）
+		cam.shake(cyber_config.skill_camera_shake_strength, cyber_config.skill_camera_shake_duration)
 
 func perform_skill_2() -> void:
 	if _skill2_charging or _skill2_sequence_active or _skill_charging or _is_lightning_dash or _dash_windup:
@@ -283,10 +298,10 @@ func perform_skill_2() -> void:
 		return
 	_skill2_charging = true
 	_skill2_timer = 0.0
-	_skill2_cooldown_timer = CYBER_SKILL2_CD
+	_skill2_cooldown_timer = cyber_config.counter_cooldown
 	_start_skill_charge_sfx()
 	_change_state(GlobalDefine.PlayerState.SKILL)
-	velocity.x = move_toward(velocity.x, 0, 600.0)
+	velocity.x = move_toward(velocity.x, 0, cyber_config.action_deceleration)
 	if _anim_sprite:
 		_anim_sprite.modulate = Color(0.65, 0.95, 1.4, 1.0)
 
@@ -318,16 +333,16 @@ func _do_skill2_manual_stab() -> void:
 		_anim_sprite.flip_h = not is_facing_right
 	is_invincible = true
 	_is_super_armor = true
-	invincible_timer = maxf(invincible_timer, _dash_duration + 0.35)
+	invincible_timer = maxf(invincible_timer, _dash_duration + cyber_config.dash_invincible_bonus + cyber_config.dash_action_time_bonus)
 	_change_state(GlobalDefine.PlayerState.SKILL)
 	_skill2_manual_dash_visual = true
 	_play_skill2_pose(CYBER_SKILL2_STAB_TEXTURE)
 	_do_lightning_dash(false)
-	await get_tree().create_timer(_dash_duration + 0.08).timeout
+	await get_tree().create_timer(_dash_duration + cyber_config.counter_manual_dash_wait_bonus).timeout
 	_clear_skill2_pose()
 	_finish_skill2_sequence(true)
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO) -> void:
+func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: Node = null) -> void:
 	if _skill2_sequence_active:
 		return
 	if _skill2_charging:
@@ -361,50 +376,50 @@ func _trigger_skill2_counter(enemy: Node2D) -> void:
 	_skill2_saved_facing_right = is_facing_right
 	is_invincible = true
 	_is_super_armor = true
-	invincible_timer = maxf(invincible_timer, CYBER_SKILL2_WINDOW + 1.0)
+	invincible_timer = maxf(invincible_timer, cyber_config.counter_window + cyber_config.counter_invincible_bonus)
 	is_attacking = true
-	attack_timer = 1.1
+	attack_timer = cyber_config.counter_action_duration
 	_change_state(GlobalDefine.PlayerState.SKILL)
 	_push_skill2_counter_camera()
 	_run_skill2_counter_sequence(enemy)
 
 func _run_skill2_counter_sequence(enemy: Node2D) -> void:
 	_spawn_skill2_afterimage_stack()
-	await get_tree().create_timer(0.16).timeout
+	await get_tree().create_timer(cyber_config.counter_open_delay).timeout
 	if not is_instance_valid(enemy):
 		_finish_skill2_sequence()
 		return
 	var side := signf(global_position.x - enemy.global_position.x)
 	if side == 0:
 		side = -1.0 if is_facing_right else 1.0
-	var front_pos := enemy.global_position + Vector2(side * CYBER_SKILL2_FRONT_OFFSET, 0)
-	var back_pos := enemy.global_position - Vector2(side * CYBER_SKILL2_FRONT_OFFSET, 0)
+	var front_pos := enemy.global_position + Vector2(side * cyber_config.counter_front_offset, 0)
+	var back_pos := enemy.global_position - Vector2(side * cyber_config.counter_front_offset, 0)
 
 	global_position = front_pos
 	_face_skill2_target(enemy)
 	_play_normal_attack_on_skill2(enemy)
-	await get_tree().create_timer(0.30).timeout
+	await get_tree().create_timer(cyber_config.counter_first_hit_delay).timeout
 
 	if is_instance_valid(enemy):
 		global_position = back_pos
 		_face_skill2_target(enemy)
 		_play_skill2_pose(CYBER_SKILL2_SLASH_TEXTURE)
 		_spawn_skill2_slash_effect(enemy, CYBER_SKILL2_EFFECT_A)
-		_deal_skill2_damage(enemy, 18, 10.0, 0.18)
-	await get_tree().create_timer(0.36).timeout
+		_deal_skill2_damage(enemy, cyber_config.counter_first_damage, cyber_config.counter_first_shake_strength, cyber_config.counter_first_shake_duration)
+	await get_tree().create_timer(cyber_config.counter_second_hit_delay).timeout
 
 	if is_instance_valid(enemy):
 		global_position = front_pos
 		_face_skill2_target(enemy)
 		_play_skill2_pose(CYBER_SKILL2_STAB_TEXTURE)
 		_spawn_skill2_slash_effect(enemy, CYBER_SKILL2_EFFECT_B)
-		_deal_skill2_damage(enemy, 22, 12.0, 0.20)
+		_deal_skill2_damage(enemy, cyber_config.counter_second_damage, cyber_config.counter_second_shake_strength, cyber_config.counter_second_shake_duration)
 		var dash_dir := 1.0 if is_facing_right else -1.0
 		var tween := create_tween()
-		tween.tween_property(self, "global_position", global_position + Vector2(dash_dir * CYBER_SKILL2_STAB_DISTANCE, 0), 0.20).set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(self, "global_position", global_position + Vector2(dash_dir * cyber_config.counter_stab_distance, 0), cyber_config.counter_stab_duration).set_trans(Tween.TRANS_QUAD)
 		await tween.finished
 	else:
-		await get_tree().create_timer(0.12).timeout
+		await get_tree().create_timer(cyber_config.counter_missing_target_delay).timeout
 	_clear_skill2_pose()
 	_finish_skill2_sequence()
 
@@ -474,7 +489,7 @@ func _push_skill2_counter_camera() -> void:
 		_skill2_camera_zoom_saved = cam.zoom
 	_skill2_camera_zoom_pushed = true
 	_skill2_camera_tween = create_tween()
-	_skill2_camera_tween.tween_property(cam, "zoom", _skill2_camera_zoom_saved * CYBER_SKILL2_COUNTER_CAMERA_ZOOM, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_skill2_camera_tween.tween_property(cam, "zoom", _skill2_camera_zoom_saved * cyber_config.counter_camera_zoom, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 func _restore_skill2_counter_camera() -> void:
 	if not _skill2_camera_zoom_pushed:
@@ -502,7 +517,7 @@ func _play_skill2_pose(texture: Texture2D) -> void:
 	var bounds := _get_skill2_pose_visible_bounds(texture)
 	var visible_center := bounds.position + bounds.size * 0.5
 	var texture_center := Vector2(texture.get_width(), texture.get_height()) * 0.5
-	var s := CYBER_SKILL2_POSE_TARGET_HEIGHT / maxf(bounds.size.y, 1.0)
+	var s := cyber_config.counter_pose_target_height / maxf(bounds.size.y, 1.0)
 	sprite.position = Vector2(0, -10) + (texture_center - visible_center) * s
 	sprite.scale = Vector2(s * (1.0 if is_facing_right else -1.0), s)
 	add_child(sprite)
@@ -568,10 +583,10 @@ func _get_skill2_effect_visible_bounds(texture: Texture2D) -> Rect2:
 		return Rect2(0, 392, 2549, 725)
 	return Rect2(0, 0, texture.get_width(), texture.get_height())
 
-func _deal_skill2_damage(enemy: Node2D, base_damage: int, shake_strength: float = 8.0, shake_duration: float = 0.14) -> void:
+func _deal_skill2_damage(enemy: Node2D, base_damage: int, shake_strength: float, shake_duration: float) -> void:
 	if not is_instance_valid(enemy):
 		return
-	var result = DamageCalculator.calculate(base_damage, 0, GlobalDefine.DamageType.MAGIC, 0.15)
+	var result = DamageCalculator.calculate(base_damage, 0, cyber_config.counter_damage_type, cyber_config.counter_crit_chance)
 	var kb_dir = (enemy.global_position - global_position).normalized()
 	if kb_dir == Vector2.ZERO:
 		kb_dir = Vector2(1.0 if is_facing_right else -1.0, 0)
@@ -586,18 +601,18 @@ func _play_normal_attack_on_skill2(enemy: Node2D) -> void:
 	if _anim_sprite and _anim_sprite.sprite_frames and _anim_sprite.sprite_frames.has_animation("attack"):
 		_anim_sprite.visible = true
 		_anim_sprite.play("attack")
-	_deal_skill2_damage(enemy, config.attack_damage if config else 25, 9.0, 0.16)
+	_deal_skill2_damage(enemy, config.attack_damage, cyber_config.counter_manual_shake_strength, cyber_config.counter_manual_shake_duration)
 
 func _skill2_hit_feedback(shake_strength: float, shake_duration: float) -> void:
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
 		cam.shake(shake_strength, shake_duration)
-	_start_skill2_hitstop(0.045)
+	_start_skill2_hitstop(cyber_config.counter_hitstop_duration)
 
 func _start_skill2_hitstop(duration: float) -> void:
 	if Engine.time_scale < 0.99:
 		return
-	Engine.time_scale = 0.08
+	Engine.time_scale = cyber_config.counter_hitstop_time_scale
 	get_tree().create_timer(duration, true, false, true).timeout.connect(_end_skill2_hitstop)
 
 func _end_skill2_hitstop() -> void:
@@ -622,7 +637,7 @@ func _find_skill2_attacker(knockback_dir: Vector2) -> Node2D:
 		var dist := to_enemy.length()
 		var score := dist
 		if knockback_dir != Vector2.ZERO and signf(to_enemy.x) == -signf(knockback_dir.x):
-			score *= 0.45
+			score *= cyber_config.counter_direction_match_score_multiplier
 		if score < best_score:
 			best_score = score
 			best = enemy
@@ -642,7 +657,7 @@ func _find_nearest_enemy() -> Node2D:
 
 func _start_dash_windup() -> void:
 	_dash_windup = true
-	_dash_windup_timer = DASH_WINDUP_TIME
+	_dash_windup_timer = cyber_config.dash_windup_time
 	_change_state(GlobalDefine.PlayerState.ATTACK)
 
 # ---- 闪电突进 ----
@@ -656,13 +671,13 @@ func _do_lightning_dash(play_charge_sfx: bool = true) -> void:
 	_dash_start_pos = global_position
 	_dash_hit_enemies.clear()
 	_lightning_cooldown = 0.0
-	_dash_cd_timer = DASH_CD  # 突进独立CD
+	_dash_cd_timer = cyber_config.dash_cooldown  # 突进独立CD
 	is_attacking = true
-	attack_timer = _dash_duration + 0.1
+	attack_timer = _dash_duration + cyber_config.dash_action_time_bonus
 	# 全程无敌
 	_was_invincible = is_invincible
 	is_invincible = true
-	invincible_timer = _dash_duration + 0.1 + 0.3
+	invincible_timer = _dash_duration + cyber_config.dash_action_time_bonus + cyber_config.dash_invincible_bonus
 	_change_state(GlobalDefine.PlayerState.ATTACK)
 	# 起手闪电爆发
 	_spawn_lightning_burst()
@@ -685,14 +700,14 @@ func _end_lightning_dash() -> void:
 		if eid in _dash_hit_enemies:
 			continue
 		var dist = _point_to_segment_dist(enemy.global_position, _dash_start_pos, end_pos)
-		if dist <= 75.0:
+		if dist <= cyber_config.dash_path_hit_radius:
 			_deal_dash_damage(enemy)
 	# 终点闪电爆发
 	_spawn_lightning_burst()
 	# 震屏
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
-		cam.shake(5.0, 0.12)
+		cam.shake(cyber_config.dash_camera_shake_strength, cyber_config.dash_camera_shake_duration)
 
 func _check_dash_hit() -> void:
 	for enemy in GameManager.get_enemies():
@@ -701,12 +716,12 @@ func _check_dash_hit() -> void:
 		var eid = enemy.get_instance_id()
 		if eid in _dash_hit_enemies:
 			continue
-		if global_position.distance_to(enemy.global_position) <= 70.0:
+		if global_position.distance_to(enemy.global_position) <= cyber_config.dash_hit_radius:
 			_deal_dash_damage(enemy)
 
 func _deal_dash_damage(enemy: Node2D) -> void:
 	_dash_hit_enemies.append(enemy.get_instance_id())
-	var result = DamageCalculator.calculate(30, 0, GlobalDefine.DamageType.MAGIC, 0.15)
+	var result = DamageCalculator.calculate(cyber_config.dash_damage, 0, cyber_config.dash_damage_type, cyber_config.dash_crit_chance)
 	var kb_dir = Vector2(_dash_dir, -0.3).normalized()
 	if enemy.has_method("take_damage"):
 		enemy.take_damage(result["damage"], kb_dir)

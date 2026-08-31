@@ -5,24 +5,24 @@
 extends Area2D
 
 var _velocity: Vector2 = Vector2.ZERO
-var _damage: int = 12
+var _damage: int = 0
 var _lifetime: float = 0.0
-const SPEED: float = 350.0
-const MAX_LIFETIME: float = 8.0
-const WALL_COLLISION: int = 1  # TERRAIN
+var _max_lifetime: float = 0.0
 
 @onready var _sprite: Sprite2D = $Sprite
 
-func setup(target_pos: Vector2, dmg: int = 12) -> void:
+func setup(target_pos: Vector2, dmg: int, speed: float, max_lifetime: float) -> void:
 	_damage = dmg
+	_max_lifetime = max_lifetime
 	var dir = (target_pos - global_position).normalized()
-	_velocity = dir * SPEED
+	_velocity = dir * speed
 	rotation = dir.angle()
 
 ## 按指定方向初始化（用于扇形散布，瞄准方向而非固定点）
-func setup_by_dir(dir: Vector2, dmg: int = 12) -> void:
+func setup_by_dir(dir: Vector2, dmg: int, speed: float, max_lifetime: float) -> void:
 	_damage = dmg
-	_velocity = dir.normalized() * SPEED
+	_max_lifetime = max_lifetime
+	_velocity = dir.normalized() * speed
 	rotation = dir.angle()
 
 func set_color(col: Color) -> void:
@@ -35,7 +35,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	global_position += _velocity * delta
 	_lifetime += delta
-	if _lifetime > MAX_LIFETIME:
+	if _lifetime > _max_lifetime:
 		queue_free()
 
 func _on_body_entered(body: Node2D) -> void:
@@ -43,5 +43,5 @@ func _on_body_entered(body: Node2D) -> void:
 	if body == GameManager.player_ref:
 		if body.has_method("take_damage"):
 			var kb = (body.global_position - global_position).normalized()
-			body.take_damage(_damage, kb)
+			body.take_damage(_damage, kb, self)
 		queue_free()

@@ -1,0 +1,89 @@
+[gd_resource type="Resource" script_class="Level05Data" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Level/Level05Data.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+cyber_player_scene_path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"
+lingnan_player_scene_path = "res://PlayerModule/Formal/Player_Warrior_Lingnan.tscn"
+initial_corruption = 0.35
+intro_fade_duration = 1.5
+dialog_close_cooldown = 0.4
+manual_corruption_step = 0.05
+bg3_player_position = Vector2(-1603, 380)
+bg3_camera_top = 80
+bg3_camera_bottom = 648
+bg3_camera_zoom = 1.33
+world_swap_shake_strength = 8.0
+world_swap_shake_duration = 0.25
+dual_world_ground_spawn_points = Array[Vector2]([Vector2(-1000, 420), Vector2(0, 415), Vector2(800, 425)])
+dual_world_special_spawn_points = Array[Vector2]([Vector2(200, 380), Vector2(600, 370)])
+dual_character_max_health = 100
+layer_swap_cooldown = 1.2
+low_health_hint_threshold = 50
+skin_hint_text = "按 G 切换人物外观"
+skin_hint_hold_duration = 3.0
+skin_hint_fade_duration = 1.0
+boss_player_position = Vector2(931, 5037)
+boss_camera_left = 620
+boss_camera_right = 1710
+boss_camera_top = 4512
+boss_checkpoint_camera_top = 4509
+boss_camera_bottom = 5135
+boss_camera_zoom = 1.33
+boss_checkpoint_camera_zoom = 1.5
+boss_checkpoint_stage = 4
+boss_scene_path = "res://EnemyModule/Formal/Enemy_BossHuadan.tscn"
+boss_spawn_position = Vector2(1300, 5037)
+boss_intro_dialogues = Array[String](["[color=#ff6b9d]花旦：[/color]阿明，你瞧。
+技术能给你你想要的一切。", "[color=#ff6b9d]花旦：[/color]它能让回忆拥有形状。
+它能让记忆死而复生。
+它能让失去的人，永远站在原地等你。", "[color=#ff6b9d]花旦：[/color]留下来吧。
+永远留在这个温暖的世界里。
+不要回到那个会失败、会失去、会拆毁一切的现实。"])
+boss_death_dialogues = Array[String](["[color=#ff6b9d]花旦：[/color]为什么要拥抱……残酷的现实……
+明明是你先请求我……
+把痛苦关在门外……"])
+boss_death_lantern_y_min = 5000.0
+boss_death_lantern_y_max = 5077.0
+boss_death_music_path = "res://Assets/Music/lv6.ogg"
+boss_death_music_fade_duration = 2.0
+boss_death_shake_strength = 22.0
+boss_death_shake_duration = 0.8
+boss_death_time_scale = 0.25
+boss_death_recovery_delay = 1.5
+huadan_video_path = "res://Assets/huadan-CG.ogv"
+grandpa_video_path = "res://Assets/视频演出.ogv"
+video_volume_db = -80.0
+huadan_video_fade_duration = 0.5
+grandpa_video_fade_duration = 1.0
+ending_black_hold_duration = 1.5
+ending_level_path = "res://LevelModule/Formal/Level_final.tscn"
+video_load_failure_text = "（视频加载失败）"
+bg5_player_position = Vector2(569, 8076)
+bg5_camera_left = 200
+bg5_camera_right = 2200
+bg5_camera_top = 7448
+bg5_camera_bottom = 8300
+bg5_camera_zoom = 1.33
+bg5_music_path = "res://Assets/Music/lv6.ogg"
+bg5_music_fade_duration = 1.5
+bg5_move_speed_multiplier = 0.5
+lantern_position_offset = Vector2(0, 15)
+lantern_interaction_radius = 130.0
+lantern_prompt_text = "按 Enter 拾起灯笼"
+lantern_dialogues = Array[String](["[color=cyan]阿明：[/color]这是……爷爷给我的手提灯笼。
+
+小时候停电，他总提着它走在前面。
+他说，路黑不要紧。
+人要自己记得往哪走。
+
+爷爷。
+我回去了。"])
+grandpa_prompt_dialogues = Array[String](["爷爷？
+如果你真的是我记忆里的那盏灯，
+就请照我回去。"])
+erosion_max = 100.0
+erosion_rate = 0.7
+erosion_kill_reduction = 15.0
+boss_bar_max_width = 400.0

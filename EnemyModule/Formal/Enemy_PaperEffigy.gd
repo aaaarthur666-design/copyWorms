@@ -9,39 +9,30 @@ class_name Enemy_PaperEffigy
 
 var _anim_sprite: AnimatedSprite2D = null
 var _attack_anim_timer: float = 0.0
-const ATTACK_ANIM_DURATION: float = 0.4
 
 # 连击系统
 var _combo_count: int = 0
 var _combo_timer: float = 0.0
 var _rest_timer: float = 0.0
-const COMBO_PAUSE: float = 0.5
-const REST_DURATION: float = 1.0
 
 # 前摇系统
 var _windup_timer: float = 0.0
 var _pending_hit: int = 0
-const WINDUP_DURATION: float = 0.15
 
 # 追踪方向滞后
 var _chase_dir: int = 0
-const CHASE_DIR_THRESHOLD: float = 8.0
 
 # 不可达检测：玩家在高处时停下
 var _unreachable_timer: float = 0.0
 var _lose_interest_timer: float = 0.0
-const UNREACHABLE_TIME: float = 1.5
-const LOSE_INTEREST_TIME: float = 3.0
-const HEIGHT_UNREACHABLE: float = -40.0
 
 # 朝向死区
-const FACING_DEAD_ZONE: float = 5.0
+
+func _get_default_config_path() -> String:
+	return "res://DataConfig/Enemy/PaperEffigyConfig.tres"
 
 func _on_ready() -> void:
 	super._on_ready()
-	if not config:
-		config = load("res://DataConfig/Enemy/PaperEffigyConfig.tres") as EnemyConfig
-		_apply_config()
 	_init_anim_sprite()
 	_adjust_collision_position()
 	is_facing_right = patrol_direction > 0
@@ -73,7 +64,7 @@ func _init_anim_sprite() -> void:
 func _handle_ai(delta: float) -> void:
 	if _is_combo_active():
 		_post_attack_pause = 0.0
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		return
 	super._handle_ai(delta)
 
@@ -108,35 +99,35 @@ func _ai_chase(delta: float) -> void:
 	var x_diff: float = target.global_position.x - global_position.x
 	var y_diff: float = target.global_position.y - global_position.y
 	var dist: float = global_position.distance_to(target.global_position)
-	var attack_range: float = config.attack_range if config else 40.0
+	var attack_range: float = config.attack_range
 
-	if y_diff < HEIGHT_UNREACHABLE:
+	if y_diff < config.unreachable_height:
 		_unreachable_timer += delta
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		_chase_dir = 0
-		if _unreachable_timer >= UNREACHABLE_TIME:
-			_lose_interest_timer = LOSE_INTEREST_TIME
+		if _unreachable_timer >= config.unreachable_time:
+			_lose_interest_timer = config.lose_interest_time
 			_unreachable_timer = 0.0
 			_change_state(GlobalDefine.EnemyState.IDLE)
 		return
 
 	_unreachable_timer = 0.0
 
-	if abs(x_diff) > CHASE_DIR_THRESHOLD:
+	if abs(x_diff) > config.chase_direction_threshold:
 		_chase_dir = signf(x_diff)
 
 	if dist <= attack_range:
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		if _can_attack_target():
 			_change_state(GlobalDefine.EnemyState.ATTACK)
 			return
 	else:
 		if _chase_dir != 0:
-			var speed: float = config.move_speed if config else 100.0
-			var multiplier: float = config.chase_speed_multiplier if config else 1.8
+			var speed: float = config.move_speed
+			var multiplier: float = config.chase_speed_multiplier
 			velocity.x = _chase_dir * speed * multiplier
 		else:
-			velocity.x = move_toward(velocity.x, 0, 300 * delta)
+			velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 
 	if not _can_detect_target():
 		_change_state(GlobalDefine.EnemyState.IDLE)
@@ -145,10 +136,10 @@ func _ai_chase(delta: float) -> void:
 # ---- 攻击 ----
 
 func _ai_attack(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0, 300 * delta)
+	velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 	if attack_cooldown_timer <= 0 and target and is_instance_valid(target):
 		_perform_attack()
-		attack_cooldown_timer = config.attack_cooldown if config else 1.5
+		attack_cooldown_timer = config.attack_cooldown
 	_change_state(GlobalDefine.EnemyState.CHASE)
 
 # ---- 核心行为逻辑 ----
@@ -160,7 +151,7 @@ func _on_physics_process(delta: float) -> void:
 	# 1) 连击后休息
 	if _rest_timer > 0:
 		_rest_timer -= delta
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		if current_state != GlobalDefine.EnemyState.IDLE:
 			_change_state(GlobalDefine.EnemyState.IDLE)
 		_attack_anim_timer = 0.0
@@ -172,23 +163,23 @@ func _on_physics_process(delta: float) -> void:
 	# 2) 前摇
 	if _windup_timer > 0:
 		_windup_timer -= delta
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		_update_enemy_animation()
 		if _windup_timer <= 0:
 			_do_attack_hit()
 			if _pending_hit == 1:
 				_combo_count = 1
-				_combo_timer = COMBO_PAUSE
+				_combo_timer = config.combo_pause
 			elif _pending_hit == 2:
 				_combo_count = 2
-				_rest_timer = REST_DURATION
+				_rest_timer = config.combo_rest_duration
 			_pending_hit = 0
 		return
 
 	# 3) 连击间隔
 	if _combo_timer > 0:
 		_combo_timer -= delta
-		velocity.x = move_toward(velocity.x, 0, 300 * delta)
+		velocity.x = move_toward(velocity.x, 0, config.movement_deceleration * delta)
 		if _combo_timer <= 0 and _combo_count == 1:
 			_start_windup(2)
 		_update_enemy_animation()
@@ -210,23 +201,23 @@ func _on_attack() -> void:
 
 func _start_windup(hit_number: int) -> void:
 	_pending_hit = hit_number
-	_windup_timer = WINDUP_DURATION
-	_attack_anim_timer = ATTACK_ANIM_DURATION
+	_windup_timer = config.attack_windup_duration
+	_attack_anim_timer = config.attack_animation_duration
 
 func _do_attack_hit() -> void:
-	_attack_anim_timer = ATTACK_ANIM_DURATION
+	_attack_anim_timer = config.attack_animation_duration
 	if not target or not is_instance_valid(target):
 		return
 	# 攻击命中前检查距离：玩家闪避/突进拉开距离则攻击落空
 	var dist = global_position.distance_to(target.global_position)
-	var attack_range = config.attack_range if config else 40.0
-	if dist > attack_range + 30.0:
+	var attack_range = config.attack_range
+	if dist > attack_range + config.attack_range_tolerance:
 		return
 	if target.has_method("take_damage"):
-		var atk = config.attack_damage if config else 8
-		var result = DamageCalculator.calculate(atk, 0, GlobalDefine.DamageType.PHYSICAL)
+		var atk = config.attack_damage
+		var result = DamageCalculator.calculate(atk, 0, config.attack_damage_type)
 		var kb_dir = DamageCalculator.get_knockback_direction(global_position, target.global_position)
-		target.take_damage(result["damage"], kb_dir)
+		target.take_damage(result["damage"], kb_dir, self)
 
 func deals_contact_damage() -> bool:
 	return false
@@ -241,16 +232,16 @@ func _update_facing() -> void:
 	var should_face_right: bool = is_facing_right
 	if target and is_instance_valid(target):
 		var x_diff: float = target.global_position.x - global_position.x
-		if x_diff > FACING_DEAD_ZONE:
+		if x_diff > config.facing_dead_zone:
 			should_face_right = true
-		elif x_diff < -FACING_DEAD_ZONE:
+		elif x_diff < -config.facing_dead_zone:
 			should_face_right = false
-		elif abs(velocity.x) > 10:
+		elif abs(velocity.x) > config.animation_move_threshold:
 			should_face_right = velocity.x > 0
 	else:
-		if velocity.x > 5:
+		if velocity.x > config.velocity_facing_threshold:
 			should_face_right = true
-		elif velocity.x < -5:
+		elif velocity.x < -config.velocity_facing_threshold:
 			should_face_right = false
 	is_facing_right = should_face_right
 	if _anim_sprite:
@@ -272,7 +263,7 @@ func _update_enemy_animation() -> void:
 		GlobalDefine.EnemyState.PATROL:
 			target_anim = "walk"
 		GlobalDefine.EnemyState.CHASE:
-			target_anim = "walk" if abs(velocity.x) > 10 else "idle"
+			target_anim = "walk" if abs(velocity.x) > config.animation_move_threshold else "idle"
 		GlobalDefine.EnemyState.ATTACK:
 			target_anim = "attack"
 		GlobalDefine.EnemyState.HURT, GlobalDefine.EnemyState.DEAD:

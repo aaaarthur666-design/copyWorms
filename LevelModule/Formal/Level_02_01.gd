@@ -5,26 +5,12 @@
 extends LevelBase
 class_name Level_02_01
 
-@export var next_level_path: String = "res://LevelModule/Formal/Level_02_02.tscn"
-@export var map_left: int = 0
-@export var map_right: int = 4464
-@export var exit_trigger_position: Vector2 = Vector2(4336, 460)
-@export var exit_trigger_size: Vector2 = Vector2(120, 360)
+@export var level_data: Level02Data = preload("res://DataConfig/Level/Level02Data.tres")
 
-const CAMERA_LIMIT_TOP: int = 56
-const CAMERA_LIMIT_BOTTOM: int = 616
-const CAMERA_ZOOM: Vector2 = Vector2(1.5, 1.5)
-const CAMERA_LERP_SPEED: float = 2.5
 const PAPER_EFFIGY_SCENE_PATH: String = "res://EnemyModule/Formal/Enemy_PaperEffigy.tscn"
 const PAPER_EFFIGY_CONFIG_PATH: String = "res://DataConfig/Enemy/PaperEffigyConfig.tres"
 const LANTERN_GHOST_SCENE_PATH: String = "res://EnemyModule/Formal/Enemy_LanternGhost.tscn"
 const LANTERN_GHOST_CONFIG_PATH: String = "res://DataConfig/Enemy/LanternGhostConfig.tres"
-const ENEMY_GROUND_Y: float = 540.0
-const ENEMY_UPPER_Y: float = 356.0
-const PAPER_EFFIGY_SPAWN_INTERVAL: int = 700
-const LANTERN_GHOST_SPAWN_INTERVAL: int = 1000
-const FINAL_WHITEOUT_DURATION: float = 4.0
-const FINAL_WHITEOUT_FADE_DURATION: float = 0.8
 
 var _exit_trigger: Area2D = null
 var _exit_white_overlay: ColorRect = null
@@ -76,13 +62,13 @@ func _setup_camera_limits() -> void:
 	var cam = player.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam:
 		return
-	cam.limit_left = map_left
-	cam.limit_right = map_right
-	cam.limit_top = CAMERA_LIMIT_TOP
-	cam.limit_bottom = CAMERA_LIMIT_BOTTOM
-	cam.zoom = CAMERA_ZOOM
+	cam.limit_left = level_data.segment_01_map_left
+	cam.limit_right = level_data.segment_01_map_right
+	cam.limit_top = level_data.segment_01_camera_top
+	cam.limit_bottom = level_data.segment_01_camera_bottom
+	cam.zoom = level_data.segment_01_camera_zoom
 	cam.offset = Vector2.ZERO
-	cam.lerp_speed = CAMERA_LERP_SPEED
+	cam.lerp_speed = level_data.segment_01_camera_lerp_speed
 	cam.bind_target(player)
 
 
@@ -107,7 +93,12 @@ func _ensure_player_collision_layer() -> void:
 func _build_exit_trigger() -> void:
 	var container = _get_or_create_child("TriggerZones", Node2D)
 
-	_exit_trigger = _ensure_trigger_zone(container, "Level0201ExitTrigger", exit_trigger_position, exit_trigger_size)
+	_exit_trigger = _ensure_trigger_zone(
+		container,
+		"Level0201ExitTrigger",
+		level_data.segment_01_exit_trigger_position,
+		level_data.segment_01_exit_trigger_size
+	)
 	if not _exit_trigger.body_entered.is_connected(_on_exit_trigger_body_entered):
 		_exit_trigger.body_entered.connect(_on_exit_trigger_body_entered)
 
@@ -135,8 +126,10 @@ func _bind_spawn_point() -> void:
 	if not spawn:
 		spawn = Marker2D.new()
 		spawn.name = "SegmentSpawn"
-		spawn.position = Vector2(140, 550)
+		spawn.position = level_data.segment_01_spawn_position
 		container.add_child(spawn)
+	else:
+		spawn.position = level_data.segment_01_spawn_position
 	player_spawn_point = spawn
 
 
@@ -144,11 +137,13 @@ func _get_spawn_position() -> Vector2:
 	var spawn = get_node_or_null("SpawnPoints/SegmentSpawn") as Marker2D
 	if spawn:
 		return spawn.position
-	return level_config.spawn_point if level_config else Vector2(140, 550)
+	return level_data.segment_01_spawn_position
 
 
 func _build_collision_bodies() -> void:
 	var container = _get_or_create_child("CollisionBodies", Node2D)
+	var map_left := level_data.segment_01_map_left
+	var map_right := level_data.segment_01_map_right
 	_ensure_static_body(container, "SegmentGround", Vector2(float(map_right - map_left) / 2.0, 620), Vector2(map_right - map_left, 40))
 	_ensure_static_body(container, "LeftWall", Vector2(map_left - 10, 360), Vector2(20, 720))
 	_ensure_static_body(container, "RightWall", Vector2(map_right + 10, 360), Vector2(20, 720))
@@ -176,24 +171,38 @@ func _build_enemy_spawn_points() -> void:
 	var paper_upper_layer = _get_or_create_child_on(root, "PaperEffigyUpperLayer", Node2D)
 	var lantern_ground_layer = _get_or_create_child_on(root, "LanternGhostGroundLayer", Node2D)
 	var lantern_upper_layer = _get_or_create_child_on(root, "LanternGhostUpperLayer", Node2D)
-	if paper_ground_layer.get_child_count() == 0:
-		var paper_ground_index = 1
-		for x in range(map_left + PAPER_EFFIGY_SPAWN_INTERVAL, map_right, PAPER_EFFIGY_SPAWN_INTERVAL):
-			_create_marker(paper_ground_layer, "PaperEffigy_Ground_%02d" % paper_ground_index, Vector2(x, ENEMY_GROUND_Y))
-			paper_ground_index += 1
-	if paper_upper_layer.get_child_count() == 0:
-		var paper_upper_x_values = [3200, 3900]
-		for i in range(paper_upper_x_values.size()):
-			_create_marker(paper_upper_layer, "PaperEffigy_Upper_%02d" % (i + 1), Vector2(paper_upper_x_values[i], ENEMY_UPPER_Y))
-	if lantern_ground_layer.get_child_count() == 0:
-		var lantern_ground_index = 1
-		for x in range(map_left + LANTERN_GHOST_SPAWN_INTERVAL, map_right, LANTERN_GHOST_SPAWN_INTERVAL):
-			_create_marker(lantern_ground_layer, "LanternGhost_Ground_%02d" % lantern_ground_index, Vector2(x, ENEMY_GROUND_Y))
-			lantern_ground_index += 1
-	if lantern_upper_layer.get_child_count() == 0:
-		var lantern_upper_x_values = [3200, 4000]
-		for i in range(lantern_upper_x_values.size()):
-			_create_marker(lantern_upper_layer, "LanternGhost_Upper_%02d" % (i + 1), Vector2(lantern_upper_x_values[i], ENEMY_UPPER_Y))
+	var paper_ground_positions: Array[Vector2] = []
+	for x in range(
+		level_data.segment_01_map_left + level_data.segment_01_paper_spawn_interval,
+		level_data.segment_01_map_right,
+		level_data.segment_01_paper_spawn_interval
+	):
+		paper_ground_positions.append(Vector2(x, level_data.segment_01_enemy_ground_y))
+	var paper_upper_positions: Array[Vector2] = []
+	for spawn_x in level_data.segment_01_paper_upper_spawn_x:
+		paper_upper_positions.append(Vector2(spawn_x, level_data.segment_01_enemy_upper_y))
+	var lantern_ground_positions: Array[Vector2] = []
+	for x in range(
+		level_data.segment_01_map_left + level_data.segment_01_lantern_spawn_interval,
+		level_data.segment_01_map_right,
+		level_data.segment_01_lantern_spawn_interval
+	):
+		lantern_ground_positions.append(Vector2(x, level_data.segment_01_enemy_ground_y))
+	var lantern_upper_positions: Array[Vector2] = []
+	for spawn_x in level_data.segment_01_lantern_upper_spawn_x:
+		lantern_upper_positions.append(Vector2(spawn_x, level_data.segment_01_enemy_upper_y))
+	_replace_marker_layer(paper_ground_layer, "PaperEffigy_Ground", paper_ground_positions)
+	_replace_marker_layer(paper_upper_layer, "PaperEffigy_Upper", paper_upper_positions)
+	_replace_marker_layer(lantern_ground_layer, "LanternGhost_Ground", lantern_ground_positions)
+	_replace_marker_layer(lantern_upper_layer, "LanternGhost_Upper", lantern_upper_positions)
+
+
+func _replace_marker_layer(parent: Node, marker_prefix: String, positions: Array[Vector2]) -> void:
+	for child in parent.get_children():
+		parent.remove_child(child)
+		child.queue_free()
+	for i in range(positions.size()):
+		_create_marker(parent, "%s_%02d" % [marker_prefix, i + 1], positions[i])
 
 
 func _spawn_paper_effigies() -> void:
@@ -264,29 +273,38 @@ func _create_marker(parent: Node, node_name: String, pos: Vector2) -> Marker2D:
 
 func _ensure_static_body(container: Node, node_name: String, pos: Vector2, size: Vector2) -> StaticBody2D:
 	var body = container.get_node_or_null(node_name) as StaticBody2D
-	if body:
-		return body
-	body = StaticBody2D.new()
-	body.name = node_name
+	if not body:
+		body = StaticBody2D.new()
+		body.name = node_name
+		container.add_child(body)
 	body.position = pos
 	body.collision_layer = GlobalDefine.Collision.TERRAIN
 	body.collision_mask = 0
-	var col_shape = CollisionShape2D.new()
-	col_shape.name = "CollisionShape2D"
+	var col_shape := body.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if not col_shape:
+		col_shape = CollisionShape2D.new()
+		col_shape.name = "CollisionShape2D"
+		body.add_child(col_shape)
 	var rect_shape = RectangleShape2D.new()
 	rect_shape.size = size
 	col_shape.shape = rect_shape
-	body.add_child(col_shape)
-	container.add_child(body)
 	return body
 
 
 func _ensure_trigger_zone(container: Node, zone_name: String, pos: Vector2, size: Vector2) -> Area2D:
 	var area = container.get_node_or_null(zone_name) as Area2D
-	if area:
-		return area
-	area = _create_trigger_zone(zone_name, pos, size)
-	container.add_child(area)
+	if not area:
+		area = _create_trigger_zone(zone_name, pos, size)
+		container.add_child(area)
+	area.position = pos
+	var collision := area.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if not collision:
+		collision = CollisionShape2D.new()
+		collision.name = "CollisionShape2D"
+		area.add_child(collision)
+	var shape := RectangleShape2D.new()
+	shape.size = size
+	collision.shape = shape
 	return area
 
 
@@ -300,8 +318,8 @@ func _on_exit_trigger_body_entered(body: Node2D) -> void:
 	_exit_white_overlay.color = Color(1, 1, 1, 0)
 	_exit_white_overlay.show()
 	var tw = create_tween()
-	tw.tween_property(_exit_white_overlay, "color:a", 1.0, FINAL_WHITEOUT_FADE_DURATION).set_trans(Tween.TRANS_SINE)
-	tw.tween_interval(FINAL_WHITEOUT_DURATION)
+	tw.tween_property(_exit_white_overlay, "color:a", 1.0, level_data.segment_01_whiteout_fade_duration).set_trans(Tween.TRANS_SINE)
+	tw.tween_interval(level_data.segment_01_whiteout_duration)
 	tw.tween_callback(_emit_level_complete)
 
 
@@ -341,6 +359,7 @@ func _is_player_body(body: Node2D) -> bool:
 
 
 func _emit_level_complete() -> void:
+	var next_level_path := level_data.segment_01_next_level_path
 	get_viewport().gui_release_focus()
 	InputManager.force_unblock_all()
 	_cleanup_enemies()

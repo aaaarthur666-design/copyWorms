@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Enemy/EnemyConfig.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+max_health = 30
+move_speed = 180.0
+gravity = 1200.0
+knockback_resistance = 0.5
+attack_damage = 5
+attack_damage_type = 0
+attack_cooldown = 1.2
+attack_range = 35.0
+detect_range = 250.0
+patrol_wait_time = 1.5
+chase_speed_multiplier = 2.0
+wander_radius = 120.0
+low_health_ratio = 0.3
+idle_sfx_interval_min = 1.8
+idle_sfx_interval_max = 3.5
+idle_sfx_chance = 0.25
+idle_sfx_max_distance = 1500.0
+movement_deceleration = 300.0
+stunned_deceleration = 500.0
+stunned_vertical_deceleration = 300.0
+post_attack_pause = 0.7
+hurt_knockback_horizontal = 250.0
+hurt_knockback_vertical = 100.0
+hurt_stun_time = 0.3
+velocity_facing_threshold = 5.0
+animation_move_threshold = 10.0
+low_health_blink_slow_interval = 0.3
+low_health_blink_fast_interval = 0.08
+idle_sfx_pitch_min = 0.88
+idle_sfx_pitch_max = 1.12
+hurt_sfx_pitch_min = 0.9
+hurt_sfx_pitch_max = 1.12
+death_fade_duration = 0.3
+attack_animation_duration = 0.4
+combo_pause = 0.5
+combo_rest_duration = 1.0
+attack_windup_duration = 0.15
+chase_direction_threshold = 8.0
+unreachable_time = 1.5
+lose_interest_time = 3.0
+unreachable_height = -40.0
+facing_dead_zone = 5.0
+attack_range_tolerance = 30.0
+exp_reward = 5

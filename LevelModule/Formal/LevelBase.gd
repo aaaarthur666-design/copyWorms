@@ -41,7 +41,7 @@ func _ready() -> void:
 	_setup_player()
 	_setup_enemies()
 	_setup_triggers()
-	GameManager.current_level = self
+	GameManager.set_current_level(self)
 	# 自动设置检查点：记录当前关卡场景路径，用于"重新开始"回到当前关卡而非Level_01
 	# 如果重新加载的是同一场景（重新开始），保留之前的阶段（checkpoint_stage），不重置为0
 	var sp = scene_file_path
@@ -71,13 +71,17 @@ func _setup_player() -> void:
 	# 正式关卡自动生成玩家
 	if GameManager.player_ref and is_instance_valid(GameManager.player_ref):
 		return  # 玩家已存在
-	var player_path: String = level_config.player_scene_path if level_config else "res://PlayerModule/Formal/Player_Warrior.tscn"
-	if ResourceLoader.exists(player_path):
-		var player = load(player_path).instantiate()
-		var spawn_pos = level_config.spawn_point if level_config else Vector2(640, 500)
-		player.position = spawn_pos
-		add_child(player)
-		GameManager.register_player(player)
+	if not level_config:
+		push_error("[LevelBase] 缺少 LevelConfig，无法创建玩家")
+		return
+	var player_path: String = level_config.player_scene_path
+	if not ResourceLoader.exists(player_path):
+		push_error("[LevelBase] 玩家场景不存在: %s" % player_path)
+		return
+	var player = load(player_path).instantiate()
+	player.position = level_config.spawn_point
+	add_child(player)
+	GameManager.register_player(player)
 
 func _setup_enemies() -> void:
 	for spawn_point in enemy_spawn_points:

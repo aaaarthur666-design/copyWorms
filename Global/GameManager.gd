@@ -1,54 +1,54 @@
 # ============================================================
 # GameManager.gd - 游戏管理器 (Autoload)
-# 统一管理游戏状态、运行模式、玩家/敌人引用
+# 统一管理瞬态生命周期、玩家/敌人引用与跨关卡运行时状态。
 # ============================================================
 extends Node
 
-# 运行模式（根据场景自动切换）
 var run_mode: int = GlobalDefine.RunMode.FORMAL
 
-# 全局引用
 var player_ref: Node2D = null
 var current_level: Node = null
 var enemy_list: Array[Node2D] = []
-
-# 游戏状态
-var is_paused: bool = false
-var is_game_over: bool = false
-var is_dialog_active: bool = false  # 对话/叙事期间为true，敌人不可锁定玩家
-
-# 跨关卡梦境运行时配置（关卡2"配置篡改"谜题写入，关卡3读取应用）
-# 例: { "player_damage_reduction": true, "base_jump_height": 99,
-#       "allow_external_signal": false, "dream_version": "2.0" }
-var dream_runtime_flags: Dictionary = {}
-
-# Boss 战引用（关卡设置，用于弹体自动瞄准等）
 var boss_target: Node2D = null
 
-# ---- 检查点系统 ----
-# 记录玩家当前所处的关卡场景路径和阶段，用于"重新开始"时回到当前关卡而非Level_01
-var checkpoint_scene_path: String = ""    # 检查点场景路径（如 "res://LevelModule/Formal/Level_02_01.tscn"）
-var checkpoint_stage: int = 0             # 检查点阶段（用于同场景内多阶段关卡，如Level_04的stage2/Level_05的bg4/bg5）
-var checkpoint_data: Dictionary = {}      # 检查点附加数据（如玩家血量等，可选）
+var is_paused: bool = false
+var is_game_over: bool = false
+var is_dialog_active: bool = false
 
-# ---- 生命周期 ----
+var dream_runtime_state: DreamRuntimeState = DreamRuntimeState.new()
+var dream_runtime_flags: Dictionary:
+	get:
+		return dream_runtime_state.to_dictionary()
+	set(value):
+		if not dream_runtime_state.replace_from(value):
+			push_error("[GameManager] 拒绝写入类型不合法的 dream_runtime_flags")
+
+var checkpoint_scene_path: String = ""
+var checkpoint_stage: int = 0
+var checkpoint_data: Dictionary = {}
+
+var _tracked_enemy_ids: Dictionary = {}
+var _tracked_player_ids: Dictionary = {}
+var _dialog_owners: Dictionary = {}
+var _tracked_dialog_owner_ids: Dictionary = {}
+
 
 func _ready() -> void:
 	_apply_global_font()
 	_detect_run_mode()
+	call_deferred("_detect_run_mode")
 
-## 全局字体：所有 UI 节点默认使用覆盖中文完整字形的像素字体
+
 func _apply_global_font() -> void:
 	const CJK_FONT_PATH := "res://Assets/Fonts/文泉驿点阵宋体/WenQuanYi Bitmap Song 16px.ttf"
 	var font := load(CJK_FONT_PATH) as FontFile
 	if font == null:
 		push_error("[GameManager] 文泉驿点阵宋体 16px.ttf 加载失败")
 		return
-	# 设置项目默认主题字体，所有 Control 节点自动继承
 	var default_theme := ThemeDB.get_default_theme()
 	default_theme.set_default_font(font)
 	_apply_font_to_theme_variants(default_theme, font)
-	print("[GameManager] 全局字体已设为文泉驿点阵宋体 16px")
+
 
 func _apply_font_to_theme_variants(theme: Theme, font: FontFile) -> void:
 	for theme_type in ["Label", "Button", "LineEdit", "TextEdit", "CodeEdit"]:
@@ -56,104 +56,223 @@ func _apply_font_to_theme_variants(theme: Theme, font: FontFile) -> void:
 	for font_name in ["normal_font", "bold_font", "italics_font", "bold_italics_font", "mono_font"]:
 		theme.set_font(font_name, "RichTextLabel", font)
 
-## 自动检测运行模式
+
 func _detect_run_mode() -> void:
-	var tree = get_tree()
-	if tree == null:
-		run_mode = GlobalDefine.RunMode.FORMAL
-		return
-
-	var current_scene: Node = tree.current_scene
-	if current_scene == null:
-		run_mode = GlobalDefine.RunMode.FORMAL
-		return
-
-	var scene_path = current_scene.scene_file_path
-	if scene_path and "SelfTest" in scene_path:
+	var tree := get_tree()
+	var scene_path := ""
+	if tree and tree.current_scene:
+		scene_path = tree.current_scene.scene_file_path
+	if scene_path.contains("SelfTest"):
 		run_mode = GlobalDefine.RunMode.SELF_TEST
-		print("[GameManager] 检测到自测模式: ", scene_path)
 	else:
 		run_mode = GlobalDefine.RunMode.FORMAL
-		print("[GameManager] 正式模式: ", scene_path)
 
-## 正式模式下，场景切换时重新检测
+
 func _on_scene_changed() -> void:
 	_detect_run_mode()
 
-# ---- 公共方法 ----
 
-## 注册玩家
 func register_player(player: Node2D) -> void:
+	if player == null or not is_instance_valid(player):
+		push_warning("[GameManager] 忽略失效玩家注册")
+		return
+	if player_ref == player:
+		return
 	player_ref = player
-	EventBus.emit(GlobalDefine.EventName.PLAYER_SPAWNED, { "player": player })
+	var player_id := player.get_instance_id()
+	if not _tracked_player_ids.has(player_id):
+		_tracked_player_ids[player_id] = true
+		player.tree_exited.connect(_on_player_tree_exited.bind(player_id), CONNECT_ONE_SHOT)
+	EventBus.emit(GlobalDefine.EventName.PLAYER_SPAWNED, {"player": player})
 
-## 注册敌人
+
 func register_enemy(enemy: Node2D) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		push_warning("[GameManager] 忽略失效敌人注册")
+		return
+	_prune_enemies()
+	if enemy in enemy_list:
+		return
 	enemy_list.append(enemy)
-	EventBus.emit(GlobalDefine.EventName.ENEMY_SPAWNED, { "enemy": enemy })
+	var enemy_id := enemy.get_instance_id()
+	if not _tracked_enemy_ids.has(enemy_id):
+		_tracked_enemy_ids[enemy_id] = true
+		enemy.tree_exited.connect(_on_enemy_tree_exited.bind(enemy_id), CONNECT_ONE_SHOT)
+	EventBus.emit(GlobalDefine.EventName.ENEMY_SPAWNED, {"enemy": enemy})
 
-## 注销敌人
+
 func unregister_enemy(enemy: Node2D) -> void:
+	if enemy == null:
+		return
 	enemy_list.erase(enemy)
 
-## 获取所有敌人
-func get_enemies() -> Array[Node2D]:
-	enemy_list = enemy_list.filter(func(e): return is_instance_valid(e))
-	return enemy_list
 
-## 获取离某点最近的敌人
+func get_enemies() -> Array[Node2D]:
+	_prune_enemies()
+	return enemy_list.duplicate()
+
+
 func get_nearest_enemy(pos: Vector2) -> Node2D:
-	enemy_list = enemy_list.filter(func(e): return is_instance_valid(e))
+	_prune_enemies()
 	var nearest: Node2D = null
-	var min_dist: float = INF
-	for enemy in enemy_list:
-		if not is_instance_valid(enemy):
-			continue
-		var dist = pos.distance_squared_to(enemy.global_position)
+	var min_dist := INF
+	for enemy: Node2D in enemy_list:
+		var dist := pos.distance_squared_to(enemy.global_position)
 		if dist < min_dist:
 			min_dist = dist
 			nearest = enemy
 	return nearest
 
-## 暂停/恢复
+
+func set_current_level(level: Node) -> void:
+	current_level = level
+
+
+func begin_dialog(owner: Node) -> void:
+	var owner_id := 0
+	if owner and is_instance_valid(owner):
+		owner_id = owner.get_instance_id()
+		if not _tracked_dialog_owner_ids.has(owner_id):
+			_tracked_dialog_owner_ids[owner_id] = true
+			owner.tree_exited.connect(_on_dialog_owner_tree_exited.bind(owner_id), CONNECT_ONE_SHOT)
+	var entry: Dictionary = _dialog_owners.get(owner_id, {"count": 0, "owner": weakref(owner) if owner else null})
+	entry["count"] = int(entry["count"]) + 1
+	_dialog_owners[owner_id] = entry
+	_refresh_dialog_state()
+
+
+func end_dialog(owner: Node = null) -> void:
+	var owner_id := owner.get_instance_id() if owner and is_instance_valid(owner) else 0
+	if not _dialog_owners.has(owner_id):
+		return
+	var entry: Dictionary = _dialog_owners[owner_id]
+	entry["count"] = maxi(int(entry["count"]) - 1, 0)
+	if int(entry["count"]) == 0:
+		_dialog_owners.erase(owner_id)
+	else:
+		_dialog_owners[owner_id] = entry
+	_refresh_dialog_state()
+
+
+func clear_dialogs() -> void:
+	_dialog_owners.clear()
+	is_dialog_active = false
+
+
+func set_dream_flag(key: StringName, value: Variant) -> bool:
+	return dream_runtime_state.set_value(key, value)
+
+
+func get_dream_flag(key: StringName, fallback: Variant = null) -> Variant:
+	return dream_runtime_state.get_value(key, fallback)
+
+
 func toggle_pause() -> void:
-	is_paused = !is_paused
+	is_paused = not is_paused
 	get_tree().paused = is_paused
 	if is_paused:
 		EventBus.emit(GlobalDefine.EventName.GAME_PAUSE)
 	else:
 		EventBus.emit(GlobalDefine.EventName.GAME_RESUME)
 
-## 游戏结束
+
 func trigger_game_over() -> void:
+	if is_game_over:
+		return
 	is_game_over = true
 	EventBus.emit(GlobalDefine.EventName.GAME_OVER)
 
-## 判断是否自测模式
+
 func is_self_test() -> bool:
+	_detect_run_mode()
 	return run_mode == GlobalDefine.RunMode.SELF_TEST
 
-## 判断是否正式模式
+
 func is_formal() -> bool:
 	return run_mode == GlobalDefine.RunMode.FORMAL
 
-# ---- 检查点系统 ----
 
-## 设置检查点（关卡_on_ready时调用，记录当前场景路径）
+func dev_tools_enabled() -> bool:
+	return is_self_test() or OS.has_feature("editor") or OS.has_feature("debug")
+
+
+## 开始一局全新的流程。标题页的正式/精彩入口都必须经过这里，
+## 防止上一局的梦境标记和检查点污染新流程。
+func begin_new_run(mode: int = GlobalDefine.RunMode.FORMAL) -> void:
+	run_mode = mode
+	reset_transient_state()
+	reset_run_progress()
+
+
+func reset_transient_state() -> void:
+	is_paused = false
+	is_game_over = false
+	player_ref = null
+	current_level = null
+	enemy_list.clear()
+	boss_target = null
+	clear_dialogs()
+	var tree := get_tree()
+	if tree:
+		tree.paused = false
+
+
+func reset_run_progress() -> void:
+	dream_runtime_state.clear()
+	checkpoint_scene_path = ""
+	checkpoint_stage = 0
+	checkpoint_data.clear()
+
+
 func set_checkpoint(scene_path: String, stage: int = 0, data: Dictionary = {}) -> void:
 	checkpoint_scene_path = scene_path
 	checkpoint_stage = stage
-	checkpoint_data = data
+	checkpoint_data = data.duplicate(true)
 
-## 更新检查点阶段（同场景内阶段切换时调用，如Level_04 stage1→stage2）
+
 func update_checkpoint_stage(stage: int, data: Dictionary = {}) -> void:
 	checkpoint_stage = stage
 	if not data.is_empty():
-		checkpoint_data = data
+		checkpoint_data = data.duplicate(true)
 
-## 重新开始：回到检查点关卡（而非reload_current_scene回到Level_01）
+
 func restart_from_checkpoint() -> void:
 	is_game_over = false
 	is_paused = false
 	get_tree().paused = false
 	SceneTransitionManager.request_checkpoint_restart()
+
+
+func _prune_enemies() -> void:
+	enemy_list = enemy_list.filter(func(enemy: Node2D) -> bool:
+		return is_instance_valid(enemy) and not _enemy_is_dead(enemy)
+	)
+
+
+func _enemy_is_dead(enemy: Node2D) -> bool:
+	if enemy is EnemyBase:
+		return (enemy as EnemyBase).is_dead
+	return false
+
+
+func _on_enemy_tree_exited(enemy_id: int) -> void:
+	enemy_list = enemy_list.filter(func(enemy: Node2D) -> bool:
+		return is_instance_valid(enemy) and enemy.get_instance_id() != enemy_id
+	)
+	_tracked_enemy_ids.erase(enemy_id)
+
+
+func _on_player_tree_exited(player_id: int) -> void:
+	if player_ref and is_instance_valid(player_ref) and player_ref.get_instance_id() == player_id:
+		player_ref = null
+	_tracked_player_ids.erase(player_id)
+
+
+func _on_dialog_owner_tree_exited(owner_id: int) -> void:
+	_dialog_owners.erase(owner_id)
+	_tracked_dialog_owner_ids.erase(owner_id)
+	_refresh_dialog_state()
+
+
+func _refresh_dialog_state() -> void:
+	is_dialog_active = not _dialog_owners.is_empty()

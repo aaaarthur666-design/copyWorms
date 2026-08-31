@@ -5,39 +5,12 @@
 extends LevelBase
 class_name Level_02_02
 
-@export var next_level_path: String = "res://LevelModule/Formal/Level_02_03.tscn"
-@export var map_left: int = 0
-@export var map_right: int = 1474
-@export var exit_trigger_position: Vector2 = Vector2(1399.6136, -498.6906)
-@export var exit_trigger_size: Vector2 = Vector2(64.7636, 93.5474)
+@export var level_data: Level02Data = preload("res://DataConfig/Level/Level02Data.tres")
 
-const CAMERA_LIMIT_TOP: int = -835
-const CAMERA_LIMIT_BOTTOM: int = 638
-const CAMERA_ZOOM: Vector2 = Vector2(1.5, 1.5)
-const CAMERA_LERP_SPEED: float = 2.5
-const INTRO_NARRATIVE_TEXT: String = "这个世界还不稳定。\n有些梯子看似能爬，却没有通路。\n有些墙看似封死，却能穿过。\n梦不是现实。\n它只是在模仿我记得的样子。"
-const INTRO_NARRATIVE_DELAY: float = 2.0
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
 const PAPER_EFFIGY_SCENE_PATH: String = "res://EnemyModule/Formal/Enemy_PaperEffigy.tscn"
 const PAPER_EFFIGY_CONFIG_PATH: String = "res://DataConfig/Enemy/PaperEffigyConfig.tres"
 const LANTERN_GHOST_SCENE_PATH: String = "res://EnemyModule/Formal/Enemy_LanternGhost.tscn"
 const LANTERN_GHOST_CONFIG_PATH: String = "res://DataConfig/Enemy/LanternGhostConfig.tres"
-const ENEMY_DETECT_RANGE_CAP: float = 500.0
-const PAPER_EFFIGY_SPAWN_POSITIONS: Array[Vector2] = [
-	Vector2(552, 368),
-	Vector2(864, 360),
-	Vector2(616, 184),
-	Vector2(1144, 192),
-	Vector2(1096, -176),
-	Vector2(1104, -384),
-]
-const LANTERN_GHOST_SPAWN_POSITIONS: Array[Vector2] = [
-	Vector2(864, 360),
-	Vector2(1144, 192),
-	Vector2(1096, -176),
-	Vector2(1104, -384),
-]
-
 var _exit_trigger: Area2D = null
 var _dynamic_actors: Node2D = null
 var _level_complete_emitted: bool = false
@@ -45,6 +18,12 @@ var _narrative_panel: Panel = null
 var _narrative_text: RichTextLabel = null
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
+var _narrative_pages: Array[String] = []
+var _narrative_page_index: int = 0
+var _narrative_arm_remaining: float = 0.0
+var _narrative_wait_elapsed: float = 0.0
+var _narrative_poll_elapsed: float = 0.0
+var _intro_narrative_timer: Timer = null
 var _paper_effigy_scene: PackedScene = null
 var _paper_effigies: Array[Node2D] = []
 var _lantern_ghost_scene: PackedScene = null
@@ -83,6 +62,25 @@ func _on_ready() -> void:
 	print("[Level_02_02] 初始化完成")
 
 
+func _exit_tree() -> void:
+	_cancel_intro_narrative()
+	_close_narrative()
+	InputManager.release_input_for_owner(self)
+	EventBus.unsubscribe_all(self)
+
+
+func prepare_for_level_exit() -> void:
+	_cancel_intro_narrative()
+	_close_narrative()
+	_cleanup_enemies()
+	InputManager.release_input_for_owner(self)
+	EventBus.unsubscribe_all(self)
+
+
+func _process(delta: float) -> void:
+	_update_narrative(delta)
+
+
 func _setup_camera_limits() -> void:
 	var player = GameManager.player_ref
 	if not player or not is_instance_valid(player):
@@ -90,13 +88,13 @@ func _setup_camera_limits() -> void:
 	var cam = player.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam:
 		return
-	cam.limit_left = map_left
-	cam.limit_right = map_right
-	cam.limit_top = CAMERA_LIMIT_TOP
-	cam.limit_bottom = CAMERA_LIMIT_BOTTOM
-	cam.zoom = CAMERA_ZOOM
+	cam.limit_left = level_data.segment_02_map_left
+	cam.limit_right = level_data.segment_02_map_right
+	cam.limit_top = level_data.segment_02_camera_top
+	cam.limit_bottom = level_data.segment_02_camera_bottom
+	cam.zoom = level_data.segment_02_camera_zoom
 	cam.offset = Vector2.ZERO
-	cam.lerp_speed = CAMERA_LERP_SPEED
+	cam.lerp_speed = level_data.segment_02_camera_lerp_speed
 	cam.bind_target(player)
 
 
@@ -135,12 +133,16 @@ func _build_enemy_spawn_points() -> void:
 	var root = _get_or_create_child("EnemySpawnPoints", Node2D)
 	var paper_layer = _get_or_create_child_on(root, "PaperEffigyLayer", Node2D)
 	var lantern_layer = _get_or_create_child_on(root, "LanternGhostLayer", Node2D)
-	if paper_layer.get_child_count() == 0:
-		for i in range(PAPER_EFFIGY_SPAWN_POSITIONS.size()):
-			_create_marker(paper_layer, "PaperEffigy_%02d" % (i + 1), PAPER_EFFIGY_SPAWN_POSITIONS[i])
-	if lantern_layer.get_child_count() == 0:
-		for i in range(LANTERN_GHOST_SPAWN_POSITIONS.size()):
-			_create_marker(lantern_layer, "LanternGhost_%02d" % (i + 1), LANTERN_GHOST_SPAWN_POSITIONS[i])
+	_replace_marker_layer(paper_layer, "PaperEffigy", level_data.segment_02_paper_spawn_positions)
+	_replace_marker_layer(lantern_layer, "LanternGhost", level_data.segment_02_lantern_spawn_positions)
+
+
+func _replace_marker_layer(parent: Node, marker_prefix: String, positions: Array[Vector2]) -> void:
+	for child in parent.get_children():
+		parent.remove_child(child)
+		child.queue_free()
+	for i in range(positions.size()):
+		_create_marker(parent, "%s_%02d" % [marker_prefix, i + 1], positions[i])
 
 
 func _spawn_paper_effigies() -> void:
@@ -176,7 +178,7 @@ func _load_capped_enemy_config(config_path: String) -> EnemyConfig:
 	if not source_config:
 		return null
 	var config_copy = source_config.duplicate(true) as EnemyConfig
-	config_copy.detect_range = minf(config_copy.detect_range, ENEMY_DETECT_RANGE_CAP)
+	config_copy.detect_range = minf(config_copy.detect_range, level_data.segment_02_enemy_detect_range_cap)
 	return config_copy
 
 
@@ -230,48 +232,102 @@ func _build_narrative_ui() -> void:
 
 
 func _show_intro_narrative() -> void:
-	await get_tree().create_timer(INTRO_NARRATIVE_DELAY).timeout
-	_show_narrative(INTRO_NARRATIVE_TEXT)
+	_cancel_intro_narrative()
+	_intro_narrative_timer = Timer.new()
+	_intro_narrative_timer.name = "IntroNarrativeTimer"
+	_intro_narrative_timer.one_shot = true
+	_intro_narrative_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_intro_narrative_timer.timeout.connect(_on_intro_narrative_timeout, CONNECT_ONE_SHOT)
+	add_child(_intro_narrative_timer)
+	_intro_narrative_timer.start(maxf(level_data.segment_02_intro_delay, 0.001))
+
+
+func _on_intro_narrative_timeout() -> void:
+	var timer := _intro_narrative_timer
+	_intro_narrative_timer = null
+	if is_instance_valid(timer):
+		timer.queue_free()
+	if is_inside_tree() and level_data:
+		_show_narrative(level_data.segment_02_intro_text)
+
+
+func _cancel_intro_narrative() -> void:
+	if is_instance_valid(_intro_narrative_timer):
+		_intro_narrative_timer.stop()
+		_intro_narrative_timer.queue_free()
+	_intro_narrative_timer = null
 
 
 func _show_narrative(text: String) -> void:
-	InputManager.block_input("叙事面板", self)
 	if _narrative_open:
-		if _narrative_panel:
-			_narrative_panel.hide()
-		_narrative_open = false
+		_close_narrative()
+	InputManager.block_input("叙事面板", self)
 	_narrative_open = true
+	_narrative_enter_pressed = false
+	_narrative_arm_remaining = level_data.narrative_input_arm_delay
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
 	_freeze_player(true)
-	var pages := GameUIStyle.paginate_interaction_text(text)
-	var page_index := 0
+	_narrative_pages.clear()
+	_narrative_pages.append_array(GameUIStyle.paginate_interaction_text(text))
+	if _narrative_pages.is_empty():
+		_narrative_pages.append(text)
+	_narrative_page_index = 0
+	_show_narrative_page()
+
+
+func _update_narrative(delta: float) -> void:
+	if not _narrative_open or not level_data:
+		return
+	if _narrative_arm_remaining > 0.0:
+		_narrative_arm_remaining = maxf(_narrative_arm_remaining - delta, 0.0)
+		if _narrative_arm_remaining <= 0.0:
+			_narrative_enter_pressed = false
+		return
+	_narrative_poll_elapsed += delta
+	var poll_interval := maxf(level_data.narrative_poll_interval, 0.001)
+	if _narrative_poll_elapsed < poll_interval:
+		return
+	_narrative_wait_elapsed += _narrative_poll_elapsed
+	_narrative_poll_elapsed = 0.0
+	if _narrative_enter_pressed:
+		_narrative_enter_pressed = false
+		if _narrative_page_index < _narrative_pages.size() - 1:
+			_narrative_page_index += 1
+			_narrative_wait_elapsed = 0.0
+			_show_narrative_page()
+			return
+		_close_narrative()
+		return
+	if _narrative_wait_elapsed >= level_data.narrative_input_timeout:
+		_close_narrative()
+
+
+func _show_narrative_page() -> void:
 	if _narrative_panel:
 		if _narrative_text:
-			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
+			GameUIStyle.fit_interaction_text_panel(
+				_narrative_panel,
+				_narrative_text,
+				_narrative_pages[_narrative_page_index]
+			)
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
 
+
+func _close_narrative() -> void:
+	var was_open := _narrative_open
+	_narrative_pages.clear()
+	_narrative_page_index = 0
+	_narrative_arm_remaining = 0.0
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
 	_narrative_enter_pressed = false
-	var wait_elapsed: float = 0.0
-	const WAIT_DELTA: float = 0.05
-	while _narrative_open and wait_elapsed < NARRATIVE_INPUT_TIMEOUT:
-		if _narrative_enter_pressed:
-			if page_index < pages.size() - 1:
-				page_index += 1
-				_narrative_enter_pressed = false
-				wait_elapsed = 0.0
-				if _narrative_panel and _narrative_text:
-					GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
-			else:
-				break
-		await get_tree().create_timer(WAIT_DELTA).timeout
-		wait_elapsed += WAIT_DELTA
-
-	if _narrative_panel:
-		_narrative_panel.hide()
-	_freeze_player(false)
 	_narrative_open = false
-	_narrative_enter_pressed = false
-	InputManager.unblock_input("叙事面板")
+	if _narrative_panel and is_instance_valid(_narrative_panel):
+		_narrative_panel.hide()
+	if was_open:
+		_freeze_player(false)
+		InputManager.unblock_input("叙事面板", self)
 
 
 func _freeze_player(freeze: bool) -> void:
@@ -305,8 +361,10 @@ func _bind_spawn_point() -> void:
 	if not spawn:
 		spawn = Marker2D.new()
 		spawn.name = "SegmentSpawn"
-		spawn.position = Vector2(138, 546)
+		spawn.position = level_data.segment_02_spawn_position
 		container.add_child(spawn)
+	else:
+		spawn.position = level_data.segment_02_spawn_position
 	player_spawn_point = spawn
 
 
@@ -314,12 +372,17 @@ func _get_spawn_position() -> Vector2:
 	var spawn = get_node_or_null("SpawnPoints/SegmentSpawn") as Marker2D
 	if spawn:
 		return spawn.position
-	return Vector2(138, 546)
+	return level_data.segment_02_spawn_position
 
 
 func _build_exit_trigger() -> void:
 	var container = _get_or_create_child("TriggerZones", Node2D)
-	_exit_trigger = _ensure_trigger_zone(container, "Level0202ExitTrigger", exit_trigger_position, exit_trigger_size)
+	_exit_trigger = _ensure_trigger_zone(
+		container,
+		"Level0202ExitTrigger",
+		level_data.segment_02_exit_trigger_position,
+		level_data.segment_02_exit_trigger_size
+	)
 	if not _exit_trigger.body_entered.is_connected(_on_exit_trigger_body_entered):
 		_exit_trigger.body_entered.connect(_on_exit_trigger_body_entered)
 	_add_exit_dot_visual(_exit_trigger)
@@ -402,10 +465,18 @@ func _create_trigger_zone(zone_name: String, pos: Vector2, size: Vector2) -> Are
 
 func _ensure_trigger_zone(container: Node, zone_name: String, pos: Vector2, size: Vector2) -> Area2D:
 	var area = container.get_node_or_null(zone_name) as Area2D
-	if area:
-		return area
-	area = _create_trigger_zone(zone_name, pos, size)
-	container.add_child(area)
+	if not area:
+		area = _create_trigger_zone(zone_name, pos, size)
+		container.add_child(area)
+	area.position = pos
+	var collision := area.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if not collision:
+		collision = CollisionShape2D.new()
+		collision.name = "CollisionShape2D"
+		area.add_child(collision)
+	var shape := RectangleShape2D.new()
+	shape.size = size
+	collision.shape = shape
 	return area
 
 
@@ -428,9 +499,9 @@ func _emit_level_complete() -> void:
 		return
 	_level_complete_emitted = true
 	get_viewport().gui_release_focus()
+	prepare_for_level_exit()
 	InputManager.force_unblock_all()
-	_cleanup_enemies()
-	EventBus.unsubscribe_all(self)
+	var next_level_path := level_data.segment_02_next_level_path
 	if next_level_path == "":
 		print("[Level_02_02] 下一关路径为空，停留在当前关卡")
 		return

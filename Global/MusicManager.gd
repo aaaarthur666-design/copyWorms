@@ -12,8 +12,20 @@ extends Node
 var _current_bgm_path: String = ""
 var _base_volume_db: float = 0.0
 var _transition_id: int = 0
-var _fade_tween: Tween = null
 var _paused_by_game: bool = false
+
+enum FadeMode {
+	NONE,
+	CROSSFADE,
+	STOP,
+}
+
+var _fade_mode: int = FadeMode.NONE
+var _fade_transition_id: int = -1
+var _fade_duration: float = 0.0
+var _fade_elapsed: float = 0.0
+var _fade_primary_start_db: float = 0.0
+var _fade_secondary_start_db: float = -80.0
 
 var _primary_player: AudioStreamPlayer = null
 var _fade_player: AudioStreamPlayer = null
@@ -21,8 +33,16 @@ var _fade_player: AudioStreamPlayer = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	EventBus.subscribe(GlobalDefine.EventName.GAME_PAUSE, self, "_on_game_pause")
-	EventBus.subscribe(GlobalDefine.EventName.GAME_RESUME, self, "_on_game_resume")
+	EventBus.subscribe_persistent(GlobalDefine.EventName.GAME_PAUSE, self, "_on_game_pause")
+	EventBus.subscribe_persistent(GlobalDefine.EventName.GAME_RESUME, self, "_on_game_resume")
+
+
+func _exit_tree() -> void:
+	_release_audio_resources_for_exit()
+
+
+func _process(delta: float) -> void:
+	_update_fade(delta)
 
 
 func _on_game_pause(_data: Dictionary = {}) -> void:
@@ -51,11 +71,12 @@ func play_bgm(stream_path: String, from_position: float = 0.0) -> void:
 	if _is_current_or_loaded(stream_path):
 		return
 	_transition_id += 1
-	_kill_tween()
+	_cancel_fade()
 	_free_player(_fade_player)
 	_fade_player = null
 	_free_player(_primary_player)
 	_primary_player = _make_player(stream, _base_volume_db)
+	_bind_primary_finished()
 	_primary_player.play(from_position)
 	_current_bgm_path = stream_path
 	_apply_pause_state()
@@ -66,11 +87,12 @@ func restart_bgm(stream_path: String, from_position: float = 0.0) -> void:
 	if not stream:
 		return
 	_transition_id += 1
-	_kill_tween()
+	_cancel_fade()
 	_free_player(_fade_player)
 	_fade_player = null
 	_free_player(_primary_player)
 	_primary_player = _make_player(stream, _base_volume_db)
+	_bind_primary_finished()
 	_primary_player.play(from_position)
 	_current_bgm_path = stream_path
 	_apply_pause_state()
@@ -84,11 +106,12 @@ func play_bgm_from_stream(stream: Resource, from_position: float = 0.0) -> void:
 	if key != "" and _is_current_or_loaded(key):
 		return
 	_transition_id += 1
-	_kill_tween()
+	_cancel_fade()
 	_free_player(_fade_player)
 	_fade_player = null
 	_free_player(_primary_player)
 	_primary_player = _make_player(audio_stream, _base_volume_db)
+	_bind_primary_finished()
 	_primary_player.play(from_position)
 	_current_bgm_path = key
 	_apply_pause_state()
@@ -104,7 +127,7 @@ func fade_to(stream_path: String, duration: float = 1.0, from_position: float = 
 
 	_transition_id += 1
 	var id := _transition_id
-	_kill_tween()
+	_cancel_fade()
 	_free_player(_fade_player)
 
 	_fade_player = _make_player(stream, -80.0)
@@ -116,21 +139,13 @@ func fade_to(stream_path: String, duration: float = 1.0, from_position: float = 
 		_promote_fade_player(id)
 		return
 
-	var old_player := _primary_player
-	_fade_tween = create_tween().set_parallel(true)
-	_fade_tween.tween_property(old_player, "volume_db", -80.0, duration).set_trans(Tween.TRANS_SINE)
-	_fade_tween.tween_property(_fade_player, "volume_db", _base_volume_db, duration).set_trans(Tween.TRANS_SINE)
-	_fade_tween.tween_callback(func():
-		if id != _transition_id:
-			return
-		_promote_fade_player(id)
-	).set_delay(duration)
+	_begin_fade(FadeMode.CROSSFADE, id, duration)
 
 
 func stop_bgm(fade_duration: float = 0.5) -> void:
 	_transition_id += 1
 	var id := _transition_id
-	_kill_tween()
+	_cancel_fade()
 	_free_player(_fade_player)
 	_fade_player = null
 
@@ -139,19 +154,13 @@ func stop_bgm(fade_duration: float = 0.5) -> void:
 		return
 
 	var player := _primary_player
-	_primary_player = null
 	_current_bgm_path = ""
 	if fade_duration <= 0.0:
+		_primary_player = null
 		_free_player(player)
 		return
 
-	_fade_tween = create_tween()
-	_fade_tween.tween_property(player, "volume_db", -80.0, fade_duration).set_trans(Tween.TRANS_SINE)
-	_fade_tween.tween_callback(func():
-		if id != _transition_id:
-			return
-		_free_player(player)
-	)
+	_begin_fade(FadeMode.STOP, id, fade_duration)
 
 
 func set_volume_db(db: float) -> void:
@@ -204,12 +213,53 @@ func _make_player(stream: AudioStream, volume_db: float) -> AudioStreamPlayer:
 	player.stream = stream
 	player.volume_db = volume_db
 	player.bus = "Master"
-	player.finished.connect(func():
-		if is_instance_valid(player) and player == _primary_player and _current_bgm_path != "":
-			player.play()
-	)
 	add_child(player)
 	return player
+
+
+func _bind_primary_finished() -> void:
+	if is_instance_valid(_primary_player) and not _primary_player.finished.is_connected(_on_primary_player_finished):
+		_primary_player.finished.connect(_on_primary_player_finished)
+
+
+func _on_primary_player_finished() -> void:
+	if is_instance_valid(_primary_player) and _current_bgm_path != "":
+		_primary_player.play()
+
+
+func _begin_fade(mode: int, id: int, duration: float) -> void:
+	_fade_mode = mode
+	_fade_transition_id = id
+	_fade_duration = maxf(duration, 0.001)
+	_fade_elapsed = 0.0
+	_fade_primary_start_db = _primary_player.volume_db if is_instance_valid(_primary_player) else -80.0
+	_fade_secondary_start_db = _fade_player.volume_db if is_instance_valid(_fade_player) else -80.0
+
+
+func _update_fade(delta: float) -> void:
+	if _fade_mode == FadeMode.NONE:
+		return
+	if _fade_transition_id != _transition_id:
+		_cancel_fade()
+		return
+	_fade_elapsed = minf(_fade_elapsed + maxf(delta, 0.0), _fade_duration)
+	var progress := _fade_elapsed / _fade_duration
+	var eased := 0.5 - cos(progress * PI) * 0.5
+	if is_instance_valid(_primary_player):
+		_primary_player.volume_db = lerpf(_fade_primary_start_db, -80.0, eased)
+	if _fade_mode == FadeMode.CROSSFADE and is_instance_valid(_fade_player):
+		_fade_player.volume_db = lerpf(_fade_secondary_start_db, _base_volume_db, eased)
+	if progress < 1.0:
+		return
+	var completed_mode := _fade_mode
+	var completed_id := _fade_transition_id
+	_cancel_fade()
+	if completed_mode == FadeMode.CROSSFADE:
+		_promote_fade_player(completed_id)
+	elif completed_mode == FadeMode.STOP:
+		var player := _primary_player
+		_primary_player = null
+		_free_player(player)
 
 
 func _promote_fade_player(id: int) -> void:
@@ -220,6 +270,7 @@ func _promote_fade_player(id: int) -> void:
 	_fade_player = null
 	if _primary_player and is_instance_valid(_primary_player):
 		_primary_player.volume_db = _base_volume_db
+		_bind_primary_finished()
 	_apply_pause_state()
 
 
@@ -232,10 +283,28 @@ func _apply_pause_state() -> void:
 func _free_player(player: AudioStreamPlayer) -> void:
 	if player and is_instance_valid(player):
 		player.stop()
-		player.queue_free()
+		player.stream = null
+		player.free()
 
 
-func _kill_tween() -> void:
-	if _fade_tween and is_instance_valid(_fade_tween):
-		_fade_tween.kill()
-	_fade_tween = null
+func _cancel_fade() -> void:
+	_fade_mode = FadeMode.NONE
+	_fade_transition_id = -1
+	_fade_duration = 0.0
+	_fade_elapsed = 0.0
+	_fade_primary_start_db = 0.0
+	_fade_secondary_start_db = -80.0
+
+
+func _release_audio_resources_for_exit() -> void:
+	_transition_id += 1
+	_cancel_fade()
+	for child: Node in get_children():
+		if child is AudioStreamPlayer:
+			var player := child as AudioStreamPlayer
+			player.stop()
+			player.stream = null
+	_primary_player = null
+	_fade_player = null
+	_current_bgm_path = ""
+	_paused_by_game = false

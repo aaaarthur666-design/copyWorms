@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="LingnanPlayerConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Player/LingnanPlayerConfig.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+action_deceleration = 600.0
+skill_cooldown = 5.0
+charge_threshold_short = 0.2
+charge_threshold_big = 0.6
+charge_max_time = 1.1
+bagua_charge_max_time = 3.5
+charge_damage_multiplier = 0.5
+attack_hold_threshold = 0.18
+dash_cooldown = 3.5
+dash_windup_time = 0.2
+dash_speed = 1000.0
+dash_duration = 0.2
+dash_hit_radius = 50.0
+dash_path_hit_radius = 50.0
+dash_damage = 25
+dash_damage_type = 0
+dash_crit_chance = 0.1
+dash_afterimage_interval = 0.06
+dash_action_time_bonus = 0.1
+dash_invincible_bonus = 0.3
+dash_camera_shake_strength = 4.0
+dash_camera_shake_duration = 0.1
+small_spin_duration = 0.2
+small_spin_hits = 1
+small_spin_range = 100.0
+small_spin_damage = 30
+big_spin_duration = 0.3
+big_spin_hits = 2
+big_spin_range = 160.0
+big_spin_damage = 25
+spin_damage_type = 0
+spin_crit_chance = 0.1
+spin_second_hit_time = 0.1
+spin_action_time_bonus = 0.05
+small_spin_camera_shake = 3.0
+big_spin_camera_shake = 5.0
+spin_camera_shake_duration = 0.15
+suck_range = 800.0
+suck_force = 520.0
+suck_min_distance = 10.0
+suck_min_strength_ratio = 0.2
+suck_vertical_ratio = 0.5
+suck_horizontal_response = 10.0
+suck_vertical_response = 5.0
+bagua_action_duration = 0.35
+bagua_min_range = 120.0
+bagua_max_range = 360.0
+bagua_min_push_force = 420.0
+bagua_max_push_force = 980.0
+bagua_min_falloff = 0.25
+bagua_vertical_push_ratio = 0.35
+bagua_enemy_stun_time = 0.35
+bagua_non_body_displacement = 0.04
+bagua_huadan_stun_time = 3.0
+bagua_shield_max_hp = 15
+bagua_camera_shake_base = 4.0
+bagua_camera_shake_bonus = 5.0
+bagua_camera_shake_duration = 0.16

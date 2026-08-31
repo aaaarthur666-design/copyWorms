@@ -2,11 +2,11 @@
 
 > 唯一架构文档
 >
-> 更新日期：2026-08-31
+> 更新日期：2026-09-01
 >
 > 目标引擎：Godot 4.6，GL Compatibility
 >
-> 文档依据：当前仓库静态扫描、关键链路检查与既有主场景 headless 启动验证；本次仅更新文档，未修改运行时代码、场景或资源
+> 文档依据：当前仓库静态扫描、关键链路检查与主场景 headless 启动验证
 
 ## 1. 项目定位与当前规模
 
@@ -16,9 +16,9 @@
 
 | 类型 | 数量 |
 |---|---:|
-| GDScript (`.gd`) | 83 |
+| GDScript (`.gd`) | 87 |
 | 场景 (`.tscn`) | 38 |
-| Resource 配置 (`.tres`) | 20 |
+| Resource 配置 (`.tres`) | 26 |
 | Shader (`.gdshader`) | 8 |
 
 项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。
@@ -58,7 +58,7 @@ flowchart TD
     LEVEL --> MAP[Pixelwork 地图运行时]
 ```
 
-跨模块通信优先经过 `EventBus` 和 `GameManager`。场景切换由专职的 `SceneTransitionManager` 统一协调：所有整树换场景和检查点重启都必须经过它；`EventBus` 只负责传递事件，不直接执行场景切换；`GameManager` 只保存必要的跨场景状态和检查点。关卡可以装配玩家、敌人和 UI，但玩家或敌人不应反向依赖具体关卡脚本。
+跨模块通信优先经过 `EventBus` 和 `GameManager`。关卡可以装配玩家、敌人和 UI，但玩家或敌人不应反向依赖具体关卡脚本。
 
 ## 3. 主流程与场景生命周期
 
@@ -81,10 +81,6 @@ flowchart LR
 
 `TitleScreen` 通过 `SceneTransitionManager` 进入 `MainEntry`。`MainEntry` 实例化 `Level_01`，订阅 `LEVEL_COMPLETE`，并在前半段流程中以替换子节点的方式承载关卡。
 
-`SceneTransitionManager` 是关卡切换的专职协调器，不是可选工具类。它是整树 `change_scene_to_file()` 的唯一入口，也负责检查点重启、重复请求保护和转场前的公共清理。清理顺序包括调用当前关卡或入口的 `prepare_for_level_exit()`、解除暂停、清空 `GameManager` 的玩家/关卡/敌人/Boss 临时引用、强制解除输入屏蔽、清除音乐暂停状态和释放 GUI 焦点；目标路径会在真正切换前校验，并在关键步骤间等待帧完成。普通关卡、标题页和 HUD 不得直接调用 `SceneTree.change_scene_to_file()` 或自行复制这套全局清理。
-
-在 `MainEntry` 托管模式下，`MainEntry` 只拥有子关卡的释放、实例化和淡入淡出编排：它接收 `LEVEL_COMPLETE`，调用 `SceneTransitionManager.cleanup_for_transition()` 后替换当前子节点。检查点重启也由 `SceneTransitionManager` 统一分流，当前根节点支持 `_switch_to_level()` 时复用托管切换，否则走整树切换或当前场景重载。这样可以保留两种生命周期的现状，同时保证清理协议只有一个实现来源。
-
 当前转场模型并未完全统一：
 
 - `Level_03` 在 `MainEntry` 托管时发送 `LEVEL_COMPLETE`，独立运行时直接切场景。
@@ -106,18 +102,18 @@ flowchart TD
     F1 --> BACK[返回现实房间]
     F2 --> BACK
     BACK --> CONFIG[/config]
-    CONFIG --> FLAGS[GameManager.dream_runtime_flags]
+    CONFIG --> FLAGS[GameManager.DreamRuntimeState]
     FLAGS --> L3[Level_03 应用能力配置]
 ```
 
-`/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 写入 `GameManager.dream_runtime_flags`。`Level_03` 读取这些标记，应用跳跃能力、伤害减免及外部信号相关规则。
+`/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 把配置结果写入 `GameManager.dream_runtime_state`。`Level_03` 当前仍通过 `dream_runtime_flags` 兼容字典读取这些标记，减伤恢复为 `PLAYER_HURT` 后的旧回补逻辑。三种玩家形态、Slash、关卡流程和敌人行为的正式数值均由对应 DataConfig 资源提供。
 
 复战流程的当前契约如下：
 
-- `LevelFuzhanSub01` 是进度与文本的集中来源。系统总是选择第一个未完成区域；每区收集 3 个记忆碎片、合计 6 个后才开放 `/config`。
-- `LevelFuzhanMemoryBase` 统一承担敌人生成、击杀计数、掉落、叙事冻结、死亡保护和返回现实。每击杀 10 个敌人产生一个待收集物，同一时间只保留一个待收集掉落。
+- `LevelFuzhanSub01` 是进度与文本的集中入口，目标数量读取 `Level02Data.memory_fragments_per_area` 与 `memory_total_fragments`；当前正式资源配置为每区 3 个、合计 6 个。
+- `LevelFuzhanMemoryBase` 统一承担敌人生成、击杀计数、掉落、叙事冻结、死亡保护和返回现实。掉落阈值读取 `Level02Data.memory_kills_per_drop`（当前为 10），同一时间只保留一个待收集掉落。
 - 收集展示、叙事或玩家死亡期间会冻结敌人和生成计时器。死亡会把生命值保护在 1、保留已收集进度并带失败原因返回现实房间，不显示常规 Game Over。
-- `Level_02_03` 消费返回原因、恢复现实房间和终端状态；`/config` 完成重编译后才把能力键写入 `GameManager.dream_runtime_flags`，随后继续到 `Level_03`。
+- `Level_02_03` 消费返回原因、恢复现实房间和终端状态；`/config` 完成重编译后才把能力键写入类型化运行时状态，随后继续到 `Level_03`。
 - 返回链兼容两种生命周期：存在 `MainEntry` 托管时发送 `LEVEL_COMPLETE`，否则由 `SceneTransitionManager` 直接切换。
 
 | 所属 | 关键状态或参数 |
@@ -150,13 +146,13 @@ flowchart TD
 | `KeybindManager` | 按键映射读取、修改和持久化 |
 | `MusicManager` | BGM 播放、淡入淡出及暂停联动 |
 | `SFXManager` | 音效播放、实例管理和防抖 |
-| `SceneTransitionManager` | 专职关卡切换协调器：整树切场景、检查点重启、重复请求保护和转场清理 |
+| `SceneTransitionManager` | 校验并受理切场景请求，以逐帧状态机完成清理、切换和解锁；同时负责检查点重启 |
 
-Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会在构建快照中移除它。当前工具基础设施基线为 Godot AI 3.2.0，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移。3.2.0 的自定义工具入口默认不在 Codex 白名单内，只有项目提交了经过审查的注册实现后才可另行开放。版本化的 MCP 团队基线位于 `.codex/config.example.toml`，本机活动配置 `.codex/config.toml` 被 Git 忽略；项目作用域、权限和协作规则以 `.codex/README.md` 为准。
+Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 helper 用于编辑器启动的游戏进程与 MCP 捕获，不属于上述游戏架构；插件的导出钩子会移除该 Autoload，Web 导出预设还会排除整个 `addons/godot_ai/` 与 `Tests/`，避免把编辑器服务和自测夹具打进正式资源包。当前已提交的工具基础设施基线为 Godot AI 3.2.0，项目目标引擎锁定为 Godot 4.6 分支，不随上游版本自动迁移；3.2.0 的自定义工具入口默认不在 Codex 白名单内，只有项目提交了经过审查的注册实现后才可另行开放。版本化的 MCP 团队基线位于 `.codex/config.example.toml`，本机活动配置 `.codex/config.toml` 被 Git 忽略；项目作用域、权限和协作规则以 `.codex/README.md` 为准。
 
 ### 4.1 运行模式
 
-`GameManager` 根据当前场景路径区分正式模式和 `SelfTest` 模式。正式主线与局部测试场景共享核心模块，但测试场景不得写入正式场景链路或成为正式资源依赖。
+`GameManager` 根据当前场景路径区分正式模式和 `SelfTest` 模式，并在 Autoload 就绪后延迟复核一次，避免 Autoload `_ready()` 早于 `current_scene` 建立。正式主线与局部测试场景共享核心模块，但测试场景不得写入正式场景链路或成为正式资源依赖；测试目录不会进入 Web 正式包。
 
 ### 4.2 全局状态边界
 
@@ -164,22 +160,19 @@ Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 hel
 
 - `player_ref`、`current_level`
 - `enemy_list`
-- 暂停、游戏结束、对话状态
+- 暂停、游戏结束、按 owner 计数的对话状态
 - 检查点状态
-- `dream_runtime_flags`
+- `DreamRuntimeState` 类型化跨关卡状态
 
-任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`GameManager.restart_from_checkpoint()` 只记录/重置状态并委托 `SceneTransitionManager`，不应在 `GameManager` 内新增场景装载逻辑。
+`dream_runtime_flags` 仅作为旧代码兼容属性：读取返回深拷贝，整表赋值会经过类型校验。新增代码应使用 `dream_runtime_state`、`set_dream_flag()` 和 `get_dream_flag()`；不能对兼容属性返回的 Dictionary 做原地修改。已知键由 `DreamRuntimeState.VALUE_TYPES` 校验，未知赛题键暂时透传，以便赛题发布后扩展。 `Level_03` 因本次稳定性回退暂时保留兼容字典读取，不能作为新增关卡模板。
 
-### 4.3 EventBus 当前契约
+任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`SceneTransitionManager.cleanup_for_transition()` 统一复位暂停、游戏结束、玩家/敌人引用、Boss、对话 owner、输入锁、动作锁、音乐暂停和 UI 焦点，但保留同一局需要跨关卡延续的梦境状态与检查点。标题页两个新局入口统一调用 `GameManager.begin_new_run()`，在临时状态复位之外继续清空 `DreamRuntimeState`、检查点场景、阶段和数据，禁止上一局进度污染新流程。
 
-`EventBus` 是跨模块事件通道，不承担节点装配或场景切换。当前实现已经覆盖以下订阅生命周期修复：
+### 4.3 事件与输入锁契约
 
-- `subscribe()` 校验节点实例和回调方法是否存在；同一事件下同一节点/方法重复订阅会自动去重。
-- 订阅节点退出场景树时自动执行 `unsubscribe_all()`，并在广播时再次跳过失效节点或已不存在的回调。
-- `emit()` 遍历监听者副本，允许回调过程中修改订阅而不破坏当前遍历；`emit_deferred()` 将事件集中排队到下一次处理阶段。
-- 事件名仍统一来自 `GlobalDefine.EventName`，payload 仍是未做编译期字段检查的 `Dictionary`。
+`EventBus.emit()` 是同步中介者分发：返回前按订阅顺序完成当前监听快照；回调中订阅或退订只影响下一次发射。需要跨帧时必须显式调用 `emit_deferred()`；入队时会深拷贝 payload，延迟队列在暂停状态下也会继续排空。订阅以 `owner + method` 幂等去重，owner 离树后自动清理；同一 owner 可为同一事件登记多个方法，并可按 method 精确退订。`subscribe()` 默认建立场景级订阅，`subscribe_persistent()` 只用于 `MusicManager`、`SFXManager` 等确需覆盖整个应用生命周期的 Autoload 监听。场景隔离和测试清场使用 `clear_transient()`：它移除场景级订阅并取消未投递的延迟事件，但保留应用级订阅；`clear_all()` 只用于进程退出或明确的完全重置。玩家、敌人、关卡、交互、伤害和生命事件在分发前校验最小 payload 字段与类型。
 
-需要特别注意当前行为边界：虽然 `emit()` 的注释写作“立即执行”，实际 `_safe_call()` 使用 `call_deferred()` 调度回调，因此 `emit()` 不提供同步完成语义，也不能返回订阅者的执行结果。它降低了回调对广播遍历的副作用，但并不等同于真正的异常捕获；依赖事件处理已完成的代码必须显式改为后续状态或信号协议。
+`InputManager` 的全局锁与动作锁都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。owner 离树会自动释放其全部锁，转场则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。
 
 ## 5. 核心数据流
 
@@ -196,7 +189,7 @@ flowchart LR
     BUS --> HUD[HUD / 关卡逻辑]
 ```
 
-玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。伤害由通用计算器和目标配置共同决定，结果再通过 `EventBus` 投递到 HUD、关卡目标和特效；事件回调的延迟语义见 4.3 节。
+玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。两条输入路径都必须服从同一个全局锁判断，Cyber 与 Lingnan 的长按普攻、技能蓄力和冲刺前摇也不得绕过该锁。敌人受伤链仍由 `DamageCalculator` 与 `EnemyBase.take_damage()` 统一结算，并同步发射 `damage_applied`。玩家受伤链已恢复改动前行为：直接扣血后发射 `PLAYER_HURT` 与 `HEALTH_CHANGED`；`Level_03` 的梦境减伤由事件回调回补生命，因此不再宣称具备扣血前倍率结算。
 
 ### 5.2 敌人生命周期
 
@@ -209,23 +202,22 @@ flowchart LR
     DEAD --> UNREGISTER[注销并释放]
 ```
 
-敌人基类已经在 `_ready()` 自动注册。任何生成器在 `add_child()` 后再次手工注册，都会造成同一实例重复出现在 `enemy_list`。
+敌人基类在 `_ready()` 自动注册，生成器不得再手工注册。`GameManager.register_enemy()` 同时提供幂等保护，离树回调和读取前清理保证 `enemy_list` 只包含唯一、有效、未死亡实例。死亡流程先进入 `DEAD`，再设置死亡标记、注销、同步广播并淡出释放。
 
 ### 5.3 场景切换
 
 ```mermaid
 flowchart LR
-    REQUEST[标题页 / 关卡完成 / 检查点] --> STM[SceneTransitionManager]
-    STM --> PREP[prepare_for_level_exit]
-    PREP --> RESET[清理暂停、输入、音乐、引用、焦点]
-    RESET --> ROOT[整树 change_scene_to_file]
-    RESET --> ENTRY[MainEntry._switch_to_level]
-    ENTRY --> CHILD[替换托管子关卡并淡出]
-    ROOT --> NEXT[下一场景]
-    CHILD --> NEXT
+    REQUEST[关卡完成 / 重启请求] --> VALIDATE[加载并验证目标 PackedScene]
+    VALIDATE --> CLEAN[prepare_for_level_exit]
+    CLEAN --> GLOBAL[清理全局临时状态]
+    GLOBAL --> TRANSITION[SceneTransitionManager]
+    TRANSITION --> NEXT[下一场景]
 ```
 
-`SceneTransitionManager` 是这条链的中心；`MainEntry` 只在托管模式下负责子节点编排。转场必须恢复暂停、输入、音乐、玩家和敌人引用，并清理只属于当前场景的对话或 UI 状态。当前公共清理仍未复位 `GameManager.is_dialog_active`，因此该布尔值污染下一关仍是待修复风险。
+整树转场必须先确认目标路径存在且能加载为 `PackedScene`，再触碰当前场景状态；无效目标只告警，不调用退出钩子、不清输入锁、不重置运行状态。目标有效后，转场必须恢复暂停、输入、音乐、玩家和敌人引用，并清理只属于当前场景的对话或 UI 状态。遗漏的全局布尔值会污染下一关。
+
+`request_scene_change()` 只负责受理有效请求，后续由 `SceneTransitionManager` 的逐帧阶段机执行“清理 → 等待一帧 → 切换 → 等待一帧 → 解锁”；调用方不需要持有或等待协程。`MainEntry` 的子场景遮罩淡入淡出同样由节点自身的逐帧状态驱动，退出时清空待执行回调，避免承载节点释放后仍有悬空恢复点。
 
 ### 5.4 地图数据
 
@@ -250,7 +242,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 | `Level_02`～`Level_02_03` | 多段梦境流程、终端、记忆复战和配置注入 |
 | `Level_03` | 应用跨关卡配置、城市场景、能力变化和战斗推进 |
 | `Level_04` | 维度侵蚀、空间崩塌和世界切换 |
-| `Level_05` | 双世界、双角色独立血量、侵蚀值、花旦 Boss 韧性/眩晕和技能二流程 |
+| `Level_05` | 双世界、双角色独立血量、侵蚀值和花旦 Boss |
 | `Level_final` | 终局展示并返回标题页 |
 
 复杂度较高的脚本包括：
@@ -275,8 +267,6 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 - `Player_Warrior_Cyber`
 - `Player_Warrior_Lingnan`
 
-6 月末至 7 月的能力增量已进入当前运行时链：赛博形态提供技能二并由 HUD 展示按键/冷却，花旦 Boss 增加韧性、破韧眩晕和阶段化攻击；这些行为由玩家、HUD、`Level_05` 与 Boss 之间的现有接口协作，不应重新复制一套关卡专用输入或战斗总线。
-
 `SmoothCamera` 负责跟随与关卡边界。形态切换时需要同步位置、方向、摄像机限制、能力标记和对应生命值。
 
 ### 7.2 普通敌人
@@ -285,17 +275,17 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 ### 7.3 花旦 Boss
 
-花旦 Boss 使用独立多阶段逻辑，包含阶段转换、攻击模式、剑气、灯笼/演出、韧性/破韧眩晕和死亡收束。`Level_05` 同时展示 Boss 血条与韧性条。Boss 继承通用敌人语义，但对阶段、韧性和死亡流程有重写；修改基类生命周期时必须同时检查 Boss 重写。阶段阈值和韧性参数当前仍在脚本常量中，后续若要平衡化应迁移到 `DataConfig`，并保持运行时状态与配置分离。
+花旦 Boss 使用独立多阶段逻辑，包含阶段转换、攻击模式、剑气、灯笼/演出和死亡收束。Boss 继承通用敌人语义，但对阶段和死亡流程有重写；修改基类生命周期时必须同时检查 Boss 重写。
 
 ## 8. UI、音频与视觉层
 
 ### 8.1 HUD
 
-`UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，负责常驻战斗信息、暂停界面及部分关卡特效。HUD 的通用关卡判断应通过 `GameManager.current_level`，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点；当前 `_is_code_rain_pause_scene()` 仍有依赖 `current_scene` 的例外路径，属于第 10.1 节的待修复风险。
+`UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，负责常驻战斗信息、暂停界面及部分关卡特效。HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点。
 
 ### 8.2 音频
 
-`MusicManager` 管理 BGM，`SFXManager` 管理短音效。关卡配置可保存音频路径，但运行时加载前应检查资源存在性，避免缺失资源直接产生错误日志。
+`MusicManager` 管理 BGM，`SFXManager` 管理短音效。关卡配置可保存音频路径，但运行时加载前应检查资源存在性，避免缺失资源直接产生错误日志。BGM 淡入、交叉淡化和淡出由 `MusicManager` 自身的逐帧状态机驱动；退役播放器必须停止、清空 stream 并同步释放。两个音频管理器在退出时都要停止播放器并断开资源引用，保证短时自测退出不会遗留音频播放资源。
 
 ### 8.3 Shader 与工具
 
@@ -303,16 +293,19 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 ## 9. 配置与资源边界
 
-`DataConfig/` 使用 `.tres` 将部分平衡参数与脚本分离：
+`DataConfig/` 是正式玩法数值的运行时权威来源。当前边界如下：
 
-- `PlayerConfig`：生命、移动、跳跃、攻击等
-- `EnemyConfig`：生命、速度、感知、伤害等
-- `LevelConfig` / 关卡数据：出生点、相机范围、流程文本、下一关路径等
-- 技能配置：冷却、伤害和技能参数
+- `PlayerConfig / WarriorConfig.tres`：三形态共享的生命、移动、跳跃、攻击、冲刺、受击、镜头跟随和梯子攀爬参数
+- `CyberPlayerConfig.tres`、`LingnanPlayerConfig.tres`：各形态独有技能、反击、蓄力、位移、判定、护盾和反馈节奏
+- `SkillConfig / SlashConfig.tres`：Slash 与剑气的伤害、类型、暴击、范围、动作时长、速度和最大距离
+- `EnemyConfig` 的各正式 `.tres`：敌人基础反馈与具体原型实际使用的移动、跳跃、连击、冲撞、悬浮、弹体和伤害类型；共享类是多个原型的字段超集，普通敌人资源只显式写出基类与该原型会读取的字段
+- `BossHuadanConfig.tres`、`BossHuadanBehaviorConfig.tres` 与 `BossDecisionProfile`：Boss 阶段数值、韧性、召唤、剑气、动作节奏和分阶段权重决策
+- `LevelConfig`、`Level01Data` 至 `Level05Data`、`LevelFinalData`：正式关卡的玩家/转场路径、出生点、相机、刷怪、交互冷却、概率、距离、侵蚀、谜题、文本和演出时序
+- `MemoryRecoveryArea01/02.tres`：两个复战区域各自的出生点、相机、敌人和掉落边界、存活上限与生成间隔
 
-6 月后的整理重点是资源链路而不是另起一套配置系统：正式关卡继续引用 `DataConfig/Level/Level0xConfig.tres` 和对应的关卡数据资源；`Level02Data` 仍是 `Level_02`、`Level_02_03` 的正式文本/谜题/音频挂点来源，而复战区域的运行时进度与常量由 `LevelFuzhanSub01` 统一维护并写入 `GameManager.dream_runtime_flags`。7～8 月的整理修复了多份旧的脚本/资源 UID 引用，补齐了当前资源类的 `.gd.uid`，并移除了 `LevelModule/Backup/` 中已不再使用的 Level 02 快照；修改 `.tres` 或 `.tscn` 时仍不得手工编造 UID。
+正式消费者不得在配置缺失、数组为空或路径非法时静默退回另一套玩法数值；必需配置应明确报错并停止对应初始化。类脚本中的默认值只承担新建资源时的编辑器模板与最终安全兜底，不是正式资源的第二套平衡表。临时运行时实验不得写回共享 `.tres`，应使用资源副本、实例字段或 `DreamRuntimeState`。
 
-当前 `SkillConfig` 已正式存在并被 `SlashConfig.tres` 使用，但赛博角色技能二和花旦 Boss 的韧性/阶段阈值仍主要是脚本常量，不能把它们误写成已经完全数据驱动。
+`Tools/ConfigValidator.gd` 验证正式资源类型、路径、范围、概率、数组对应关系、Boss 权重、关卡边界与阶段时序。`Scripts/check_dataconfig_consumers.ps1` 进一步审计所有导出字段是否存在正式运行时消费者、非敌人资源是否显式序列化全部值，以及每个敌人原型实际读取的字段是否在对应 `.tres` 中显式标定。
 
 原则：
 
@@ -321,47 +314,49 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 3. `Backup/` 只保存历史参考，不得与正式资源共用 UID。
 4. 所有资源路径大小写必须与磁盘文件名完全一致，以保证 Windows、Web 和 Linux 行为一致。
 5. 资源可选时先用 `ResourceLoader.exists()` 检查；资源必需时应在启动验证中明确失败。
+6. 新增导出字段必须在同一改动中接入正式消费者并补齐校验；失效字段应删除，不能保留“看似可调但运行时无效”的假配置。
+7. 纯视觉尺寸、颜色、贴图切片、状态枚举和算法哨兵仍留在代码或场景；会改变玩法结果、节奏、流程、概率、距离阈值或测试关键位置的数值进入 DataConfig。
 
 ## 10. 已确认问题与修复边界
 
-### 10.1 仍需直接修复的代码问题
+### 10.1 已完成的纯代码修复
 
 以下问题不需要新增美术、音频、文案或策划数值：
 
-| 优先级 | 问题 | 影响 |
+| 优先级 | 原问题 | 当前契约 |
 |---|---|---|
-| P0 | 敌人在 `_ready()` 自动注册后又被部分生成器手工注册 | 范围攻击可能对同一实例重复结算，注销后残留条目 |
-| P0 | `Level_03` 通过受伤后回血实现减伤 | 致死攻击可能先进入死亡/失败状态，再被延迟回血 |
-| P0 | 转场清理未复位对话状态 | 下一关敌人可能持续无法锁定玩家 |
-| P1 | `EventBus` 的订阅生命周期修复已落地，但 `emit()` 仍通过 `call_deferred()` 调用回调 | 不能提供同步完成语义；`_safe_call()` 也不是真正的异常捕获边界 |
-| P1 | 输入屏蔽只使用全局计数，没有所有者 | 一个模块可能误解除另一个模块的输入锁 |
-| P1 | HUD 使用 `current_scene` 判断正式关卡 | `MainEntry` 托管时关卡专属效果判断错误 |
-| P1 | 敌人资源目录存在大小写不一致引用 | Windows 可运行，但 Web/Linux 导出存在加载失败风险 |
+| P0 | 敌人自动注册后被生成器重复注册 | 生成器重复入口已移除，`GameManager` 幂等并自动清理 |
+| P0 | 转场清理未复位对话状态 | 对话按 owner 计数，转场统一清理 |
+| P0 | 敌人和 Boss 的 `DEAD` 状态被早退拦截 | 先切状态再置死亡标记，死亡事件只广播一次 |
+| P0 | 新局入口只切模式，上一局梦境状态和检查点会残留 | 标题页入口统一调用 `GameManager.begin_new_run()`，同时复位临时状态和整局进度 |
+| P0 | 无效目标转场会先清理当前场景，再发现无法切换 | 目标场景先加载为 `PackedScene`；预检失败保证当前状态原样保留 |
+| P0 | `Level_03_Official` 的 `CodeRainOverlay` 未绑定脚本，运行时强类型赋值失败 | 正式场景显式绑定 `Tools/CodeRain.gd`，并纳入场景冒烟清单 |
+| P1 | `EventBus` 用延迟调用模拟立即分发，且清场会误删 Autoload 订阅 | `emit()` 同步、`emit_deferred()` 显式跨帧；场景级/应用级订阅、精确退订、payload 校验和 owner 清理均有回归测试 |
+| P1 | 输入屏蔽只有全局计数，且玩家轮询和长按动作可绕过锁 | owner、嵌套计数和 token 精确释放已生效；移动、跳跃、蓄力与长按动作共用全局锁判断 |
+| P1 | `Level_03` 直接写对话布尔值并用无 owner 方式解锁 | 叙事面板改用 `begin_dialog/end_dialog` 与同 owner 输入锁配对 |
+| P1 | 场景冒烟只看进程退出码，会漏报脚本运行时错误 | 测试 runner 接入脚本错误捕获，ERROR 级脚本日志直接判定失败 |
+| P1 | HUD 依赖 `current_scene` | 改为读取 `GameManager.current_level` |
+| P1 | 可选 HUD 图标缺失会直接调用 `load()` | 先检查资源，缺失时无错误地使用代码文本占位 |
+| P1 | 正式资源路径大小写与磁盘不一致，部分 ext_resource 保存了失效 UID | `Enemy_PaperEffigy` 三处路径已统一大小写；玩家和 Level 03 shader UID 已按仓库内权威 `.uid` sidecar 同步，`Invalid UID` 被列为预检硬失败 |
+| P1 | fire-and-forget 协程、SceneTreeTimer/Tween、音频播放器和线程加载在短时退出时可能悬空 | 转场、叙事和淡入淡出改为节点所有的阶段机或 Timer；退出路径显式释放音频与线程加载，生命周期诊断被列为预检硬失败 |
 
-### 10.2 已落地修复的边界
+2026-08-31 已对上轮造成回归的 Player、Slash 和 Level 03 数据迁移执行选择性回退；EventBus、输入锁、敌人生命周期等已通过验证的基础设施保留。
 
-本轮核对确认以下事项已经在当前代码中成立，后续修改应保持这些契约：
+2026-09-01 已修正正式资源路径大小写与失效 UID，并收紧短时自测退出的异步、音频和线程资源清理；完整预检已恢复通过。
 
-- `SceneTransitionManager` 已作为专职切换 Autoload 提供整树切换、检查点重启、公共清理和重复请求保护；`MainEntry` 托管切换必须复用其清理入口。
-- `EventBus` 已具备节点有效性校验、同事件幂等订阅、退出场景树自动清理、失效监听者跳过和延迟事件队列。
-- `DataConfig` 的正式 Resource 分类、关卡数据绑定和当前 UID 链路已统一；Level 02 正式运行不依赖 `Backup/` 快照。
-- `EnemyBase` 与花旦 Boss 当前已先设置 `is_dead` 再切换 `DEAD`，避免死亡状态切换被自身的早退条件拦截；后续改动仍需同时检查两者的死亡重写。
-
-这些修复不代表下方残余风险已经消失，尤其是 `is_dialog_active` 清理、敌人重复注册和 `emit()` 的同步语义仍需单独处理。
-
-### 10.3 需要架构决策但不需要新资产
+### 10.2 需要架构决策但不需要新资产
 
 | 问题 | 需要决定的事项 |
 |---|---|
 | 主线存在两种转场模型 | 统一由 `MainEntry` 托管，或明确从某关开始整树切换 |
-| `dream_runtime_flags` 使用字符串 Dictionary | 是否改为强类型 Resource 或专用数据对象 |
 | 大型关卡脚本职责过多 | 确定按阶段、系统还是场景区域拆分 |
+| `Level_03` 梦境减伤仍依赖受伤后回补 | 若后续重做扣血前减伤，必须覆盖 Cyber 换肤后的状态继承与致死边界 |
 
-### 10.4 需要资产或人工验证
+### 10.3 需要资产或人工验证
 
 | 问题 | 外部条件 |
 |---|---|
-| `Assets/UI/skill_icon.png` 缺失 | 需要补图；代码只能安全降级为文本 |
+| `Assets/UI/skill_icon.png` 缺失 | 代码已安全降级为文本；若要最终视觉质量仍需补图或人工选择替代 |
 | `Level02Data.tres` 的三条音频路径缺失 | 需要提供音频或人工选择替代资源 |
 | `WarningBarrier` 材质在 dummy 渲染器报错 | 需要图形环境进行视觉 QA |
 | Git 对象体积较大 | 历史清理或 Git LFS 迁移需要团队协作决定 |
@@ -387,44 +382,60 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 ### 11.3 新增事件
 
 1. 在 `GlobalDefine.EventName` 定义事件常量。
-2. 明确 payload 字段和类型。
-3. 使用 `EventBus.subscribe()` / `emit()`。
-4. 节点退出时确保连接和订阅被清理。
-5. 不在业务脚本里散落字符串事件名。
+2. 在 `EventBus` 的核心 payload 契约中登记所有生产者都必须提供的字段和类型。
+3. 默认使用同步 `emit()`；只有明确需要跨帧时才使用 `emit_deferred()`。
+4. 场景节点使用 `subscribe()`；只有确需跨场景常驻的 Autoload 才使用 `subscribe_persistent()`。
+5. 使用稳定 owner 订阅；依赖自动离树清理，并在显式退出流程调用 `unsubscribe_all()`。只移除同一事件下某个回调时，向 `unsubscribe()` 传入 method。
+6. 场景隔离与测试清场使用 `clear_transient()`；`clear_all()` 只用于进程退出或明确的完全重置。
+7. 为同步顺序、payload 拒绝、回调内退订、订阅生命周期、暂停态延迟投递和 owner 清理补充自测断言。
+8. 不在业务脚本里散落字符串事件名。
 
 ### 11.4 新增资源
 
 1. 使用 `res://` 规范路径并保持大小写一致。
 2. 确认导入文件和源文件同时存在。
 3. 不复用备份资源 UID。
-4. 在目标 Godot 版本中重新导入并验证场景。
-5. 音画资产必须进行人工试听或视觉确认。
+4. 将正式资源路径与结构规则加入 `ConfigValidator`。
+5. 在目标 Godot 版本中重新导入并验证场景。
+6. 音画资产必须进行人工试听或视觉确认。
 
 ## 12. 当前验证基线
 
-本次扫描确认：
+当前自动验证基线：
 
-- 主要 GDScript 均可解析，未发现语法错误。
-- 标题页和主线主要场景均可实例化并完成 `_ready()`。
-- 本机 Godot 4.6 headless 启动主场景成功。
-- 项目目前没有自动化单元测试或持续集成基线。
-- Godot 4.6.3 全量 UID 审计未发现重复 UID、无效 UID 或 UID 与文本路径不一致；Level 02 数据已经迁入正式 `DataConfig`，原备份依赖已移除。
-- 强制短时退出会出现资源仍在使用的退出日志，不等同于正常游玩崩溃。
+- 本机 Godot 4.6.2 已完成全项目脚本与资源编译扫描，无 parse/compile error。
+- `Scripts/check_dataconfig_consumers.ps1` 当前通过 807 个导出字段审计；除 5 个明确的名称/图标元数据外，所有字段均有正式运行时消费者，非敌人资源显式写出全部导出值，敌人资源显式写出基类与实际原型会读取的字段。
+- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 88 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/应用级生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外继续覆盖新局重置、无效转场预检、输入锁与玩家轮询、敌人注册、对话状态、运行时状态、伤害计算和 DataConfig 审计。
+- `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前通过 21 项断言；实际执行标题页正式开始到 `MainEntry`，并继续切换 `Level_03 → Level_04 → Level_05`，检查暂停、输入、对话、音乐、梦境状态与检查点的清理/保留边界，以及退出前不存在仍在运行的 SceneTree Tween。
+- `Tests/SelfTest/SceneSmokeRunner.tscn` 已逐一挂载并运行 21 个正式关卡、玩家与敌人场景；runner 使用显式阶段机和清理等待窗口，除 ERROR 级脚本日志外，也会让 `Invalid UID`、ObjectDB 泄漏、资源仍在使用及 orphan callback 等生命周期诊断直接导致预检失败。`Level_03_Official` 已纳入清单。
+- 清理感知的标题主场景 headless 短跑成功；Web 预设资源包导出成功。
+- `res://` 路径存在性与大小写审计当前通过 244 条字面量路径；`Enemy_PaperEffigy.tscn` 的三处引用已与磁盘大小写一致。
+- 导出日志确认 `addons/godot_ai/` 与 `Tests/` 没有进入正式包。
+- `Player_Warrior.tscn`、Cyber/Lingnan 玩家场景及 `Level_03_Official.tscn` 的失效 ext_resource UID 已依据相应脚本或 shader 的仓库内 `.uid` sidecar 修正；完整预检不再产生 `Invalid UID` 诊断。
+- DataConfig 已恢复为正式玩法数值的权威层：玩家三形态、Slash/弹体、普通敌人、Boss 行为、全部正式关卡及两个记忆区域均有运行时消费者；预检会阻止未消费字段和依赖脚本默认值的正式资源通过。
+- `Level_03_Official` 的 CodeRain 脚本绑定已通过编译与 headless 实例化，但像素雨的最终视觉表现仍需图形环境确认。
+- 强制短时退出已具备显式场景、回调、音频与线程资源清理；完整预检当前未产生 ObjectDB 泄漏、资源仍在使用或 orphan callback 诊断，这些信息今后均按失败处理。
 
-每轮结构性修改至少执行：
+一键入口为 `Scripts/preflight.ps1 -GodotPath <Godot 4.6 可执行文件>`；也可通过 `GODOT_46_BIN` 指定引擎。默认执行：
 
 1. `git diff --check`
-2. 本机 Godot 4.6 headless 主场景启动
-3. 受影响关卡独立实例化
-4. 正式主线相邻场景转场验证
-5. 涉及 shader、动画、音频时追加人工画面或试听检查
+2. `res://` 路径存在性与大小写审计
+3. DataConfig 消费者与显式值审计
+4. 全项目脚本/资源编译
+5. 88 项核心契约与 DataConfig 结构审计
+6. 21 项正式主线真实转场冒烟
+7. 清理感知的主场景短跑
+8. 21 个正式场景实例化冒烟
+9. Web 资源包导出
+
+涉及相邻场景真实转场、shader、动画、音频或最终布局时，仍须追加图形环境下的人工游玩、画面或试听检查；headless 不能替代这些验证。
 
 ## 13. 当前工作顺序建议
 
-1. 先修复第 10.1 节的 P0 纯代码问题。
-2. 再处理 P1 的事件、输入、HUD 和跨平台路径问题。
-3. 决定并统一主线转场模型。
-4. 补齐缺失 UI 与音频资产。
-5. 为主线、伤害结算、转场清理和敌人注册建立最小自动化回归测试。
+1. 决定并明确记录 `MainEntry` 托管与整树切换的长期边界；未决前不继续扩散任一模型。
+2. 在赛题发布后优先新增对应 `Resource` 字段和 `DreamRuntimeState` 已知键，再编写业务分支。
+3. 对大型 Level 03–05 脚本按已确认边界逐步拆分，避免赛期进行全量迁移。
+4. 补齐或人工选择最终 UI/音频资产，并在真实图形/音频环境完成主线相邻转场与全流程检查。
+5. 若团队使用远端仓库，将 `Scripts/preflight.ps1` 接入 CI；本地脚本已经是统一失败判定入口。
 
 这份文件是仓库唯一架构文档。架构、主线流程、全局契约或风险状态发生变化时，应直接更新本文件，避免再创建并行版本。

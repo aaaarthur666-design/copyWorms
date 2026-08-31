@@ -13,7 +13,7 @@
 extends LevelBase
 class_name Level_01
 
-@export var level_data: Level01Data = null
+@export var level_data: Level01Data = preload("res://DataConfig/Level/Level01Data.tres")
 
 enum LevelState { LIVING_ROOM, CORRIDOR, BEDROOM, IDE_CHAT, IDE_PREVIEW, PHONE_RINGING, GLITCH_TRANSIT }
 
@@ -38,7 +38,6 @@ var _code_scroll_text: RichTextLabel = null
 var _code_scroll_active: bool = false
 var _code_scroll_timer: float = 0.0
 var _code_scroll_line_index: int = 0
-var _code_scroll_speed: float = 0.12  # 每行间隔秒数
 
 var _obstacle_box: InteractiveObject = null
 var _obstacle_clothes: InteractiveObject = null
@@ -70,27 +69,17 @@ var _all_interactives: Array[InteractiveObject] = []
 # 防止叙事/IDE/睡眠循环嵌套打开的全局锁
 var _narrative_open: bool = false
 # 叙事面板等待 Enter 的最长秒数（防失焦/无键盘时永久卡死）
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
 # _input 捕获到 Enter 按下时设置，供 _show_narrative 的 await 循环感知
 var _narrative_enter_pressed: bool = false
 # 睡眠渐变动画期间为 true，防止 _process 误清交互锁
 var _sleep_fading: bool = false
 
 # 床交互空闲提示：电脑解锁前，每次睡完 2s 内未再找床则弹提示
-const IDLE_BED_PROMPT_TEXT := "没什么事做。\n还是继续睡吧。"
-const IDLE_BED_PROMPT_DELAY: float = 2.0
-const COMPUTER_UNLOCK_SLEEP_COUNT: int = 3
 var _idle_bed_prompt_armed: bool = false
 
 # IDE 预览超时崩溃（8 秒）
-const IDE_PREVIEW_TIMEOUT: float = 8.0
 var _ide_preview_timer: float = 0.0
-const LEVEL_01_MOVE_MULTIPLIER: float = 0.5
 # GLITCH_TRANSIT 床再触发的时序常量
-const FINAL_BLACKOUT_DURATION: float = 4.0
-const FINAL_BLACKOUT_FADE_DURATION: float = 0.8
-const FINAL_AMBIENT_FADE_DURATION: float = 2.5
-const FINAL_GLITCH_DURATION: float = 2.0
 
 # 代码滚动内容：从项目源码提取的代码片段，模拟 AI 实时编写
 const CODE_SCROLL_LINES: Array[String] = [
@@ -323,9 +312,9 @@ func _set_camera_limits(left: int, right: int, top: int, bottom: int) -> void:
 	cam.limit_top = top
 	cam.limit_bottom = bottom
 	# 关卡1专属：2倍放大视角 + 回弹速度减半（更沉重的跟随感）
-	cam.zoom = Vector2(2, 2)
+	cam.zoom = level_data.camera_zoom
 	cam.offset = Vector2.ZERO
-	cam.lerp_speed = 2.5
+	cam.lerp_speed = level_data.camera_lerp_speed
 	cam.bind_target(player)
 	print("[Level_01] SmoothCamera limit 更新 (left=%d, right=%d, zoom=2)" % [left, right])
 
@@ -377,28 +366,28 @@ func _cache_ui_refs() -> void:
 # ---- 关卡1输入策略 ----
 
 func _apply_level_input_rules() -> void:
-	InputManager.block_action(&"player_attack", "Level_01 禁止攻击")
-	InputManager.block_action(&"player_jump", "Level_01 禁止跳跃")
-	InputManager.block_action(&"player_dash", "Level_01 禁止闪身")
+	InputManager.block_action(&"player_attack", "Level_01 禁止攻击", self)
+	InputManager.block_action(&"player_jump", "Level_01 禁止跳跃", self)
+	InputManager.block_action(&"player_dash", "Level_01 禁止闪身", self)
 	var player = GameManager.player_ref
 	if not player: return
 	player.can_jump = false
 	player.can_attack = false
 	player.can_dash = false
 	player.can_skill = false
-	player.runtime_move_speed_multiplier = LEVEL_01_MOVE_MULTIPLIER
+	player.runtime_move_speed_multiplier = level_data.move_speed_multiplier
 
 func _clear_level_input_rules() -> void:
-	InputManager.unblock_action(&"player_attack")
-	InputManager.unblock_action(&"player_jump")
-	InputManager.unblock_action(&"player_dash")
+	InputManager.unblock_action(&"player_attack", self)
+	InputManager.unblock_action(&"player_jump", self)
+	InputManager.unblock_action(&"player_dash", self)
 	var player = GameManager.player_ref
 	if not player: return
 	player.can_jump = true
 	player.can_dash = true
 	player.can_attack = true
 	player.can_skill = true
-	player.runtime_move_speed_multiplier = 1.0
+	player.runtime_move_speed_multiplier = level_data.normal_move_speed_multiplier
 
 ## 关卡级输入守卫：关卡1只禁攻击/跳跃，移动速度固定为0.5倍
 func _enforce_level_restrictions() -> void:
@@ -444,12 +433,12 @@ func _handle_accept_input() -> void:
 		return
 	if _is_interacting or _interact_cooldown > 0.0:
 		if current_state != LevelState.IDE_PREVIEW and current_state != LevelState.IDE_CHAT:
-			if _interact_cooldown > 0.5:
+			if _interact_cooldown > level_data.interaction_recovery_threshold:
 				_safe_end_interaction()
 		return
 	var obj = _find_nearby_interactive()
 	if obj:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		EventBus.emit(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, {"object_id": obj.object_id})
 
 ## 输入处理 — Enter 交互分发
@@ -526,7 +515,7 @@ func _process(delta: float) -> void:
 	# IDE 预览 8 秒超时（玩家在 SubViewport 中超过 8 秒无崩溃/出界则强制终止）
 	if current_state == LevelState.IDE_PREVIEW:
 		_ide_preview_timer += delta
-		if _ide_preview_timer >= IDE_PREVIEW_TIMEOUT:
+		if _ide_preview_timer >= level_data.ide_preview_timeout:
 			_ide_preview_timer = 0.0
 			_on_preview_crashed()
 	# 主动轮询检测: 解决 body_entered 信号在 _ready 时序或 collision_layer 不匹配时失效
@@ -543,8 +532,8 @@ func _process(delta: float) -> void:
 	# 代码滚动：IDE 对话"编译"阶段，右侧面板自动滚屏输出伪代码
 	if _code_scroll_active:
 		_code_scroll_timer += delta
-		if _code_scroll_timer >= _code_scroll_speed:
-			_code_scroll_timer -= _code_scroll_speed
+		if _code_scroll_timer >= level_data.code_scroll_speed:
+			_code_scroll_timer -= level_data.code_scroll_speed
 			_advance_code_scroll()
 
 
@@ -596,7 +585,7 @@ func _clear_obstacle(obstacle_node: InteractiveObject) -> void:
 		if col_shape: col_shape.disabled = true
 	_match_and_clear_ref(obstacle_node)
 	var tween = create_tween()
-	tween.tween_property(obstacle_node, "modulate:a", 0.0, 0.5)
+	tween.tween_property(obstacle_node, "modulate:a", 0.0, level_data.obstacle_fade_duration)
 	tween.finished.connect(func(): if is_instance_valid(obstacle_node): obstacle_node.queue_free())
 
 func _match_and_clear_ref(node: InteractiveObject) -> void:
@@ -625,15 +614,15 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 		if _narrative_text:
 			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(level_data.narrative_input_arm_delay).timeout
 
 	# B6 修复: 加超时等待，防止失焦或无键盘时永久卡死
 	# 使用 _narrative_enter_pressed 标志（由 _input 设置），不再依赖 Input.is_action_just_pressed
 	# 因为 await 间隔中按键事件会被 _input 消费掉，is_action_just_pressed 永远看不到
 	_narrative_enter_pressed = false
 	var wait_elapsed: float = 0.0
-	var wait_delta: float = 0.05  # 缩短轮询间隔到 50ms，提升响应灵敏度
-	while _narrative_open and wait_elapsed < NARRATIVE_INPUT_TIMEOUT:
+	var wait_delta: float = level_data.narrative_poll_interval
+	while _narrative_open and wait_elapsed < level_data.narrative_input_timeout:
 		if _narrative_enter_pressed:
 			if page_index < pages.size() - 1:
 				page_index += 1
@@ -654,7 +643,7 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 	_interact_cooldown = 0.0
 
 	# 阶段3d: 叙事面板关闭时解除全局输入屏蔽
-	InputManager.unblock_input("叙事面板")
+	InputManager.unblock_input("叙事面板", self)
 
 	if callback.is_valid():
 		# 回调也加错误隔离: 若 callback 抛错不影响关卡
@@ -681,7 +670,7 @@ func _trigger_sleep_cycle() -> void:
 		_sleep_overlay.color.a = 0.0
 		_sleep_overlay.show()
 		var tween = create_tween()
-		tween.tween_property(_sleep_overlay, "color:a", 1.0, 1.0)
+		tween.tween_property(_sleep_overlay, "color:a", 1.0, level_data.sleep_fade_duration)
 		await tween.finished
 
 	# 睡眠叙事：不传 callback，直接在 _show_narrative 返回后继续睡眠流程
@@ -697,13 +686,13 @@ func _trigger_sleep_cycle() -> void:
 
 	if _sleep_overlay:
 		var tween_back = create_tween()
-		tween_back.tween_property(_sleep_overlay, "color:a", 0.0, 1.0)
+		tween_back.tween_property(_sleep_overlay, "color:a", 0.0, level_data.sleep_fade_duration)
 		tween_back.finished.connect(func():
 			if _sleep_overlay: _sleep_overlay.hide()
 			_sleep_fading = false
 			_freeze_player(false)
 			# 阶段3d: 睡眠渐亮结束后解除输入屏蔽
-			InputManager.unblock_input("睡眠循环")
+			InputManager.unblock_input("睡眠循环", self)
 			_safe_end_interaction()
 			_bed_node.reset_completed()
 			_maybe_arm_idle_bed_prompt()
@@ -712,7 +701,7 @@ func _trigger_sleep_cycle() -> void:
 		_sleep_fading = false
 		_freeze_player(false)
 		# 阶段3d: 无渐变覆盖层时同步解除
-		InputManager.unblock_input("睡眠循环")
+		InputManager.unblock_input("睡眠循环", self)
 		_safe_end_interaction()
 		_bed_node.reset_completed()
 		_maybe_arm_idle_bed_prompt()
@@ -726,7 +715,7 @@ func _maybe_arm_idle_bed_prompt() -> void:
 
 func _arm_idle_bed_prompt() -> void:
 	_idle_bed_prompt_armed = true
-	await get_tree().create_timer(IDLE_BED_PROMPT_DELAY).timeout
+	await get_tree().create_timer(level_data.idle_bed_prompt_delay).timeout
 	if not _idle_bed_prompt_armed:
 		return
 	_idle_bed_prompt_armed = false
@@ -737,7 +726,7 @@ func _arm_idle_bed_prompt() -> void:
 		return
 	if _is_interacting or _narrative_open or _sleep_fading:
 		return
-	_show_narrative(IDLE_BED_PROMPT_TEXT)
+	_show_narrative(level_data.idle_bed_prompt_text)
 
 func _disarm_idle_bed_prompt() -> void:
 	_idle_bed_prompt_armed = false
@@ -746,7 +735,7 @@ func _disarm_idle_bed_prompt() -> void:
 ## 检查是否满足解锁电脑的前置条件
 ## 解锁后电脑变为可交互，并弹出提示叙事
 func _try_unlock_computer() -> void:
-	if sleep_count < COMPUTER_UNLOCK_SLEEP_COUNT:
+	if sleep_count < level_data.computer_unlock_sleep_count:
 		return
 	if not _computer_node or not is_instance_valid(_computer_node):
 		return
@@ -882,7 +871,7 @@ func _on_preview_crashed() -> void:
 		_chat_window.append_text("[color=red][FATAL ERROR] 线程溢出：'Xiguan_Dream' 崩溃。[/color]\n")
 		_chat_window.append_text("[color=yellow][SYSTEM] 检测到现实信号干扰。[/color]\n")
 		_chat_window.append_text("[color=red][SYSTEM] 连接中断。物理交互环境已强行关闭。[/color]\n")
-	await get_tree().create_timer(1.5).timeout
+	await get_tree().create_timer(level_data.ide_crash_message_duration).timeout
 	if _mini_viewport:
 		for child in _mini_viewport.get_children(): child.queue_free()
 	if _ide_ui: _ide_ui.hide()
@@ -894,7 +883,7 @@ func _on_preview_crashed() -> void:
 	_start_left_edge_flash()
 	_freeze_player(false)
 	# 阶段3d: IDE 崩溃退出，解除输入屏蔽（进入 PHONE_RINGING 正常探索状态）
-	InputManager.unblock_input("IDE对话")
+	InputManager.unblock_input("IDE对话", self)
 	# B4 修复: 显式清交互标志，让 PHONE_RINGING 阶段的 phone 交互可正常触发
 	_is_interacting = false
 	_interact_cooldown = 0.0
@@ -942,7 +931,7 @@ func _trigger_climax_transition() -> void:
 				_bed_node.reset_completed()
 			current_state = LevelState.GLITCH_TRANSIT
 			_freeze_player(false)
-			InputManager.unblock_input("终局叙事")
+			InputManager.unblock_input("终局叙事", self)
 			_is_interacting = false
 			_interact_cooldown = 0.0
 			# 眨眼效果仅作为视觉叠加，不阻塞交互
@@ -971,14 +960,14 @@ func _on_final_bed_trigger() -> void:
 		_sleep_overlay.show()
 	else:
 		var fallback_tw = create_tween()
-		fallback_tw.tween_interval(FINAL_BLACKOUT_FADE_DURATION)
-		fallback_tw.tween_interval(FINAL_BLACKOUT_DURATION)
+		fallback_tw.tween_interval(level_data.final_blackout_fade_duration)
+		fallback_tw.tween_interval(level_data.final_blackout_duration)
 		fallback_tw.tween_callback(_emit_level_complete)
 		return
 	# 淡入黑屏 → 满黑保持至少4秒 → 在黑屏中切关；淡出由 MainEntry 的跨关黑幕负责
 	var tw = create_tween()
-	tw.tween_property(_sleep_overlay, "color:a", 1.0, FINAL_BLACKOUT_FADE_DURATION).set_trans(Tween.TRANS_SINE)
-	tw.tween_interval(FINAL_BLACKOUT_DURATION)
+	tw.tween_property(_sleep_overlay, "color:a", 1.0, level_data.final_blackout_fade_duration).set_trans(Tween.TRANS_SINE)
+	tw.tween_interval(level_data.final_blackout_duration)
 	tw.tween_callback(_emit_level_complete)
 
 func _fade_ambient_audio(_duration: float) -> void:
@@ -1002,19 +991,18 @@ func _start_flicker_effect(callback: Callable) -> void:
 	_sleep_overlay.color = Color(0, 0, 0, 0)
 	_sleep_overlay.show()
 	_flicker_tween = create_tween()
-	# 5 次眨眼：第一次立即变暗，之后每次等2s再变暗
-	for i in range(5):
-		var dim_alpha := 0.5 + i * 0.08  # 逐渐变暗更深: 0.5, 0.58, 0.66, 0.74, 0.82
+	for i in range(level_data.sleep_blink_count):
+		var dim_alpha := level_data.sleep_blink_alpha_start + i * level_data.sleep_blink_alpha_step
 		if i > 0:
-			_flicker_tween.tween_interval(2.0)
-		_flicker_tween.tween_property(_sleep_overlay, "color:a", dim_alpha, 0.8).set_trans(Tween.TRANS_SINE)
-		_flicker_tween.tween_interval(0.3)
-		_flicker_tween.tween_property(_sleep_overlay, "color:a", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+			_flicker_tween.tween_interval(level_data.sleep_blink_interval)
+		_flicker_tween.tween_property(_sleep_overlay, "color:a", dim_alpha, level_data.sleep_blink_dim_duration).set_trans(Tween.TRANS_SINE)
+		_flicker_tween.tween_interval(level_data.sleep_blink_hold_duration)
+		_flicker_tween.tween_property(_sleep_overlay, "color:a", 0.0, level_data.sleep_blink_recover_duration).set_trans(Tween.TRANS_SINE)
 	# 最后一次变暗后平滑恢复，让玩家能看到床并交互
-	_flicker_tween.tween_interval(2.0)
-	_flicker_tween.tween_property(_sleep_overlay, "color:a", 0.9, 1.2).set_trans(Tween.TRANS_SINE)
-	_flicker_tween.tween_interval(0.5)
-	_flicker_tween.tween_property(_sleep_overlay, "color:a", 0.0, 0.8).set_trans(Tween.TRANS_SINE)
+	_flicker_tween.tween_interval(level_data.sleep_final_interval)
+	_flicker_tween.tween_property(_sleep_overlay, "color:a", level_data.sleep_final_alpha, level_data.sleep_final_dim_duration).set_trans(Tween.TRANS_SINE)
+	_flicker_tween.tween_interval(level_data.sleep_final_hold_duration)
+	_flicker_tween.tween_property(_sleep_overlay, "color:a", 0.0, level_data.sleep_final_recover_duration).set_trans(Tween.TRANS_SINE)
 	_flicker_tween.tween_callback(_sleep_overlay.hide)
 	_flicker_tween.tween_callback(func():
 		_flicker_tween = null
@@ -1110,7 +1098,7 @@ func _start_glitch_shader_effect() -> void:
 		_emit_level_complete(); return
 	_glitch_overlay.show()
 	var tween = create_tween()
-	tween.tween_property(_glitch_overlay.material, "shader_parameter/intensity", 1.0, FINAL_GLITCH_DURATION)
+	tween.tween_property(_glitch_overlay.material, "shader_parameter/intensity", 1.0, level_data.final_glitch_duration)
 	await tween.finished
 	_emit_level_complete()
 
@@ -1120,7 +1108,7 @@ func _emit_level_complete() -> void:
 	EventBus.unsubscribe_all(self)
 	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {
 		"level": self,
-		"next_level": "res://LevelModule/Formal/Level_02.tscn"
+		"next_level": level_data.next_level_path
 	})
 
 func _cleanup_input_before_level_switch() -> void:

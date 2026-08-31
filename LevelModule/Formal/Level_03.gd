@@ -71,7 +71,7 @@ var _is_interacting: bool = false
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
 var _transition_running: bool = false
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
+var _intro_narrative_timer: Timer = null
 
 # ---- 敌人管理 ----
 var _enemy_cyber_wolf_scene: PackedScene = null
@@ -81,22 +81,10 @@ var _enemy_cyber_bull_scene: PackedScene = null
 var _lingnan_enemies: Array[Node2D] = []
 var _cyber_enemies: Array[Node2D] = []
 var _enemy_spawn_timer: Timer = null
-const ENEMY_MAX_ALIVE: int = 6
-const ENEMY_MAX_ONSCREEN: int = 4
-const ENEMY_SPAWN_INTERVAL: float = 5.0
-
-# ---- 击退反转 ----
-const KNOCKBACK_REVERSE_FORCE: float = 350.0
-
-# ---- Glitch 效果 ----
-const GLITCH_AMBIENT: float = 0.04   # 赛博城基底微弱强度
-const GLITCH_SPIKE: float = 0.8      # 互动时峰值强度
 
 # ---- 终局 ----
 var _ending_enter_armed: bool = false
 var _level_complete_emitted: bool = false
-
-const LEVEL_03_BGM_PATH := "res://Assets/Music/lv3.ogg"
 
 var _fsm: Level_03_FSM = null
 
@@ -113,14 +101,18 @@ func _apply_config() -> void:
 func _setup_player() -> void:
 	if GameManager.player_ref and is_instance_valid(GameManager.player_ref):
 		return
-	var player_path = level_config.player_scene_path if level_config and level_config.player_scene_path != "" else "res://PlayerModule/Formal/Player_Warrior_Lingnan.tscn"
-	if ResourceLoader.exists(player_path):
-		var player = load(player_path).instantiate()
-		var spawn_pos = level_config.spawn_point if level_config else Vector2(56, 296)
-		player.position = spawn_pos
-		add_child(player)
-		GameManager.register_player(player)
-		print("[Level_03] 玩家创建成功 (Lingnan 皮肤)")
+	if not level_config:
+		push_error("[Level_03] 缺少 LevelConfig，无法创建玩家")
+		return
+	var player_path = level_config.player_scene_path
+	if not ResourceLoader.exists(player_path):
+		push_error("[Level_03] 玩家场景不存在: %s" % player_path)
+		return
+	var player = load(player_path).instantiate()
+	player.position = level_config.spawn_point
+	add_child(player)
+	GameManager.register_player(player)
+	print("[Level_03] 玩家创建成功 (Lingnan 皮肤)")
 
 func _on_ready() -> void:
 	super._on_ready()
@@ -134,6 +126,9 @@ func _on_ready() -> void:
 		_apply_config()
 	if not level_data:
 		level_data = load("res://DataConfig/Level/Level03Data.tres") as Level03Data
+	if not level_data:
+		push_error("[Level_03] Level03Data 加载失败，停止初始化")
+		return
 
 	# 预加载敌人场景
 	var wolf_path = "res://EnemyModule/Formal/Enemy_CyberWolf.tscn"
@@ -164,7 +159,12 @@ func _on_ready() -> void:
 
 	_setup_camera_limits()
 	# 凉茶铺阶段：摄像机限制在凉茶铺+街巷区域 (AlleyGround 末端=2128)
-	_set_camera_limits(0, 2120, 168, 608)
+	_set_camera_limits(
+		level_data.initial_camera_left,
+		level_data.initial_camera_right,
+		level_data.initial_camera_top,
+		level_data.initial_camera_bottom
+	)
 	_cache_ui_refs()
 	_ensure_player_collision_layer()
 
@@ -183,7 +183,7 @@ func _on_ready() -> void:
 
 	_enemy_spawn_timer = Timer.new()
 	_enemy_spawn_timer.name = "EnemySpawnTimer"
-	_enemy_spawn_timer.wait_time = ENEMY_SPAWN_INTERVAL
+	_enemy_spawn_timer.wait_time = level_data.enemy_spawn_interval
 	_enemy_spawn_timer.one_shot = false
 	_enemy_spawn_timer.autostart = false
 	_enemy_spawn_timer.timeout.connect(_on_enemy_spawn_timer_timeout)
@@ -196,8 +196,34 @@ func _on_ready() -> void:
 	_finish_intro_fade_in()
 
 	# 关卡开场叙事，延迟 0.5s 弹出
-	await get_tree().create_timer(0.5).timeout
-	_show_narrative("我……真的回来了。\n凉茶铺还在。\n炉子还在。\n爷爷就在前面。\n\n爷爷！\n爷爷！")
+	_schedule_opening_narrative()
+
+
+func _schedule_opening_narrative() -> void:
+	_cancel_opening_narrative()
+	_intro_narrative_timer = Timer.new()
+	_intro_narrative_timer.name = "IntroNarrativeTimer"
+	_intro_narrative_timer.one_shot = true
+	_intro_narrative_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_intro_narrative_timer.timeout.connect(_on_opening_narrative_timeout, CONNECT_ONE_SHOT)
+	add_child(_intro_narrative_timer)
+	_intro_narrative_timer.start(level_data.intro_narrative_delay)
+
+
+func _on_opening_narrative_timeout() -> void:
+	var timer := _intro_narrative_timer
+	_intro_narrative_timer = null
+	if is_instance_valid(timer):
+		timer.queue_free()
+	if is_inside_tree() and level_data:
+		_show_narrative(level_data.opening_narrative_text)
+
+
+func _cancel_opening_narrative() -> void:
+	if is_instance_valid(_intro_narrative_timer):
+		_intro_narrative_timer.stop()
+		_intro_narrative_timer.queue_free()
+	_intro_narrative_timer = null
 
 
 ## 入场黑屏遮罩：创建满黑 CanvasLayer，覆盖整个初始化过程
@@ -221,13 +247,18 @@ func _finish_intro_fade_in() -> void:
 	if not cv: return
 	var black = cv.get_node_or_null("IntroFadeBlack")
 	if not black: return
-	var tw = get_tree().create_tween()
-	tw.tween_property(black, "color:a", 0.0, 1.5).set_trans(Tween.TRANS_SINE)
+	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(cv.queue_free)
 
 
 func _exit_tree() -> void:
+	_cancel_opening_narrative()
 	_disconnect_input_manager()
+
+
+func prepare_for_level_exit() -> void:
+	_full_cleanup()
 
 
 # ============================================================
@@ -423,7 +454,7 @@ func _setup_camera_limits() -> void:
 	cam.limit_right = level_config.camera_limit_right
 	cam.limit_top = level_config.camera_limit_top
 	cam.limit_bottom = level_config.camera_limit_bottom
-	cam.zoom = Vector2(1.75, 1.75)
+	cam.zoom = level_data.camera_zoom
 	cam.bind_target(player)
 
 func _set_camera_limits(left: int, right: int, top: int, bottom: int) -> void:
@@ -435,7 +466,7 @@ func _set_camera_limits(left: int, right: int, top: int, bottom: int) -> void:
 	cam.limit_right = right
 	cam.limit_top = top
 	cam.limit_bottom = bottom
-	cam.zoom = Vector2(1.75, 1.75)
+	cam.zoom = level_data.camera_zoom
 	cam.bind_target(player)
 
 func _cache_ui_refs() -> void:
@@ -475,7 +506,7 @@ func _swap_player_to_cyber() -> void:
 	GameManager.player_ref = null
 	old_player.queue_free()
 
-	var cyber_path = "res://PlayerModule/Formal/Player_Warrior_Cyber.tscn"
+	var cyber_path = level_data.cyber_player_scene_path
 	if not ResourceLoader.exists(cyber_path):
 		push_error("[Level_03] Player_Warrior_Cyber.tscn 不存在!")
 		return
@@ -489,7 +520,7 @@ func _swap_player_to_cyber() -> void:
 		"current_health": new_player.current_health,
 		"max_health": new_player.max_health
 	})
-	new_player.global_position = Vector2(2048, 576)
+	new_player.global_position = level_data.cyber_player_spawn
 	new_player.velocity = Vector2.ZERO
 	new_player.is_facing_right = saved_facing_right
 	GameManager.register_player(new_player)
@@ -549,12 +580,12 @@ func _handle_accept_input() -> void:
 		_narrative_enter_pressed = true
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running:
-		if not _transition_running and _interact_cooldown > 0.5:
+		if not _transition_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	var obj = _find_nearby_interactive()
 	if obj:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		EventBus.emit(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, {"object_id": obj.object_id})
 
 func _input(event: InputEvent) -> void:
@@ -578,12 +609,12 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running:
-		if not _transition_running and _interact_cooldown > 0.5:
+		if not _transition_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	var nearby_obj = _find_nearby_interactive()
 	if nearby_obj:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		EventBus.emit(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, {"object_id": nearby_obj.object_id})
 		get_viewport().set_input_as_handled()
 
@@ -595,11 +626,10 @@ func _find_nearby_interactive() -> InteractiveObject:
 	if not player or not is_instance_valid(player): return null
 	var best: InteractiveObject = null
 	var best_dist: float = INF
-	const FALLBACK_RADIUS: float = 120.0
 	for obj in _all_interactives:
 		if not is_instance_valid(obj) or not obj.is_active or obj.completed: continue
 		var d: float = player.global_position.distance_to(obj.global_position)
-		if d < FALLBACK_RADIUS and d < best_dist:
+		if d < level_data.interaction_fallback_radius and d < best_dist:
 			best_dist = d
 			best = obj
 	if best: best.is_player_in_range = true
@@ -672,12 +702,12 @@ func _mark_interaction_completed(obj_id: String) -> void:
 
 func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 	InputManager.block_input("叙事面板", self)
+	GameManager.begin_dialog(self)
 	if _narrative_open:
 		if _narrative_panel: _narrative_panel.hide()
 		_narrative_open = false
 	_is_interacting = true
 	_narrative_open = true
-	GameManager.is_dialog_active = true
 	_freeze_player(true)
 	var pages := GameUIStyle.paginate_interaction_text(text)
 	var page_index := 0
@@ -685,11 +715,11 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 		if _narrative_text:
 			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(level_data.narrative_input_arm_delay).timeout
 	_narrative_enter_pressed = false
 	var wait_elapsed: float = 0.0
-	var wait_delta: float = 0.05
-	while _narrative_open and wait_elapsed < NARRATIVE_INPUT_TIMEOUT:
+	var wait_delta: float = level_data.narrative_poll_interval
+	while _narrative_open and wait_elapsed < level_data.narrative_input_timeout:
 		if _narrative_enter_pressed:
 			if page_index < pages.size() - 1:
 				page_index += 1
@@ -704,10 +734,10 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 	if _narrative_panel: _narrative_panel.hide()
 	_freeze_player(false)
 	_narrative_open = false
-	GameManager.is_dialog_active = false
+	GameManager.end_dialog(self)
 	_is_interacting = false
 	_interact_cooldown = 0.0
-	InputManager.unblock_input("叙事面板")
+	InputManager.unblock_input("叙事面板", self)
 	if callback.is_valid(): _run_safely(callback)
 
 
@@ -732,13 +762,13 @@ func _advance_grandpa_dialogue() -> void:
 	match speaker:
 		"Ming": formatted = "阿明：" + text
 		"Grandpa":
-			if grandpa_dialogue_index >= 4:
+			if grandpa_dialogue_index >= level_data.grandpa_glitch_dialogue_index:
 				formatted = "[GLITCH] 爷爷：" + text
 			else:
 				formatted = "爷爷：" + text
 		_: formatted = text
 	grandpa_dialogue_index += 1
-	if speaker == "Grandpa" and grandpa_dialogue_index == 4:
+	if speaker == "Grandpa" and grandpa_dialogue_index == level_data.grandpa_indicator_dialogue_index:
 		_flash_grandpa_indicator()
 	_show_narrative(formatted, func(): _advance_grandpa_dialogue())
 
@@ -748,12 +778,12 @@ func _flash_grandpa_indicator() -> void:
 	if not indicator: return
 	indicator.color = Color(0, 1, 0, 0.5)
 	var tween = create_tween()
-	tween.tween_property(indicator, "color:a", 0.15, 0.3)
-	tween.tween_property(indicator, "color:a", 0.5, 0.3)
+	tween.tween_property(indicator, "color:a", level_data.grandpa_indicator_fade_alpha, level_data.grandpa_indicator_tween_duration)
+	tween.tween_property(indicator, "color:a", 0.5, level_data.grandpa_indicator_tween_duration)
 
 func _trigger_grandpa_glitch() -> void:
 	if not level_data: return
-	MusicManager.fade_to(LEVEL_03_BGM_PATH, 1.0)
+	MusicManager.fade_to(level_config.bgm_path, level_data.level_bgm_fade_duration)
 	_mark_interaction_completed("grandpa")
 	_show_narrative(level_data.grandpa_glitch_text, func():
 		_show_narrative(level_data.ming_realization_text, func():
@@ -784,12 +814,12 @@ func _trigger_lingnan_combat() -> void:
 
 	# 在墙后刷一只冲脸纸扎人，直接命令其朝玩家冲锋
 	var rush_config = load("res://DataConfig/Enemy/PaperEffigyConfig.tres") as EnemyConfig
-	var rush_enemy = _spawn_enemy_with_config(_enemy_paper_effigy_scene, Vector2(680, 540), rush_config)
+	var rush_enemy = _spawn_enemy_with_config(_enemy_paper_effigy_scene, level_data.rush_enemy_spawn, rush_config)
 	if rush_enemy:
 		_lingnan_enemies.append(rush_enemy)
 		# 为该敌人生成独立配置副本，扩大检测范围至 1000px
 		rush_enemy.config = rush_config.duplicate()
-		rush_enemy.config.detect_range = 1000.0
+		rush_enemy.config.detect_range = level_data.rush_enemy_detect_range
 		# 直接设置为追逐状态，跳过 AI 检测延迟
 		var player = GameManager.player_ref
 		if player and is_instance_valid(player):
@@ -797,7 +827,12 @@ func _trigger_lingnan_combat() -> void:
 			rush_enemy.current_state = GlobalDefine.EnemyState.CHASE
 
 	# 扩展相机到凉茶铺+街巷 (AlleyGround 末端=2128)
-	_set_camera_limits(0, 2120, 168, 608)
+	_set_camera_limits(
+		level_data.initial_camera_left,
+		level_data.initial_camera_right,
+		level_data.initial_camera_top,
+		level_data.initial_camera_bottom
+	)
 
 	# 在凉茶铺+街巷区域生成敌人
 	_spawn_lingnan_enemies()
@@ -806,19 +841,19 @@ func _trigger_lingnan_combat() -> void:
 	await get_tree().physics_frame
 
 	# 显示战斗开始叙事
-	if level_data:
-		_show_narrative("[color=red]空气中弥漫着不安的气息。\n凉茶铺的影子正在变形。\n有什么东西，正在逼近。[/color]")
+	_show_narrative(level_data.lingnan_combat_intro_text)
 
 func _spawn_lingnan_enemies() -> void:
 	if not _enemy_paper_effigy_scene or not _enemy_lantern_ghost_scene:
 		push_warning("[Level_03] 敌人场景缺失")
 		return
 
-	var spawn_points = level_data.lingnan_enemy_spawn_points if level_data else []
+	var spawn_points = level_data.lingnan_enemy_spawn_points
 	if spawn_points.is_empty():
-		spawn_points = [Vector2(955, 540), Vector2(1170, 540), Vector2(1385, 540), Vector2(1600, 540), Vector2(1815, 540)]
+		push_error("[Level_03] Level03Data.lingnan_enemy_spawn_points 不能为空")
+		return
 
-	var count = level_data.lingnan_enemy_count if level_data else 5
+	var count = level_data.lingnan_enemy_count
 	var effigy_config = load("res://DataConfig/Enemy/PaperEffigyConfig.tres") as EnemyConfig
 	var lantern_config = load("res://DataConfig/Enemy/LanternGhostConfig.tres") as EnemyConfig
 
@@ -862,16 +897,16 @@ func _on_lingnan_combat_complete() -> void:
 	print("[Level_03] 岭南战斗结束 → 世界异化开始")
 
 	# 1) 画面抖动（3秒，玩家仍可移动但视觉混乱）
-	_start_screen_shake(3.0)
+	_start_screen_shake(level_data.world_shift_shake_duration)
 
 	# 2) Glitch增强
 	if _glitch_overlay and _glitch_overlay.material:
 		_glitch_overlay.show()
 		var tween = create_tween()
-		tween.tween_property(_glitch_overlay.material, "shader_parameter/intensity", 0.8, 2.0)
+		tween.tween_property(_glitch_overlay.material, "shader_parameter/intensity", level_data.glitch_spike_intensity, level_data.world_shift_glitch_rise_duration)
 
 	# 等待2秒后打开街巷右墙 + 赛博城显现
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(level_data.world_shift_reveal_delay).timeout
 
 	_remove_wall("LingnanAlleyRoot/AlleyRightWall")
 	_remove_wall("TransitionCorridorRoot/CorridorRightWall")
@@ -888,15 +923,20 @@ func _on_lingnan_combat_complete() -> void:
 	# 6) 玩家皮肤切换（赛博战斗系统，摄像机保持与岭南阶段一致）
 	_swap_player_to_cyber()
 	# 新玩家自带新 SmoothCamera 会重置为默认值，重新应用相机设置
-	_set_camera_limits(1728, 6816, 168, 608)
+	_set_camera_limits(
+		level_data.cyber_camera_left,
+		level_data.cyber_camera_right,
+		level_data.cyber_camera_top,
+		level_data.cyber_camera_bottom
+	)
 
 	# 7) 背景分层变暗（仅 PixworkMapStitch，敌人/玩家不受影响）
-	_dim_background_smooth(3.0)
+	_dim_background_smooth(level_data.world_shift_background_dim_duration)
 
 	# 8) Glitch渐退
 	if _glitch_overlay and _glitch_overlay.material:
 		var tween2 = create_tween()
-		tween2.tween_property(_glitch_overlay.material, "shader_parameter/intensity", GLITCH_AMBIENT, 1.0)
+		tween2.tween_property(_glitch_overlay.material, "shader_parameter/intensity", level_data.glitch_ambient_intensity, level_data.glitch_decay_duration)
 
 	# 9) 代码雨
 	_start_code_rain()
@@ -929,21 +969,22 @@ func _start_screen_shake(duration: float) -> void:
 
 	var original_offset = cam.offset
 	var tween = create_tween()
-	for i in range(int(duration * 20)):
-		var shake_amount = 16.0 * (1.0 - float(i) / (duration * 20.0))  # 衰减，强度翻倍
-		tween.tween_property(cam, "offset", Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount)), 0.05)
-	tween.tween_property(cam, "offset", original_offset, 0.1)
+	var sample_count := maxi(1, int(duration * level_data.shake_samples_per_second))
+	for i in range(sample_count):
+		var shake_amount = level_data.shake_strength * (1.0 - float(i) / float(sample_count))
+		tween.tween_property(cam, "offset", Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount)), level_data.shake_sample_duration)
+	tween.tween_property(cam, "offset", original_offset, level_data.shake_recovery_duration)
 
 
 # ============================================================
 # 背景分层变暗（仅 PixworkMapStitch 视觉层，敌人/玩家不受影响）
 # ============================================================
 
-func _dim_background_smooth(duration: float = 3.0) -> void:
+func _dim_background_smooth(duration: float) -> void:
 	if not _background_visual or not is_instance_valid(_background_visual):
 		return
 	# modulate 仅作用于该节点及其子节点的渲染，不改变场景树中其他节点
-	var target_modulate = Color(0.55, 0.58, 0.65, 1.0)  # 40%暗度，略带蓝调
+	var target_modulate = level_data.world_shift_background_color
 	var tween = create_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN)
@@ -1101,20 +1142,22 @@ func _spawn_cyber_enemies() -> void:
 		return
 
 	var cleaner_config = load("res://DataConfig/Enemy/CleanerConfig.tres") as EnemyConfig
-	var cleaner_points = level_data.cleaner_spawn_points if level_data else []
+	var cleaner_points = level_data.cleaner_spawn_points
 	if cleaner_points.is_empty():
-		cleaner_points = [Vector2(4596, 540), Vector2(5010, 540), Vector2(5424, 540), Vector2(5838, 540), Vector2(6252, 540)]
-	for i in range(mini(cleaner_points.size(), 5)):
+		push_error("[Level_03] Level03Data.cleaner_spawn_points 不能为空")
+		return
+	for i in range(cleaner_points.size()):
 		var enemy = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, cleaner_points[i], cleaner_config)
 		if enemy:
 			enemy.modulate = Color(0.3, 0.35, 0.4, 0.95)
 			_cyber_enemies.append(enemy)
 
 	var security_config = load("res://DataConfig/Enemy/SecurityConfig.tres") as EnemyConfig
-	var security_points = level_data.security_spawn_points if level_data else []
+	var security_points = level_data.security_spawn_points
 	if security_points.is_empty():
-		security_points = [Vector2(4803, 480), Vector2(5424, 480), Vector2(6045, 480)]
-	for i in range(mini(security_points.size(), 3)):
+		push_error("[Level_03] Level03Data.security_spawn_points 不能为空")
+		return
+	for i in range(security_points.size()):
 		var enemy = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, security_points[i], security_config)
 		if enemy:
 			enemy.modulate = Color(0.9, 0.15, 0.15, 0.95)
@@ -1128,10 +1171,10 @@ func _spawn_corridor_enemies() -> void:
 	# 走廊区域 CorridorGroundCold: [2144, 4032]，4只均匀分布
 	var bull_config = load("res://DataConfig/Enemy/CyberBullConfig.tres") as EnemyConfig
 	var effigy_config = load("res://DataConfig/Enemy/PaperEffigyConfig.tres") as EnemyConfig
-	var positions = [Vector2(2612, 540), Vector2(2930, 540), Vector2(3248, 540), Vector2(3566, 540)]
+	var positions = level_data.corridor_enemy_spawn_points
 	var scenes = [_enemy_cyber_bull_scene, _enemy_paper_effigy_scene, _enemy_cyber_bull_scene, _enemy_paper_effigy_scene]
 	var configs = [bull_config, effigy_config, bull_config, effigy_config]
-	for i in range(4):
+	for i in range(mini(positions.size(), scenes.size())):
 		var enemy = _spawn_enemy_with_config(scenes[i], positions[i], configs[i])
 		if enemy:
 			_cyber_enemies.append(enemy)
@@ -1155,19 +1198,23 @@ func _on_enemy_spawn_timer_timeout() -> void:
 		return
 	# 性能约束
 	_cyber_enemies = _cyber_enemies.filter(func(e): return is_instance_valid(e))
-	if _cyber_enemies.size() >= ENEMY_MAX_ALIVE: return
+	if _cyber_enemies.size() >= level_data.enemy_max_alive: return
 	var player = GameManager.player_ref
 	if not player or not is_instance_valid(player): return
 	var onscreen := 0
 	for e in _cyber_enemies:
-		if e.global_position.distance_to(player.global_position) < 700.0:
+		if e.global_position.distance_to(player.global_position) < level_data.dynamic_onscreen_distance:
 			onscreen += 1
-	if onscreen >= ENEMY_MAX_ONSCREEN: return
+	if onscreen >= level_data.enemy_max_onscreen: return
 
-	var side = 1.0 if randf() > 0.3 else -1.0
-	var spawn_x = clampf(player.global_position.x + side * randf_range(400.0, 600.0), 4100.0, 6700.0)
+	var side = 1.0 if randf() < level_data.dynamic_spawn_positive_side_chance else -1.0
+	var spawn_x = clampf(
+		player.global_position.x + side * randf_range(level_data.dynamic_spawn_distance_min, level_data.dynamic_spawn_distance_max),
+		level_data.dynamic_spawn_min_x,
+		level_data.dynamic_spawn_max_x
+	)
 	var config = load("res://DataConfig/Enemy/CleanerConfig.tres") as EnemyConfig
-	var enemy = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, Vector2(spawn_x, 540), config)
+	var enemy = _spawn_enemy_with_config(_enemy_cyber_wolf_scene, Vector2(spawn_x, level_data.dynamic_spawn_y), config)
 	if enemy:
 		enemy.modulate = Color(0.3, 0.35, 0.4, 0.95)
 		_cyber_enemies.append(enemy)
@@ -1186,7 +1233,7 @@ func _on_player_hurt(data: Dictionary) -> void:
 	var flags = GameManager.dream_runtime_flags
 	var has_damage_reduction = flags.get("player_damage_reduction", false)
 	if has_damage_reduction:
-		var heal_amount = data.get("damage", 0) / 2
+		var heal_amount = int(data.get("damage", 0) / level_data.damage_reduction_heal_divisor)
 		if heal_amount > 0 and player.current_health < player.max_health:
 			player.current_health = mini(player.current_health + heal_amount, player.max_health)
 			EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {
@@ -1197,7 +1244,7 @@ func _on_player_hurt(data: Dictionary) -> void:
 
 	# 赛博阶段：击退方向反转
 	if current_state in [LevelState.CYBER_CITY, LevelState.MEMORY_COLLECTION]:
-		player.velocity.x = -KNOCKBACK_REVERSE_FORCE
+		player.velocity.x = -level_data.knockback_reverse_force
 
 
 # ============================================================
@@ -1227,12 +1274,12 @@ func _handle_memory_echo_2() -> void:
 	)
 
 func _check_memory_collection_complete() -> void:
-	if memory_echoes_collected >= 2:
+	if memory_echoes_collected >= level_data.required_memory_echoes:
 		_trigger_awakening()
 	else:
 		if current_state == LevelState.CYBER_CITY:
 			current_state = LevelState.MEMORY_COLLECTION
-			print("[Level_03] 进入 MEMORY_COLLECTION (已收集 %d/2)" % memory_echoes_collected)
+			print("[Level_03] 进入 MEMORY_COLLECTION (已收集 %d/%d)" % [memory_echoes_collected, level_data.required_memory_echoes])
 
 ## 互动时触发 glitch 强度脉冲，随后自动衰减回基线
 func _spike_glitch() -> void:
@@ -1240,9 +1287,9 @@ func _spike_glitch() -> void:
 		return
 	# 立即跳到峰值
 	var mat: ShaderMaterial = _glitch_overlay.material
-	mat.set_shader_parameter("intensity", GLITCH_SPIKE)
+	mat.set_shader_parameter("intensity", level_data.glitch_spike_intensity)
 	var tween = create_tween()
-	tween.tween_property(mat, "shader_parameter/intensity", GLITCH_AMBIENT, 2.0)
+	tween.tween_property(mat, "shader_parameter/intensity", level_data.glitch_ambient_intensity, level_data.glitch_decay_duration)
 
 
 # ============================================================
@@ -1262,7 +1309,7 @@ func _trigger_awakening() -> void:
 
 	if _cyber_city_root:
 		var tween = create_tween()
-		tween.tween_property(_cyber_city_root, "modulate", Color(0.3, 0.3, 0.35), 1.5)
+		tween.tween_property(_cyber_city_root, "modulate", level_data.awakening_cyber_fade_color, level_data.awakening_cyber_fade_duration)
 		await tween.finished
 
 	if level_data and level_data.awakening_monologue != "":
@@ -1292,7 +1339,7 @@ func _trigger_level_end() -> void:
 func _emit_level_complete() -> void:
 	if _level_complete_emitted: return
 	_level_complete_emitted = true
-	var next_path = level_data.next_level_path if level_data else "res://LevelModule/Formal/Level_04.tscn"
+	var next_path = level_data.next_level_path
 	# 关卡退出三件套：释放 GUI 焦点 + 强制解除输入屏蔽 + 清理
 	get_viewport().gui_release_focus()
 	InputManager.force_unblock_all()
@@ -1306,6 +1353,7 @@ func _emit_level_complete() -> void:
 	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"level": self, "next_level": next_path})
 
 func _full_cleanup() -> void:
+	_cancel_opening_narrative()
 	_disconnect_input_manager()
 	for e in _cyber_enemies:
 		if is_instance_valid(e):

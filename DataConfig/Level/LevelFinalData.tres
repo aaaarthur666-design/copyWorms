@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="LevelFinalData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DataConfig/Level/LevelFinalData.gd" id="1_data"]
+
+[resource]
+script = ExtResource("1_data")
+background_size = Vector2(400, 720)
+background_color = Color(0.769, 0.6, 0.286, 1)
+player_spawn = Vector2(320, 616)
+interaction_position = Vector2(192, 592)
+interaction_size = Vector2(100, 80)
+player_scene_path = "res://PlayerModule/Formal/Player_Warrior.tscn"
+player_move_speed_multiplier = 0.2
+camera_limit_left = 0
+camera_limit_right = 400
+camera_limit_top = 314
+camera_limit_bottom = 640
+camera_zoom = Vector2(3.5, 3.5)
+camera_lerp_speed = 2.5
+ending_text = "太阳照常升起。
+房间还是那间房间，桌上还有灰，电脑还在发烫。
+但窗帘被拉开了。
+
+外面很吵。
+车声、人声、早点摊的蒸汽声，乱成一团。
+可那才是真的世界。
+
+阿明合上旧项目，新建文件夹：
+Xiguan_Archive
+他背起相机，拿起爷爷的灯笼。
+去记录那些还没来得及消失的门、窗、声音和人。
+
+老街会被拆掉。
+但记忆不该只被关在梦里。
+技术也不该只是逃避的温室。
+
+从今天起，
+它会成为一座通向现实的桥。"
+ending_fade_duration = 5.0
+title_scene_path = "res://UI/TitleScreen.tscn"

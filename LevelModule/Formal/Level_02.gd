@@ -5,7 +5,7 @@
 extends LevelBase
 class_name Level_02
 
-@export var level_data: Level02Data = null
+@export var level_data: Level02Data = preload("res://DataConfig/Level/Level02Data.tres")
 
 enum LevelState {
 	DREAM_ATTIC,
@@ -41,15 +41,18 @@ var _interact_cooldown: float = 0.0
 var _is_interacting: bool = false
 var _narrative_open: bool = false
 var _narrative_enter_pressed: bool = false
+var _narrative_pages: Array[String] = []
+var _narrative_page_index: int = 0
+var _narrative_arm_remaining: float = 0.0
+var _narrative_wait_elapsed: float = 0.0
+var _narrative_poll_elapsed: float = 0.0
+var _narrative_callback: Callable = Callable()
 var _transition_running: bool = false
-const NARRATIVE_INPUT_TIMEOUT: float = 30.0
 
 var _street_enemies: Array[Node2D] = []
 var _enemy_slime_scene: PackedScene = null
 var _enemy_paper_effigy_scene: PackedScene = null
 
-const FINAL_BLACKOUT_FADE_DURATION: float = 0.8
-const NEXT_LEVEL_SEGMENT_PATH: String = "res://LevelModule/Formal/Level_02_01.tscn"
 const CHIPS_CAT_TEXTS: Array[String] = [
 	"薯片，是你！\n你还在这里。",
 	"薯片以前总躺在药店门口的桌子上。\n晒太阳，露肚皮，谁叫都不理。\n看见它，我总觉得老街还活着。\n可现在它一动不动。\n像一段被循环播放的温柔数据。",
@@ -105,8 +108,15 @@ func _on_ready() -> void:
 
 
 func _exit_tree() -> void:
+	_close_narrative(false)
+	InputManager.release_input_for_owner(self)
+	EventBus.unsubscribe_all(self)
 	if InputManager.game_action.is_connected(_on_game_action):
 		InputManager.game_action.disconnect(_on_game_action)
+
+
+func prepare_for_level_exit() -> void:
+	_full_cleanup()
 
 
 func _load_hud() -> void:
@@ -181,10 +191,10 @@ func _set_camera_limits(left: int, right: int, top: int, bottom: int) -> void:
 	var cam = player.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam:
 		return
-	cam.limit_left = 0
+	cam.limit_left = level_data.attic_camera_left
 	cam.limit_right = right
 	cam.limit_top = top
-	cam.limit_bottom = 640
+	cam.limit_bottom = level_data.attic_camera_bottom
 	cam.bind_target(player)
 
 func _restore_player_mechanics() -> void:
@@ -196,7 +206,7 @@ func _restore_player_mechanics() -> void:
 	player.can_attack = true
 	player.can_skill = true
 	player.can_double_jump = false
-	player.runtime_move_speed_multiplier = 1.0
+	player.runtime_move_speed_multiplier = level_data.dream_move_speed_multiplier
 
 func _enforce_level_restrictions() -> void:
 	var player = GameManager.player_ref
@@ -234,12 +244,12 @@ func _handle_accept_input() -> void:
 		_narrative_enter_pressed = true
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running:
-		if not _transition_running and _interact_cooldown > 0.5:
+		if not _transition_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	var obj = _find_nearby_interactive()
 	if obj:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		EventBus.emit(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, {"object_id": obj.object_id})
 
 func _input(event: InputEvent) -> void:
@@ -255,12 +265,12 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _is_interacting or _interact_cooldown > 0.0 or _transition_running:
-		if not _transition_running and _interact_cooldown > 0.5:
+		if not _transition_running and _interact_cooldown > level_data.interaction_recovery_threshold:
 			_safe_end_interaction()
 		return
 	var obj = _find_nearby_interactive()
 	if obj:
-		_interact_cooldown = 0.3
+		_interact_cooldown = level_data.interaction_cooldown
 		EventBus.emit(GlobalDefine.EventName.INTERACTIVE_OBJECT_TRIGGERED, {"object_id": obj.object_id})
 		get_viewport().set_input_as_handled()
 
@@ -273,12 +283,11 @@ func _find_nearby_interactive() -> InteractiveObject:
 		return null
 	var best: InteractiveObject = null
 	var best_dist: float = INF
-	const FALLBACK_RADIUS: float = 120.0
 	for obj in _all_interactives:
 		if not is_instance_valid(obj) or not obj.is_active or obj.completed:
 			continue
 		var d: float = player.global_position.distance_to(obj.global_position)
-		if d < FALLBACK_RADIUS and d < best_dist:
+		if d < level_data.interaction_fallback_radius and d < best_dist:
 			best_dist = d
 			best = obj
 	if best:
@@ -289,6 +298,7 @@ func _find_nearby_interactive() -> InteractiveObject:
 func _process(delta: float) -> void:
 	if _interact_cooldown > 0.0:
 		_interact_cooldown -= delta
+	_update_narrative(delta)
 	_enforce_level_restrictions()
 	if not _is_interacting and not _transition_running and not _narrative_open:
 		if InputManager.is_input_blocked:
@@ -395,96 +405,99 @@ func _get_first_action_event_display(action: StringName) -> String:
 
 
 func _show_narrative(text: String, callback: Callable = Callable()) -> void:
-	InputManager.block_input("叙事面板", self)
-	if _narrative_open:
-		if _narrative_panel:
-			_narrative_panel.hide()
-		_narrative_open = false
-	_is_interacting = true
-	_narrative_open = true
-	_freeze_player(true)
-	var pages := GameUIStyle.paginate_interaction_text(text)
-	var page_index := 0
-	if _narrative_panel:
-		if _narrative_text:
-			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
-		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
-
-	_narrative_enter_pressed = false
-	var wait_elapsed: float = 0.0
-	var wait_delta: float = 0.05
-	while _narrative_open and wait_elapsed < NARRATIVE_INPUT_TIMEOUT:
-		if _narrative_enter_pressed:
-			if page_index < pages.size() - 1:
-				page_index += 1
-				_narrative_enter_pressed = false
-				wait_elapsed = 0.0
-				if _narrative_panel and _narrative_text:
-					GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, pages[page_index])
-			else:
-				break
-		await get_tree().create_timer(wait_delta).timeout
-		wait_elapsed += wait_delta
-
-	if _narrative_panel:
-		_narrative_panel.hide()
-	_freeze_player(false)
-	_narrative_open = false
-	_is_interacting = false
-	_interact_cooldown = 0.0
-	InputManager.unblock_input("叙事面板")
-	if callback.is_valid():
-		_run_safely(callback)
+	if not level_data:
+		return
+	var pages: Array[String] = []
+	pages.append_array(GameUIStyle.paginate_interaction_text(text))
+	if pages.is_empty():
+		pages.append(text)
+	_start_narrative(pages, callback)
 
 func _show_narrative_sequence(texts: Array[String], callback: Callable = Callable()) -> void:
 	if texts.is_empty():
 		if callback.is_valid():
 			_run_safely(callback)
 		return
-	InputManager.block_input("叙事面板", self)
+	_start_narrative(texts, callback)
+
+
+func _start_narrative(pages: Array[String], callback: Callable) -> void:
 	if _narrative_open:
-		if _narrative_panel:
-			_narrative_panel.hide()
-		_narrative_open = false
+		_close_narrative(false)
+	InputManager.block_input("叙事面板", self)
 	_is_interacting = true
 	_narrative_open = true
+	_narrative_enter_pressed = false
+	_narrative_arm_remaining = level_data.narrative_input_arm_delay
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
+	_narrative_callback = callback
 	_freeze_player(true)
-	if _narrative_panel and _narrative_text:
-		GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, texts[0])
+	_narrative_pages.clear()
+	for page in pages:
+		_narrative_pages.append(page)
+	_narrative_page_index = 0
+	_show_narrative_page()
+
+
+func _update_narrative(delta: float) -> void:
+	if not _narrative_open or not level_data:
+		return
+	if _narrative_arm_remaining > 0.0:
+		_narrative_arm_remaining = maxf(_narrative_arm_remaining - delta, 0.0)
+		if _narrative_arm_remaining <= 0.0:
+			_narrative_enter_pressed = false
+		return
+	_narrative_poll_elapsed += delta
+	var poll_interval := maxf(level_data.narrative_poll_interval, 0.001)
+	if _narrative_poll_elapsed < poll_interval:
+		return
+	_narrative_wait_elapsed += _narrative_poll_elapsed
+	_narrative_poll_elapsed = 0.0
+	if _narrative_enter_pressed:
+		_narrative_enter_pressed = false
+		if _narrative_page_index < _narrative_pages.size() - 1:
+			_narrative_page_index += 1
+			_narrative_wait_elapsed = 0.0
+			_show_narrative_page()
+			return
+		_close_narrative(true)
+		return
+	if _narrative_wait_elapsed >= level_data.narrative_input_timeout:
+		_close_narrative(true)
+
+
+func _show_narrative_page() -> void:
 	if _narrative_panel:
+		if _narrative_text:
+			GameUIStyle.fit_interaction_text_panel(
+				_narrative_panel,
+				_narrative_text,
+				_narrative_pages[_narrative_page_index]
+			)
 		_narrative_panel.show()
-	await get_tree().create_timer(0.3).timeout
 
-	for i in range(texts.size()):
-		if not _narrative_open:
-			break
-		if i > 0 and _narrative_panel and _narrative_text:
-			GameUIStyle.fit_interaction_text_panel(_narrative_panel, _narrative_text, texts[i])
-		await _wait_for_narrative_advance()
 
-	if _narrative_panel:
-		_narrative_panel.hide()
-	_freeze_player(false)
+func _close_narrative(invoke_callback: bool) -> void:
+	var callback := _narrative_callback
+	var was_open := _narrative_open
+	_narrative_callback = Callable()
+	_narrative_pages.clear()
+	_narrative_page_index = 0
+	_narrative_arm_remaining = 0.0
+	_narrative_wait_elapsed = 0.0
+	_narrative_poll_elapsed = 0.0
+	_narrative_enter_pressed = false
 	_narrative_open = false
+	if _narrative_panel and is_instance_valid(_narrative_panel):
+		_narrative_panel.hide()
+	if was_open:
+		_freeze_player(false)
+		InputManager.unblock_input("叙事面板", self)
 	_is_interacting = false
 	_interact_cooldown = 0.0
-	InputManager.unblock_input("叙事面板")
-	if callback.is_valid():
+	if invoke_callback and callback.is_valid() and is_inside_tree():
 		_run_safely(callback)
-
-func _wait_for_narrative_advance() -> void:
-	var wait_delta: float = 0.05
-	while _narrative_open and Input.is_action_pressed("ui_accept"):
-		await get_tree().create_timer(wait_delta).timeout
-
-	_narrative_enter_pressed = false
-	var wait_elapsed: float = 0.0
-	while _narrative_open and wait_elapsed < NARRATIVE_INPUT_TIMEOUT:
-		if _narrative_enter_pressed:
-			break
-		await get_tree().create_timer(wait_delta).timeout
-		wait_elapsed += wait_delta
 
 func _fade_blackout(to_alpha: float, duration: float) -> void:
 	if not _blackout_overlay:
@@ -525,7 +538,7 @@ func _do_attic_door_transition() -> void:
 	_is_interacting = true
 	InputManager.block_input("趟栊门转场", self)
 	_freeze_player(true)
-	await _fade_blackout(1.0, 0.8)
+	await _fade_blackout(1.0, level_data.attic_transition_fade_duration)
 
 	if _attic_door_wall and is_instance_valid(_attic_door_wall):
 		var shape = _attic_door_wall.get_node_or_null("CollisionShape2D")
@@ -537,13 +550,13 @@ func _do_attic_door_transition() -> void:
 		_attic_door_node.visible = false
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player):
-		player.global_position = Vector2(435, 550)
+		player.global_position = level_data.street_entry_position
 		player.velocity = Vector2.ZERO
 
 	_enter_street_state()
-	await _fade_blackout(0.0, 0.8)
+	await _fade_blackout(0.0, level_data.attic_transition_fade_duration)
 	_freeze_player(false)
-	InputManager.unblock_input("趟栊门转场")
+	InputManager.unblock_input("趟栊门转场", self)
 	_transition_running = false
 	_safe_end_interaction()
 
@@ -580,12 +593,11 @@ func _spawn_street_enemies() -> void:
 		return
 	var lantern_config = load("res://DataConfig/Enemy/StreetSlimeConfig.tres") as EnemyConfig
 	var paper_config = load("res://DataConfig/Enemy/PaperEffigyConfig.tres") as EnemyConfig
-	var spawn_points: Array[Vector2] = []
-	if level_data and not level_data.street_enemy_spawn_points.is_empty():
-		spawn_points = level_data.street_enemy_spawn_points
-	else:
-		spawn_points = [Vector2(1500, 540), Vector2(2100, 540), Vector2(2800, 540)]
-	var count = mini(spawn_points.size(), 5)
+	var spawn_points: Array[Vector2] = level_data.street_enemy_spawn_points
+	if spawn_points.is_empty():
+		push_error("[Level_02] Level02Data.street_enemy_spawn_points 不能为空")
+		return
+	var count = mini(spawn_points.size(), level_data.street_enemy_max_count)
 	for i in range(count):
 		var enemy = _spawn_enemy_with_config(_enemy_slime_scene, spawn_points[i], lantern_config)
 		if enemy:
@@ -602,7 +614,7 @@ func _paper_effigy_spawn_points(lantern_points: Array[Vector2], count: int) -> A
 	if count <= 0:
 		return points
 	if count == 1:
-		points.append(lantern_points[0] + Vector2(300, 0))
+		points.append(lantern_points[0] + level_data.single_paper_spawn_offset)
 		return points
 	for i in range(count):
 		if i < count - 1:
@@ -635,7 +647,7 @@ func _trigger_level_end() -> void:
 	InputManager.block_input("关卡2分段转场", self)
 	_freeze_player(true)
 
-	await _fade_blackout(1.0, FINAL_BLACKOUT_FADE_DURATION)
+	await _fade_blackout(1.0, level_data.final_blackout_fade_duration)
 
 	get_viewport().gui_release_focus()
 	_emit_level_complete()
@@ -644,7 +656,7 @@ func _emit_level_complete() -> void:
 	if _level_complete_emitted:
 		return
 	_level_complete_emitted = true
-	var next_path = NEXT_LEVEL_SEGMENT_PATH
+	var next_path = level_data.next_street_segment_path
 	get_viewport().gui_release_focus()
 	InputManager.force_unblock_all()
 	_full_cleanup()
@@ -667,10 +679,11 @@ func _is_loaded_under_main_entry() -> bool:
 	return false
 
 func _full_cleanup() -> void:
+	_close_narrative(false)
 	for e in _street_enemies:
 		if is_instance_valid(e):
 			GameManager.unregister_enemy(e)
 			e.queue_free()
 	_street_enemies.clear()
-	InputManager.unblock_input("关卡2清理")
+	InputManager.release_input_for_owner(self)
 	EventBus.unsubscribe_all(self)

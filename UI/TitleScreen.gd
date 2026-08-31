@@ -30,7 +30,7 @@ func _ready() -> void:
 	_setup_initial_state()
 	_connect_signals()
 	_start_hotspot_flicker()
-	set_process_input(true)
+	set_process_input(GameManager.dev_tools_enabled())
 
 # ============================================================
 # 光点闪烁：复用关卡1 InteractiveObject.apply_level01_dot_visual 的正弦呼吸
@@ -145,13 +145,13 @@ func _start_transition() -> void:
 func _on_start_game() -> void:
 	SFXManager.play(SFXManager.SFX.UI_CLICK)
 	print("[TitleScreen] >>> 开始正式游戏按钮被点击 <<<")
-	GameManager.run_mode = GlobalDefine.RunMode.FORMAL
+	GameManager.begin_new_run(GlobalDefine.RunMode.FORMAL)
 	SceneTransitionManager.request_scene_change("res://Global/MainEntry.tscn", self)
 
 func _on_highlight_start() -> void:
 	SFXManager.play(SFXManager.SFX.UI_CLICK)
 	print("[TitleScreen] >>> 从精彩处开始按钮被点击 <<<")
-	GameManager.run_mode = GlobalDefine.RunMode.FORMAL
+	GameManager.begin_new_run(GlobalDefine.RunMode.FORMAL)
 	SceneTransitionManager.request_scene_change(HIGHLIGHT_SCENE, self)
 
 func _on_quit() -> void:
@@ -207,6 +207,8 @@ func _on_open_settings() -> void:
 		push_error("[TitleScreen] 无法加载按键设置界面")
 
 func _input(event: InputEvent) -> void:
+	if not GameManager.dev_tools_enabled():
+		return
 	# 按1进入玩家测试场景
 	if event is InputEventKey and event.pressed and event.keycode == KEY_1:
 		SFXManager.play(SFXManager.SFX.UI_CLICK)
