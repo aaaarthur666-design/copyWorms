@@ -2,6 +2,10 @@
 
 Depth companion to `godot-audio`.
 
+HackathonGame note: use `MusicManager`/`SFXManager` for global playback. The current
+project routes their players to `Master`; verify the bus layout before using the generic
+`Music`/`SFX` examples below.
+
 ## The bus layout
 
 Buses are configured in the editor's **Audio** panel (bottom dock) and saved as a bus

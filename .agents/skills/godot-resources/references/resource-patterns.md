@@ -2,6 +2,10 @@
 
 Depth companion to `godot-resources`.
 
+HackathonGame note: use typed `DataConfig/` Resources for formal tunables, preserve exact
+`res://` casing, and let the editor maintain repaired UIDs. Do not hand-edit or invent
+UIDs, or restore dependencies from `LevelModule/Backup/`.
+
 ## File formats
 
 - `.tres` — text resource. Human-readable, merges/diffs well in version control. Default

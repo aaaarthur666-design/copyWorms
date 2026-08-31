@@ -23,6 +23,15 @@ rays. Concepts apply to both 2D and 3D (swap the `2D`/`3D` suffix). Targets
 `godot-2d-movement`; map authoring; or engine-agnostic tuning of physics feel
 (timestep, mass, jitter).
 
+## HackathonGame adaptation
+
+- Use the project collision-layer definitions and inspect the actual scene/resource
+  chain before changing masks. `PlayerBase`/`EnemyBase` movement belongs to the movement
+  Skill; enemy lifecycle still follows `EnemyBase._ready()` and `GameManager`.
+- Pixelwork map authoring is outside this Skill. For map changes, inspect source/generated
+  map data together with runtime assembly and collision synchronization under the project
+  Skill.
+
 ## Core workflow
 
 1. **Choose the body type:**

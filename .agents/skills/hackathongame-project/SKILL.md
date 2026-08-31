@@ -31,6 +31,9 @@ Do not copy the architecture report into this Skill or create another architectu
 - Apply this Project Skill first and keep it active for the entire task. A specialized Skill supplements this gate; it never replaces the project context, version baseline, authorization classification, or verification requirements.
 - Select the smallest set of specialized Skills whose descriptions match the actual artifact and operation. Load more than one only when the task genuinely crosses domains, such as UI layout plus animation or scene composition plus event architecture.
 - Resolve overlap by the primary decision being made: language syntax belongs to the language Skill; scene-tree composition to nodes/scenes; communication design to signals/groups; kinematic controller logic to movement; general collision, forces, Areas, and raycasts to physics; build production to export. Pixelwork map work stays under this Project Skill and must inspect the custom runtime; online networking has no approved project Skill.
+- Route Resource/config work to resources, UI/layout to UI, audio playback to audio, animation/tweening to animation, and shader code to shaders. Input rebinding still uses the project's `KeybindManager` through the UI path; combat/Boss policy and level authoring remain project-specific code concerns.
+- Keep the project lifecycle contract when routing to other Skills: whole-tree scene changes and checkpoint restarts go through `Global/SceneTransitionManager.gd`; `MainEntry` may replace managed child levels but must reuse its cleanup. Generic direct `get_tree().change_scene_to_file()` recipes are not valid project guidance.
+- Keep global communication and data boundaries explicit: cross-module broadcasts use `Global/EventBus.gd`, persistent/checkpoint state uses `Global/GameManager.gd`, and formal level/config data uses `DataConfig/`. Specialized Skills explain mechanics; this repository contract decides which service owns the operation.
 - Honor the inclusion and exclusion boundaries in each specialized Skill description before reading its body. If no description is a clear match, continue under this Project Skill and inspect the repository instead of forcing a nearby Skill.
 - Skill selection never grants write permission. Continue to use the authorization class and protected-content rules below.
 
@@ -95,6 +98,9 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Preserve module direction: levels may assemble player, enemy, UI, and map systems; player and enemy code must not depend on concrete level scripts.
 - Keep cross-scene state in `GameManager` only when necessary and pair it with explicit initialization and cleanup.
 - Rely on `EnemyBase._ready()` for enemy registration; do not add a second registration after `add_child()`.
+- Treat `SceneTransitionManager` as the dedicated level-transition manager and sole whole-tree transition entry. Do not move level loading into `GameManager`, level scripts, or UI examples.
+- Treat `EventBus.emit()` callbacks as deferred in this project: validate the dynamic `Dictionary` payload and do not rely on same-call-stack completion; `emit_deferred()` adds another queue boundary.
+- Treat `DataConfig` as the preferred source for formal tunables, while transient `GameManager.dream_runtime_flags` and still-hard-coded cyber/Huadan values remain explicit partial data-driven boundaries.
 - Use exact-case `res://` paths and never introduce formal dependencies on `LevelModule/Backup/`.
 - Update `TECHNICAL_ARCHITECTURE_REPORT.md` in the same task only when an authorized change alters architecture, lifecycle, public contracts, state keys, event payloads, main progression, resource boundaries, or confirmed risk status.
 

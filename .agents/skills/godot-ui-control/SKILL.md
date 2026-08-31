@@ -4,7 +4,8 @@ description: >
   Build or debug Godot 4.6 UI with Control and Container nodes, anchors, offsets,
   Theme or StyleBox resources, HUD/menu layout, or keyboard/gamepad focus. Use for
   UI layout, theming, and focus; use godot-animation for UI tweens,
-  and godot-signals-groups for event architecture. Full input rebinding is out of scope.
+  and godot-signals-groups for event architecture. Full input rebinding is out of scope
+  here; HackathonGame routes it through KeybindManager.
 ---
 
 # Godot UI / Control nodes (4.x)
@@ -19,8 +20,15 @@ Lay out responsive UI with `Control` anchors and `Container` nodes, style it wit
   focus navigation for controller/keyboard.
 
 **When *not* to use:** in-world 2D nodes (`Node2D`/sprites) → `godot-nodes-scenes`;
-animating UI transitions → `godot-animation` (Tween); full input rebinding; or complete
-genre-specific UI templates.
+animating UI transitions → `godot-animation` (Tween); full rebinding implementation →
+the project's `KeybindManager` path; or complete genre-specific UI templates.
+
+## HackathonGame adaptation
+
+- Use `KeybindManager`/`KeybindSettingsScreen` for the project's keyboard, mouse, and
+  gamepad rebinding path; do not create a second persistence format.
+- For a whole-tree level change from a button, call `SceneTransitionManager` and let its
+  cleanup handle input/dialogue/pause state. Use `EventBus` for cross-module UI events.
 
 ## Core workflow
 
@@ -68,7 +76,7 @@ func _ready() -> void:
 
 func _on_button_pressed(which: StringName) -> void:
     match which:
-        "PlayButton":  get_tree().change_scene_to_file("res://game.tscn")
+        "PlayButton":  SceneTransitionManager.request_scene_change("res://Global/MainEntry.tscn")
         "QuitButton":  get_tree().quit()
 ```
 

@@ -85,11 +85,13 @@ get_tree().set_group("enemies", "modulate", Color.RED)  # set a property on all
 
 ## Global event bus (autoload)
 
-For events that cross scenes, declare signals on an autoload and have any scene emit or
-connect:
+For generic projects, events that cross scenes can live on an autoload. In HackathonGame,
+use the existing `EventBus` contract instead of adding another bus: subscribe with a
+string method name, emit a `Dictionary` payload, and remember callbacks are deferred by
+the current implementation.
 
 ```gdscript
-# Events.gd (autoload). Emit: Events.player_died.emit(). Listen: Events.player_died.connect(...)
+# Generic autoload example; use EventBus in HackathonGame.
 extends Node
 signal player_died
 signal level_completed(level_id: int)

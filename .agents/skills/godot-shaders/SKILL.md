@@ -21,6 +21,15 @@ with `TIME`/`UV`, expose `uniform`s, and read the screen. Targets **Godot 4.6**.
 **When *not* to use:** cross-engine shading theory; particles/VFX node setup; general 3D
 scene assembly; or non-shader visuals.
 
+## HackathonGame adaptation
+
+- The game is 2D on GL Compatibility; prefer the existing `canvas_item` patterns and do
+  not change renderer settings as part of a shader task. Inspect the material/scene chain
+  before adding uniforms or screen reads.
+- Shader edits require a real graphics run or visual inspection. Headless parsing cannot
+  establish the final effect; keep the known WarningBarrier dummy-shader limitation
+  visible instead of declaring visual QA complete.
+
 ## Core workflow
 
 1. **Pick the shader type** on the first line: `shader_type canvas_item;` for 2D

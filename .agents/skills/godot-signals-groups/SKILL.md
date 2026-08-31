@@ -4,7 +4,8 @@ description: >
   Design or debug Godot 4.6 node communication with custom signals, Callable
   connections, bind or one-shot flags, groups, call_group(), or an Autoload event bus.
   Use for event architecture and broadcasts; use godot-gdscript for isolated signal
-  syntax and godot-nodes-scenes for scene composition or Autoload registration.
+  syntax and godot-nodes-scenes for scene composition or Autoload registration. In
+  HackathonGame, cross-module broadcasts use EventBus and local signals stay local.
 ---
 
 # Godot Signals & Groups (4.x)
@@ -21,7 +22,20 @@ Decouple nodes with the observer pattern (signals) and act on many nodes at once
 
 **When *not* to use:** raw signal *syntax* basics → `godot-gdscript`; scene structure
 and instancing → `godot-nodes-scenes`. For cross-scene global events, emit from an
-autoload (see `godot-nodes-scenes`).
+autoload (see `godot-nodes-scenes`); in HackathonGame use the existing `EventBus`.
+
+## HackathonGame adaptation
+
+- Use typed Godot signals for local node/sub-scene contracts. Use `EventBus` for
+  cross-module events with project event-name constants, string method names, and a
+  dynamic `Dictionary` payload; validate payload keys at both boundaries.
+- `EventBus.emit()` schedules callbacks with `call_deferred()` in this project, so a
+  listener is not a synchronous completion point. `emit_deferred()` adds another queue
+  boundary; never rely on same-stack ordering for transition or state cleanup.
+- Its `has_method()` check is not a GDScript `try/catch`: `_safe_call()` does not provide a
+  real exception boundary. Validate handlers and payloads; do not promise error isolation.
+- Groups are for local categorization/broadcast. Enemy registration is not a group-based
+  substitute: `EnemyBase._ready()` owns registration and `GameManager` owns the list.
 
 ## Core workflow
 
@@ -51,12 +65,13 @@ func _on_body_entered(body: Node) -> void:
 ```
 
 ```gdscript
-# level.gd (the parent wires the coin to game state)
+# level.gd (generic parent wiring; HackathonGame uses its documented GameManager boundary)
 func _ready() -> void:
     for coin in get_tree().get_nodes_in_group("coins"):
         coin.collected.connect(_on_coin_collected)
 
 func _on_coin_collected(value: int) -> void:
+    # Generic only; use an approved project state owner instead of adding GameState here.
     GameState.add_score(value)
 ```
 
@@ -82,6 +97,13 @@ func pause_all_enemies() -> void:
 
 func count_enemies() -> int:
     return get_tree().get_nodes_in_group("enemies").size()
+```
+
+For a project-wide event, prefer the existing EventBus contract rather than adding a new
+autoload bus:
+
+```gdscript
+EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"level_id": level_id})
 ```
 
 Add a node to a group from code or via the editor's Node > Groups tab:

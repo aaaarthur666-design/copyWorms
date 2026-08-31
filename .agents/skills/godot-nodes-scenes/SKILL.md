@@ -5,6 +5,7 @@ description: >
   PackedScene.instantiate(), NodePath access, node lifetime, or Autoload registration.
   Use for composition, instancing, and tree errors; use godot-gdscript for language
   syntax, godot-signals-groups for event architecture, and domain Skills for behavior.
+  In HackathonGame, whole-tree transitions route through SceneTransitionManager.
 ---
 
 # Godot Nodes & Scenes (4.x)
@@ -22,6 +23,14 @@ without crashing on freed or missing nodes. Targets **Godot 4.6**.
 **When _not_ to use:** GDScript language/syntax → `godot-gdscript`; signal-based
 decoupling → `godot-signals-groups`; physics bodies/collisions → `godot-physics`.
 
+## HackathonGame adaptation
+
+- `SceneTransitionManager` is the dedicated level-transition manager and the only
+  whole-tree scene-change entry. `MainEntry` may replace a managed child level, but must
+  reuse the manager's shared cleanup.
+- Keep level loading out of `GameManager`, level scripts, and UI; use exact project paths
+  and do not add formal scene dependencies without authorization.
+
 ## Core workflow
 
 1. **Model with composition.** A scene is a tree of nodes saved as `.tscn`. Build small,
@@ -35,6 +44,8 @@ decoupling → `godot-signals-groups`; physics bodies/collisions → `godot-phys
    names (`%Name`) for nodes deep in the tree; never assume a node still exists.
 5. **Use autoloads for global state/services** (game state, audio, scene switching) —
    registered in Project Settings > Globals (Autoload), accessible by name everywhere.
+   In HackathonGame, `GameManager` holds required state and `SceneTransitionManager` owns
+   whole-tree switching; do not make `GameManager` a scene loader.
 6. **Free nodes with `queue_free()`** and guard later access with `is_instance_valid()`.
 
 ## Patterns
@@ -68,7 +79,8 @@ func update() -> void:
 ### 3. An autoload singleton (global game state)
 
 ```gdscript
-# game_state.gd — add in Project Settings > Globals > Autoload as "GameState".
+# Generic autoload pattern. HackathonGame already provides GameManager for required state;
+# do not add a parallel global-state singleton.
 extends Node
 
 var score := 0
@@ -83,10 +95,8 @@ func add_score(points: int) -> void:
 
 ```gdscript
 func go_to_level_2() -> void:
-    # Swaps the current scene for another. Frees the old scene tree.
-    get_tree().change_scene_to_file("res://levels/level_2.tscn")
-    # Or, with a preloaded PackedScene:
-    # get_tree().change_scene_to_packed(LEVEL_2)
+    # HackathonGame: the dedicated transition manager owns whole-tree changes.
+    SceneTransitionManager.request_scene_change("res://Global/MainEntry.tscn")
 ```
 
 ## Pitfalls
@@ -104,11 +114,13 @@ func go_to_level_2() -> void:
   An autoload can't depend on the main scene existing yet.
 - **`instance()` was renamed** to `instantiate()` in Godot 4. `preload` runs at parse
   time (path must be constant); `load` runs at runtime (path can be a variable).
-- **Scene changes have a two-phase handoff.** `change_scene_to_file()` immediately removes
-  the outgoing scene from the tree, so its `get_tree()` and `current_scene` become `null`.
-  At the end of the frame Godot frees the old scene and adds the new one. Await
-  `get_tree().scene_changed` from an Autoload, or initialize from the new scene's `_ready()`,
-  before reading the new scene.
+- **Scene changes have a two-phase handoff.** Whole-tree changes and checkpoint restarts
+  go through `SceneTransitionManager`, which owns the duplicate guard and shared cleanup.
+  `MainEntry` may replace a managed child level, but must reuse that cleanup; do not call
+  `get_tree().change_scene_to_file()` from level or UI code. The underlying Godot handoff
+  still removes the outgoing scene before the new one is ready.
+- **Enemy registration is automatic.** `EnemyBase._ready()` registers with `GameManager`;
+  do not manually register the same enemy after `add_child()`.
 
 ## References
 
