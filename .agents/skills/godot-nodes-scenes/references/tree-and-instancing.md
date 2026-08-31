@@ -2,6 +2,10 @@
 
 Depth companion to `godot-nodes-scenes`.
 
+HackathonGame note: the generic scene-save example is not a runtime architecture pattern.
+Whole-tree changes belong to `SceneTransitionManager`; do not create formal dependencies
+on generated scenes or `LevelModule/Backup/` without explicit authorization.
+
 ## Node paths
 
 - `$Child`, `$Child/Grandchild` — relative path sugar for `get_node(...)`.

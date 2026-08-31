@@ -21,6 +21,14 @@ handle the web/dedicated-server gotchas. Targets **Godot 4.6**.
 **When *not* to use:** storefront publishing or upload workflows, or server networking
 code (this Skill only covers producing the build).
 
+## HackathonGame adaptation
+
+- The repository targets Godot 4.6 with GL Compatibility and currently defines a Web
+  preset only. Inspect `export_presets.cfg` before naming a preset or claiming a platform
+  is configured; do not add presets as a side effect of diagnosis.
+- Preserve exact-case `res://` paths and the project helper-export behavior. Verify the
+  Web build with its configured headers and report missing assets rather than masking them.
+
 ## Core workflow
 
 1. **Install export templates** matching your engine version: Editor menu >
@@ -44,9 +52,13 @@ code (this Skill only covers producing the build).
 ```bash
 # Preset name must match exactly what's in Project > Export (quote it).
 # Run from the project directory (where project.godot lives).
+# HackathonGame currently has only the Web preset; use other names only after verifying
+# that the corresponding preset was explicitly added.
+godot --headless --export-release "Web"             build/web/index.html
+
+# Generic examples for projects that have these presets:
 godot --headless --export-release "Windows Desktop" build/windows/game.exe
 godot --headless --export-release "Linux/X11"       build/linux/game.x86_64
-godot --headless --export-release "Web"             build/web/index.html
 
 # Debug build (includes debug symbols / remote debug):
 godot --headless --export-debug "Windows Desktop" build/windows/game_debug.exe

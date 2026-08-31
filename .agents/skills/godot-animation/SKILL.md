@@ -21,6 +21,14 @@ Choose and drive the right animation tool: `AnimationPlayer` (clips), `Animation
 `godot-2d-movement`; UI layout (vs. UI tweening) → `godot-ui-control`; shader-driven
 effects → `godot-shaders`.
 
+## HackathonGame adaptation
+
+- Current gameplay primarily uses `AnimatedSprite2D`/`SpriteFrames` and `create_tween()`;
+  do not assume an `AnimationPlayer` or `AnimationTree` exists in a target scene.
+- If animation completion triggers a whole-tree level change, call
+  `SceneTransitionManager`; do not copy a direct `change_scene_to_file()` recipe. Verify
+  animation/tween changes with a real graphics run, not headless output alone.
+
 ## Core workflow
 
 1. **Pick the tool:**

@@ -21,6 +21,15 @@ gameplay to the beat. Targets **Godot 4.6**.
 **When *not* to use:** engine-agnostic audio *design* (adaptive music structure, mixing
 philosophy, ducking patterns), or importing/encoding assets outside Godot.
 
+## HackathonGame adaptation
+
+- Route global music and SFX through the existing `MusicManager` and `SFXManager`
+  Autoloads. Their current players use the `Master` bus; do not assume `Music`/`SFX`
+  buses exist unless the project bus layout is changed and verified.
+- Check every `res://` stream path with exact casing. Level 02 audio hooks currently
+  include missing assets; report the gap instead of inventing files. Transition cleanup
+  must preserve the project pause/music cleanup path.
+
 ## Core workflow
 
 1. **Pick the player node:**
@@ -28,9 +37,9 @@ philosophy, ducking patterns), or importing/encoding assets outside Godot.
    - `AudioStreamPlayer2D` / `AudioStreamPlayer3D` — positional; volume/pan from distance.
 2. **Assign an `AudioStream`** to `stream` (`.ogg` for music/loops, `.wav` for short SFX)
    and `play()`. Set `autoplay` for music that starts with the scene.
-3. **Route to a bus.** Set the player's `bus` to a named bus (e.g. `"Music"`, `"SFX"`).
-   Define buses in the Audio panel (bottom dock); each can have volume, mute, solo, and
-   effects.
+3. **Route to a bus.** Set the player's `bus` to a named bus and verify it exists in the
+   Audio panel. In HackathonGame, existing global managers currently route to `Master`;
+   do not silently introduce assumed `Music`/`SFX` buses.
 4. **Control volume in dB**, not linear (audio is logarithmic). `0 dB` = unchanged,
    `-80 dB` ≈ silent. Convert with `linear_to_db`/`db_to_linear`.
 5. **Drive volume/mute from code** with `AudioServer` by bus index.

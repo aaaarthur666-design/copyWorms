@@ -23,6 +23,14 @@ Build responsive 2D character controllers with `CharacterBody2D` and the argumen
 `godot-physics`; map authoring; full platformer templates; or engine-agnostic feel
 tuning.
 
+## HackathonGame adaptation
+
+- `PlayerBase` and `EnemyBase` are the project character-controller bases. Keep movement
+  and jump polling in the physics path; route discrete attack/dash/skill actions through
+  `InputManager.game_action` rather than adding parallel direct-input handlers.
+- Preserve the project collision/lifecycle contracts and do not edit formal scenes or
+  introduce level-script dependencies without explicit authorization.
+
 ## Core workflow
 
 1. **Use `CharacterBody2D`** with a `CollisionShape2D` child. It is script-driven: it

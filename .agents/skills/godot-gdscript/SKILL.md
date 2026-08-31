@@ -23,6 +23,14 @@ system the way the engine intends. Targets **Godot 4.6** (GDScript 2.0).
 `godot-nodes-scenes`; signal *architecture*/decoupling patterns →
 `godot-signals-groups`; or non-GDScript language work.
 
+## HackathonGame adaptation
+
+- Keep the verified Godot 4.6/GDScript baseline and reuse the project services:
+  `SceneTransitionManager` owns whole-tree transitions, `GameManager` owns only required
+  cross-scene state, and `DataConfig` owns formal tunables.
+- At the dynamic boundary, `EventBus` uses string method names and `Dictionary` payloads;
+  validate keys and remember that callbacks are deferred by the project implementation.
+
 ## Core workflow
 
 1. **Type everything you can.** GDScript 2.0 supports static types

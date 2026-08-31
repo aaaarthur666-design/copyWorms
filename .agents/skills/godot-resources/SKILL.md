@@ -20,6 +20,15 @@ values, and load/save them as `.tres`/`.res`. Targets **Godot 4.6**.
 **When *not* to use:** nodes/scene structure → `godot-nodes-scenes`; non-GDScript
 Resource authoring; or designing runtime save formats and slots.
 
+## HackathonGame adaptation
+
+- Formal level/config data belongs in typed `DataConfig/` Resources and exact-case `.tres`
+  paths (for example `DataConfig/Level/Level02Data.tres`); do not invent UIDs or restore
+  dependencies from `LevelModule/Backup/`.
+- `GameManager.dream_runtime_flags` is transient runtime state, not a replacement for a
+  config Resource. Cyber skill 2 and Huadan phase/toughness values still have hard-coded
+  portions; do not describe the project as fully data-driven until those boundaries move.
+
 ## Core workflow
 
 1. **Subclass `Resource`** with `class_name` and `@export` fields. It now appears in the
