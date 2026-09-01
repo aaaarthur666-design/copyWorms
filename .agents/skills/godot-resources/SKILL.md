@@ -25,9 +25,14 @@ Resource authoring; or designing runtime save formats and slots.
 - Formal level/config data belongs in typed `DataConfig/` Resources and exact-case `.tres`
   paths (for example `DataConfig/Level/Level02Data.tres`); do not invent UIDs or restore
   dependencies from `LevelModule/Backup/`.
-- `GameManager.dream_runtime_flags` is transient runtime state, not a replacement for a
-  config Resource. Cyber skill 2 and Huadan phase/toughness values still have hard-coded
-  portions; do not describe the project as fully data-driven until those boundaries move.
+- `DataConfig/` is the runtime authority for formal gameplay tunables across player forms,
+  attacks and projectiles, normal enemies, bosses, formal levels, and memory areas.
+- Typed `DreamRuntimeState` owns transient cross-scene runtime state;
+  `GameManager.dream_runtime_flags` is a compatibility accessor, not a config Resource.
+- Pure visual dimensions, colors, slicing constants, state enums, and algorithm sentinels
+  may remain in code or scenes without violating this boundary. Formal config loads must
+  fail clearly when missing; schema defaults are templates or safety fallbacks, not a
+  second balance table.
 
 ## Core workflow
 

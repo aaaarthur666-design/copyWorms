@@ -52,7 +52,7 @@ If the request does not clearly authorize formal implementation, remain read-onl
 
 After the mandatory sources, inspect only the evidence needed for the request:
 
-- Scene lifecycle or progression: `project.godot`, `UI/TitleScreen.tscn`, `UI/MainEntry.*`, the affected level scenes/scripts, `Global/SceneTransitionManager.gd`, and cleanup paths.
+- Scene lifecycle or progression: `project.godot`, `UI/TitleScreen.tscn`, `Global/MainEntry.*`, the affected level scenes/scripts, `Global/SceneTransitionManager.gd`, and cleanup paths.
 - Global state, events, input, or audio: the relevant files under `Global/`, their subscribers/callers, and affected HUD or level consumers.
 - Player, enemy, or combat behavior: the applicable base class, concrete override, `DataConfig/` resources, spawning path, event consumers, and Boss overrides when lifecycle semantics are involved.
 - Level 02 memory/replay flow: read section 3.2 of `TECHNICAL_ARCHITECTURE_REPORT.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
@@ -86,7 +86,7 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Treat `.codex/config.example.toml` and `.codex/README.md` as this repository's shared project policy. The active `.codex/config.toml` is local and Git-ignored; compare it with the template before MCP use. Do not add the project server to a user-level Codex config unless the user explicitly requests a cross-project setup.
 - Treat MCP allowlists as client-specific and tool-based, not as a server-wide or path-based sandbox. Confirm each active client has the intended allowlist, and continue to enforce protected paths and current-task authorization independently.
 - Treat project-scoped loading as a Codex client boundary, not server-side project isolation. Before every MCP write, confirm the editor state and session list identify HackathonGame, its project path, and the intended current scene; explicitly activate the correct session when more than one exists.
-- Under Godot AI 3.2.0, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support. Keep the new `custom_manage` outside the Codex allowlist until this repository contains reviewed, registered custom tools.
+- Under the repository-pinned Godot AI 3.2.4, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support. Keep `custom_manage` outside the Codex allowlist until this repository contains reviewed, registered custom tools.
 - Delete isolated MCP test artifacts after validation unless the user explicitly designates them as versioned regression fixtures; before deletion, navigate the editor away from the target scene and confirm no formal dependency exists.
 - Keep cross-Skill references callable: name another Skill only when it is bundled with the repository or discoverable in the current environment. Express unsupported domains as ordinary prose; if a missing route is found, repair or report it instead of auto-installing or pretending to invoke it.
 - Do not describe loopback MCP as fully offline: inspect Godot AI telemetry and update-check behavior whenever network egress or privacy is in scope.
@@ -99,8 +99,8 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Keep cross-scene state in `GameManager` only when necessary and pair it with explicit initialization and cleanup.
 - Rely on `EnemyBase._ready()` for enemy registration; do not add a second registration after `add_child()`.
 - Treat `SceneTransitionManager` as the dedicated level-transition manager and sole whole-tree transition entry. Do not move level loading into `GameManager`, level scripts, or UI examples.
-- Treat `EventBus.emit()` callbacks as deferred in this project: validate the dynamic `Dictionary` payload and do not rely on same-call-stack completion; `emit_deferred()` adds another queue boundary.
-- Treat `DataConfig` as the preferred source for formal tunables, while transient `GameManager.dream_runtime_flags` and still-hard-coded cyber/Huadan values remain explicit partial data-driven boundaries.
+- Treat `EventBus.emit()` as synchronous mediator dispatch: it walks a snapshot of current listeners in subscription order and returns after their callbacks finish. Subscription changes made during a callback apply to the next emission; use `emit_deferred()` only for an explicit queue boundary. Validate dynamic `Dictionary` payloads at both publishing and subscription boundaries. Scene transitions clear transient subscriptions and queued deferred events while preserving explicitly persistent subscriptions.
+- Treat `DataConfig/` as the runtime authority for formal gameplay tunables across player forms, attacks and projectiles, normal enemies, bosses, formal levels, and memory areas. Typed `DreamRuntimeState` owns transient cross-scene runtime state; `GameManager.dream_runtime_flags` is a compatibility accessor, not configuration storage. Pure visual constants, state enums, and algorithm sentinels may remain in code or scenes; a missing formal config must fail clearly instead of silently selecting a second balance table.
 - Use exact-case `res://` paths and never introduce formal dependencies on `LevelModule/Backup/`.
 - Update `TECHNICAL_ARCHITECTURE_REPORT.md` in the same task only when an authorized change alters architecture, lifecycle, public contracts, state keys, event payloads, main progression, resource boundaries, or confirmed risk status.
 
