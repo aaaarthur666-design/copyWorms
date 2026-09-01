@@ -24,6 +24,8 @@ var _web_quit_hint: Label = null
 
 func _ready() -> void:
 	InputManager.activate_menu_pointer()
+	if not InputManager.title_exit_requested.is_connected(_on_quit):
+		InputManager.title_exit_requested.connect(_on_quit)
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
 	print("[TitleScreen] 标题画面加载")
 	# 标题界面播放结局主题音乐
@@ -32,6 +34,11 @@ func _ready() -> void:
 	_connect_signals()
 	_start_hotspot_flicker()
 	set_process_input(GameManager.dev_tools_enabled())
+
+
+func _exit_tree() -> void:
+	if InputManager.title_exit_requested.is_connected(_on_quit):
+		InputManager.title_exit_requested.disconnect(_on_quit)
 
 # ============================================================
 # 光点闪烁：复用关卡1 InteractiveObject.apply_level01_dot_visual 的正弦呼吸

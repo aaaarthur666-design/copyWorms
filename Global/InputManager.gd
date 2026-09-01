@@ -7,6 +7,9 @@
 extends Node
 
 signal game_action(action: StringName, event: InputEvent)
+signal title_exit_requested
+
+const TITLE_SCENE_PATH := "res://UI/TitleScreen.tscn"
 
 var is_input_blocked: bool = false
 var block_reason: String = ""
@@ -19,6 +22,8 @@ var _blocked_actions: Dictionary = {}
 var _tracked_owner_ids: Dictionary = {}
 var _gameplay_display_active: bool = false
 var _gameplay_pointer_captured: bool = false
+var _fullscreen_active: bool = false
+var _window_mode_before_gameplay: int = DisplayServer.WINDOW_MODE_MAXIMIZED
 
 
 func _ready() -> void:
@@ -28,13 +33,27 @@ func _ready() -> void:
 ## 由标题页的实际开始按钮调用。桌面端进入独占全屏；Web 端使用浏览器全屏。
 ## 调用必须留在用户点击回调中，否则浏览器可能拒绝全屏和鼠标捕获请求。
 func activate_gameplay_display() -> void:
+	if not _gameplay_display_active and not _is_headless_display():
+		_window_mode_before_gameplay = _non_fullscreen_restore_mode(DisplayServer.window_get_mode())
 	_gameplay_display_active = true
+	_fullscreen_active = true
 	if not _is_headless_display():
 		var fullscreen_mode := DisplayServer.WINDOW_MODE_FULLSCREEN
 		if not OS.has_feature("web"):
 			fullscreen_mode = DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
 		DisplayServer.window_set_mode(fullscreen_mode)
 	_set_gameplay_pointer_captured(true)
+
+
+## macOS 客户端退出全屏，但不退出游戏、不暂停，也不改变玩法显示状态。
+func exit_fullscreen() -> void:
+	if not _fullscreen_active:
+		return
+	_fullscreen_active = false
+	if _is_headless_display():
+		return
+	DisplayServer.window_set_mode(_window_mode_before_gameplay)
+	_set_gameplay_pointer_captured(_gameplay_pointer_captured)
 
 
 ## 进入标题页时恢复可操作的鼠标，但保留已进入的全屏状态。
@@ -75,7 +94,16 @@ func _is_headless_display() -> bool:
 
 
 func _input(event: InputEvent) -> void:
+	if _is_macos_fullscreen_exit_shortcut(event) and _fullscreen_active:
+		exit_fullscreen()
+		get_viewport().set_input_as_handled()
+		return
+
 	if event.is_action_pressed("ui_pause"):
+		if _is_title_screen_active():
+			get_viewport().set_input_as_handled()
+			title_exit_requested.emit()
+			return
 		if _pause_allowed:
 			_handle_pause()
 		return
@@ -158,6 +186,36 @@ func _emit_action(action: StringName, event: InputEvent) -> void:
 func _handle_pause() -> void:
 	GameManager.toggle_pause()
 	get_viewport().set_input_as_handled()
+
+
+func _is_title_screen_active() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var current_scene := tree.current_scene
+	return (
+		is_instance_valid(current_scene)
+		and current_scene.scene_file_path == TITLE_SCENE_PATH
+	)
+
+
+func _is_macos_fullscreen_exit_shortcut(event: InputEvent) -> bool:
+	if OS.has_feature("web") or not OS.has_feature("macos") or not event is InputEventKey:
+		return false
+	var key_event := event as InputEventKey
+	return (
+		key_event.pressed
+		and not key_event.echo
+		and (key_event.keycode == KEY_F or key_event.physical_keycode == KEY_F)
+		and key_event.ctrl_pressed
+		and key_event.meta_pressed
+	)
+
+
+func _non_fullscreen_restore_mode(mode: int) -> int:
+	if mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+		return DisplayServer.WINDOW_MODE_MAXIMIZED
+	return mode
 
 
 func _identify_game_action(event: InputEvent) -> StringName:

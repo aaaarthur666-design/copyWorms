@@ -20,6 +20,15 @@ class EventProbe:
 		call_count += 1
 
 
+class NoArgProbe:
+	extends Node
+
+	var call_count: int = 0
+
+	func record() -> void:
+		call_count += 1
+
+
 class TransitionMonitor:
 	extends Node
 
@@ -94,6 +103,27 @@ class TransitionMonitor:
 		if title == null or not title.has_method("_on_start_game"):
 			await _finish(dialog_owner)
 			return
+
+		var title_exit_callback := Callable(title, "_on_quit")
+		var title_exit_probe := NoArgProbe.new()
+		title_exit_probe.name = "TitleExitProbe"
+		add_child(title_exit_probe)
+		var title_exit_probe_callback := Callable(title_exit_probe, "record")
+		if InputManager.title_exit_requested.is_connected(title_exit_callback):
+			InputManager.title_exit_requested.disconnect(title_exit_callback)
+		InputManager.title_exit_requested.connect(title_exit_probe_callback)
+		var escape_event := InputEventKey.new()
+		escape_event.keycode = KEY_ESCAPE
+		escape_event.physical_keycode = KEY_ESCAPE
+		escape_event.pressed = true
+		InputManager._input(escape_event)
+		_assert_equal(title_exit_probe.call_count, 1, "标题页 ESC 必须发出退出请求")
+		_assert_false(GameManager.is_paused, "标题页 ESC 不得进入暂停状态")
+		_assert_false(tree.paused, "标题页 ESC 不得暂停 SceneTree")
+		InputManager.title_exit_requested.disconnect(title_exit_probe_callback)
+		InputManager.title_exit_requested.connect(title_exit_callback)
+		title_exit_probe.queue_free()
+		await tree.process_frame
 		title.call("_on_start_game")
 		_assert_true(InputManager.is_gameplay_display_active(), "正式开始入口必须激活游戏全屏状态")
 		_assert_true(InputManager.is_gameplay_pointer_captured(), "正式开始入口必须请求捕获并隐藏鼠标")
@@ -109,9 +139,12 @@ class TransitionMonitor:
 		_assert_equal(GameManager.checkpoint_stage, 0, "正式开始入口必须清空上一局检查点阶段")
 		_assert_true(GameManager.checkpoint_data.is_empty(), "正式开始入口必须清空上一局检查点数据")
 
-		GameManager.toggle_pause()
+		InputManager._input(escape_event)
+		_assert_true(GameManager.is_paused and tree.paused, "玩法内 ESC 必须进入暂停状态")
 		_assert_false(InputManager.is_gameplay_pointer_captured(), "暂停菜单必须释放并显示鼠标")
-		GameManager.toggle_pause()
+		InputManager._input(escape_event)
+		_assert_false(GameManager.is_paused, "玩法内再次按 ESC 必须恢复游戏")
+		_assert_false(tree.paused, "玩法内再次按 ESC 必须恢复 SceneTree")
 		_assert_true(InputManager.is_gameplay_pointer_captured(), "恢复游戏必须重新捕获并隐藏鼠标")
 
 		SceneTransitionManager.request_scene_change(LEVEL_03_SCENE, tree.current_scene)
