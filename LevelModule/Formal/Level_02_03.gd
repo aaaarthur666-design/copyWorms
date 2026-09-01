@@ -1505,7 +1505,7 @@ func _build_all_ui() -> void:
 	const VH: float = 720.0
 	var canvas = CanvasLayer.new()
 	canvas.name = "CanvasLayerUI"
-	canvas.layer = 10
+	canvas.layer = UILayerContract.LEVEL_UI
 	add_child(canvas)
 
 	# 黑屏遮罩

@@ -139,6 +139,7 @@ class TransitionMonitor:
 		_assert_equal(GameManager.checkpoint_stage, 0, "正式开始入口必须清空上一局检查点阶段")
 		_assert_true(GameManager.checkpoint_data.is_empty(), "正式开始入口必须清空上一局检查点数据")
 
+		_assert_true(await _wait_for_pause_available(), "MainEntry 入场遮罩淡出后必须释放暂停守卫")
 		InputManager._input(escape_event)
 		_assert_true(GameManager.is_paused and tree.paused, "玩法内 ESC 必须进入暂停状态")
 		_assert_false(InputManager.is_gameplay_pointer_captured(), "暂停菜单必须释放并显示鼠标")
@@ -166,6 +167,13 @@ class TransitionMonitor:
 				and current.scene_file_path == scene_path
 			):
 				return true
+		return false
+
+	func _wait_for_pause_available() -> bool:
+		for _frame: int in range(MAX_WAIT_FRAMES):
+			if InputManager.is_pause_allowed():
+				return true
+			await get_tree().process_frame
 		return false
 
 	func _finish(dialog_owner: Node) -> void:

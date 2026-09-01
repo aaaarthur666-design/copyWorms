@@ -17,7 +17,9 @@ var captured_this_frame: StringName = &""
 
 var _pause_allowed: bool = true
 var _next_lock_token: int = 1
+var _next_pause_guard_token: int = 1
 var _input_locks: Dictionary = {}
+var _pause_guards: Dictionary = {}
 var _blocked_actions: Dictionary = {}
 var _tracked_owner_ids: Dictionary = {}
 var _gameplay_display_active: bool = false
@@ -100,12 +102,18 @@ func _input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed("ui_pause"):
+		# 转场是硬边界：旧场景仍在树中时也不能把 ESC 当成标题退出或暂停。
+		if SceneTransitionManager.is_transitioning:
+			get_viewport().set_input_as_handled()
+			return
 		if _is_title_screen_active():
 			get_viewport().set_input_as_handled()
 			title_exit_requested.emit()
 			return
-		if _pause_allowed:
-			_handle_pause()
+		if _is_pause_blocked():
+			# 不消费事件：按键设置、图鉴等 modal 仍需接收同一个 ESC 来关闭自己。
+			return
+		_handle_pause()
 		return
 
 	if _should_block_game_input():
@@ -124,6 +132,18 @@ func _input(event: InputEvent) -> void:
 func _should_block_game_input() -> bool:
 	_prune_dead_owners()
 	return GameManager.is_paused or is_input_blocked or _is_ui_focused()
+
+
+func _is_pause_blocked() -> bool:
+	_prune_dead_owners()
+	return (
+		not _pause_allowed
+		or not _pause_guards.is_empty()
+		or is_input_blocked
+		or GameManager.is_dialog_active
+		or GameManager.is_game_over
+		or SceneTransitionManager.is_transitioning
+	)
 
 
 ## 统一供事件分发与玩家每帧轮询使用，避免移动、跳跃或长按技能绕过全局锁。
@@ -328,6 +348,48 @@ func unblock_input_token(token: int) -> bool:
 	return true
 
 
+## 暂停守卫只阻止 ui_pause，不影响 modal 自己的翻页、关闭或确认输入。
+## 返回 token 便于嵌套流程精确释放；owner 离树时自动兜底清理。
+func acquire_pause_guard(reason: String, owner: Node = null) -> int:
+	var token := _next_pause_guard_token
+	_next_pause_guard_token += 1
+	_pause_guards[token] = {
+		"reason": reason,
+		"owner_id": _owner_id(owner),
+		"owner": weakref(owner) if owner else null,
+	}
+	_track_owner(owner)
+	return token
+
+
+func release_pause_guard(reason: String = "", owner: Node = null) -> bool:
+	_prune_dead_owners()
+	var owner_id := _owner_id(owner)
+	var matching_token := -1
+	var tokens: Array = _pause_guards.keys()
+	tokens.sort()
+	tokens.reverse()
+	for token: int in tokens:
+		var entry: Dictionary = _pause_guards[token]
+		if owner and int(entry["owner_id"]) != owner_id:
+			continue
+		if reason != "" and String(entry["reason"]) != reason:
+			continue
+		matching_token = token
+		break
+	if matching_token < 0:
+		return false
+	_pause_guards.erase(matching_token)
+	return true
+
+
+func release_pause_guard_token(token: int) -> bool:
+	if not _pause_guards.has(token):
+		return false
+	_pause_guards.erase(token)
+	return true
+
+
 func release_input_for_owner(owner: Node) -> void:
 	if owner == null:
 		return
@@ -336,7 +398,9 @@ func release_input_for_owner(owner: Node) -> void:
 
 func force_unblock_all() -> void:
 	_input_locks.clear()
+	_pause_guards.clear()
 	clear_action_blocks()
+	_pause_allowed = true
 	_refresh_input_lock_state()
 
 
@@ -344,11 +408,25 @@ func set_pause_allowed(allowed: bool) -> void:
 	_pause_allowed = allowed
 
 
+func is_pause_allowed() -> bool:
+	return not _is_pause_blocked()
+
+
 func get_active_locks() -> Array[Dictionary]:
 	_prune_dead_owners()
 	var result: Array[Dictionary] = []
 	for token: int in _input_locks:
 		var entry: Dictionary = _input_locks[token].duplicate()
+		entry["token"] = token
+		result.append(entry)
+	return result
+
+
+func get_active_pause_guards() -> Array[Dictionary]:
+	_prune_dead_owners()
+	var result: Array[Dictionary] = []
+	for token: int in _pause_guards:
+		var entry: Dictionary = _pause_guards[token].duplicate()
 		entry["token"] = token
 		result.append(entry)
 	return result
@@ -377,6 +455,9 @@ func _release_owner_id(owner_id: int) -> void:
 	for token: int in _input_locks.keys():
 		if int(_input_locks[token]["owner_id"]) == owner_id:
 			_input_locks.erase(token)
+	for token: int in _pause_guards.keys():
+		if int(_pause_guards[token]["owner_id"]) == owner_id:
+			_pause_guards.erase(token)
 	for action: StringName in _blocked_actions.keys():
 		var owners: Dictionary = _blocked_actions[action]
 		owners.erase(owner_id)
@@ -390,6 +471,12 @@ func _release_owner_id(owner_id: int) -> void:
 func _prune_dead_owners() -> void:
 	var stale_ids: Dictionary = {}
 	for entry: Dictionary in _input_locks.values():
+		if int(entry["owner_id"]) == 0:
+			continue
+		var owner_ref: WeakRef = entry["owner"] as WeakRef
+		if owner_ref == null or owner_ref.get_ref() == null:
+			stale_ids[int(entry["owner_id"])] = true
+	for entry: Dictionary in _pause_guards.values():
 		if int(entry["owner_id"]) == 0:
 			continue
 		var owner_ref: WeakRef = entry["owner"] as WeakRef

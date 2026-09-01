@@ -119,7 +119,7 @@ func _build_dynamic_actors_container() -> void:
 
 func _build_canvas_ui() -> void:
 	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer)
-	canvas.layer = 10
+	canvas.layer = UILayerContract.LEVEL_UI
 	var ui_builder = Level_02_UIBuilder.new(level, canvas)
 	ui_builder.build_all()
 

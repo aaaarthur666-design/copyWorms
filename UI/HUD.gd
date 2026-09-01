@@ -7,14 +7,18 @@ extends CanvasLayer
 var health_bar: ColorRect          # 血条填充（改为ColorRect）
 var health_label: Label
 var health_bar_max_width: float = 280.0
+var gameplay_hud: Control
+var pause_blocker: Control
 var pause_panel: Panel
 var game_over_panel: Panel
 var _keybind_dim: Panel = null
-var _pause_code_rain_overlay: CodeRain = null
 var _health_frame: TextureRect = null   # 血条外框
 var _health_frame_lingnan: Texture2D = null
 var _health_frame_cyber: Texture2D = null
 var _panel_buttons: Array[TextureButton] = []
+var _resume_button: TextureButton = null
+var _restart_button: TextureButton = null
+var _gameplay_hud_enabled: bool = true
 
 # ---- 技能冷却UI ----
 var _skill_icon_container: Control = null   # 技能图标容器（右下角）
@@ -46,6 +50,7 @@ func suppress_skill_icon(suppress: bool) -> void:
 
 func _ready() -> void:
 	# 关键：暂停时 HUD 必须继续运行，否则按钮无法响应
+	layer = UILayerContract.SHARED_HUD
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	InputManager.restore_gameplay_pointer()
 	_health_frame_lingnan = load("res://Assets/UI/血条岭南.png") as Texture2D
@@ -53,14 +58,40 @@ func _ready() -> void:
 	_build_ui()
 	_connect_events()
 
+func set_gameplay_hud_visible(visible: bool) -> void:
+	if gameplay_hud and is_instance_valid(gameplay_hud):
+		gameplay_hud.visible = visible and _gameplay_hud_enabled
+
+
+func set_gameplay_hud_enabled(enabled: bool) -> void:
+	_gameplay_hud_enabled = enabled
+	set_gameplay_hud_visible(enabled and not GameManager.is_paused)
+
+
+func add_gameplay_control(control: Control) -> void:
+	if control == null:
+		return
+	if gameplay_hud and is_instance_valid(gameplay_hud):
+		gameplay_hud.add_child(control)
+	else:
+		add_child(control)
+
+
 func _build_ui() -> void:
+	gameplay_hud = Control.new()
+	gameplay_hud.name = "GameplayHUD"
+	gameplay_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gameplay_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gameplay_hud.z_index = UILayerContract.HUD_GAMEPLAY_Z
+	add_child(gameplay_hud)
+
 	# === 左上角：血条容器 ===
 	var bar_container = Control.new()
 	bar_container.name = "HealthBarContainer"
 	bar_container.position = Vector2(20, 20)
 	bar_container.size = Vector2(280, 36)
 	bar_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bar_container)
+	gameplay_hud.add_child(bar_container)
 
 	# 背景
 	var bar_bg = ColorRect.new()
@@ -108,15 +139,24 @@ func _build_ui() -> void:
 	bar_container.add_child(_health_frame)
 	_update_health_frame()
 
+	# === 暂停输入阻挡层 ===
+	pause_blocker = Control.new()
+	pause_blocker.name = "PauseBlocker"
+	pause_blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_blocker.z_index = UILayerContract.HUD_PAUSE_Z
+	pause_blocker.hide()
+	add_child(pause_blocker)
+
 	# === 暂停面板 ===
 	pause_panel = Panel.new()
 	pause_panel.name = "PausePanel"
 	pause_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	pause_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pause_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_panel.z_index = UILayerContract.HUD_PAUSE_Z
 	pause_panel.hide()
 	GameUIStyle.apply_panel(pause_panel, 0.72)
 	add_child(pause_panel)
-	_build_pause_code_rain()
 
 	var pause_label = Label.new()
 	pause_label.text = "游戏已暂停"
@@ -128,9 +168,9 @@ func _build_ui() -> void:
 	pause_label.size = Vector2(500, 70)
 	pause_panel.add_child(pause_label)
 
-	var resume_btn = _make_panel_btn("继续游戏", Vector2(530, 233), Vector2(220, 110), 24)
-	resume_btn.pressed.connect(_on_resume_pressed)
-	pause_panel.add_child(resume_btn)
+	_resume_button = _make_panel_btn("继续游戏", Vector2(530, 233), Vector2(220, 110), 24)
+	_resume_button.pressed.connect(_on_resume_pressed)
+	pause_panel.add_child(_resume_button)
 
 	var keybind_btn = _make_panel_btn("按键设置", Vector2(530, 363), Vector2(220, 110), 24)
 	keybind_btn.pressed.connect(_on_keybind_settings_pressed)
@@ -144,7 +184,8 @@ func _build_ui() -> void:
 	game_over_panel = Panel.new()
 	game_over_panel.name = "GameOverPanel"
 	game_over_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	game_over_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game_over_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	game_over_panel.z_index = UILayerContract.HUD_GAMEOVER_Z
 	game_over_panel.hide()
 	GameUIStyle.apply_panel(game_over_panel, 0.78)
 	add_child(game_over_panel)
@@ -159,9 +200,9 @@ func _build_ui() -> void:
 	go_label.size = Vector2(500, 78)
 	game_over_panel.add_child(go_label)
 
-	var restart_btn = _make_panel_btn("重新开始", Vector2(530, 283), Vector2(220, 110), 24)
-	restart_btn.pressed.connect(_on_restart_pressed)
-	game_over_panel.add_child(restart_btn)
+	_restart_button = _make_panel_btn("重新开始", Vector2(530, 283), Vector2(220, 110), 24)
+	_restart_button.pressed.connect(_on_restart_pressed)
+	game_over_panel.add_child(_restart_button)
 
 	var back_btn3 = _make_panel_btn("返回主界面", Vector2(530, 413), Vector2(220, 110), 24)
 	back_btn3.pressed.connect(_on_back_pressed)
@@ -181,7 +222,7 @@ func _build_skill_icon() -> void:
 	_skill_icon_container.position = Vector2(1130, 620)
 	_skill_icon_container.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
 	_skill_icon_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_skill_icon_container)
+	gameplay_hud.add_child(_skill_icon_container)
 
 	# 就绪高亮边框（就绪时呼吸闪烁，冷却时隐藏）
 	_skill_ready_glow = ColorRect.new()
@@ -273,7 +314,7 @@ func _build_skill2_icon() -> void:
 	_skill2_icon_container.position = Vector2(1200, 620)
 	_skill2_icon_container.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
 	_skill2_icon_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_skill2_icon_container)
+	gameplay_hud.add_child(_skill2_icon_container)
 
 	_skill2_ready_glow = ColorRect.new()
 	_skill2_ready_glow.name = "ReadyGlow"
@@ -368,7 +409,7 @@ func _build_dash_icon() -> void:
 	_dash_icon_container.position = Vector2(1060, 620)
 	_dash_icon_container.size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
 	_dash_icon_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_dash_icon_container)
+	gameplay_hud.add_child(_dash_icon_container)
 
 	# 就绪高亮
 	_dash_ready_glow = ColorRect.new()
@@ -611,13 +652,18 @@ func _update_health_frame() -> void:
 func _on_game_pause(_data: Dictionary = {}) -> void:
 	InputManager.show_gameplay_ui_pointer()
 	_refresh_panel_buttons()
+	set_gameplay_hud_visible(false)
+	pause_blocker.show()
 	pause_panel.show()
-	_start_pause_code_rain_if_needed()
+	if _resume_button and is_instance_valid(_resume_button):
+		_resume_button.call_deferred("grab_focus")
 
 func _on_game_resume(_data: Dictionary = {}) -> void:
 	InputManager.restore_gameplay_pointer()
-	_stop_pause_code_rain(true)
+	get_viewport().gui_release_focus()
 	pause_panel.hide()
+	pause_blocker.hide()
+	set_gameplay_hud_visible(true)
 
 func _on_game_over(_data: Dictionary = {}) -> void:
 	if _is_fuzhan_memory_level():
@@ -627,6 +673,8 @@ func _on_game_over(_data: Dictionary = {}) -> void:
 	InputManager.show_gameplay_ui_pointer()
 	_refresh_panel_buttons()
 	game_over_panel.show()
+	if _restart_button and is_instance_valid(_restart_button):
+		_restart_button.call_deferred("grab_focus")
 
 # ---- 按钮回调 ----
 
@@ -640,23 +688,23 @@ func _on_restart_pressed() -> void:
 
 func _on_back_pressed() -> void:
 	SFXManager.play(SFXManager.SFX.UI_CLICK)
-	get_tree().paused = false
 	SceneTransitionManager.request_scene_change("res://UI/TitleScreen.tscn", self)
 
 func _on_keybind_settings_pressed() -> void:
-	_stop_pause_code_rain(true)
 	pause_panel.hide()
 	# 用和暂停面板完全一样的方式创建变暗遮罩（Panel.new + StyleBoxFlat）
 	_keybind_dim = Panel.new()
 	_keybind_dim.name = "KeybindDimPanel"
 	_keybind_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_keybind_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_keybind_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_keybind_dim.z_index = UILayerContract.HUD_PAUSE_DIALOG_Z - 1
 	GameUIStyle.apply_panel(_keybind_dim, 0.68)
 	add_child(_keybind_dim)
 	# 创建按键设置界面
 	var scene: PackedScene = load("res://UI/KeybindSettingsScreen.tscn")
 	if scene:
 		var screen: Control = scene.instantiate()
+		screen.z_index = UILayerContract.HUD_PAUSE_DIALOG_Z
 		screen.closed.connect(_on_keybind_screen_closed)
 		add_child(screen)
 	else:
@@ -670,32 +718,8 @@ func _on_keybind_screen_closed() -> void:
 		_keybind_dim.queue_free()
 		_keybind_dim = null
 	pause_panel.show()
-	_start_pause_code_rain_if_needed()
-
-func _build_pause_code_rain() -> void:
-	_pause_code_rain_overlay = CodeRain.new()
-	_pause_code_rain_overlay.name = "PauseCodeRainOverlay"
-	_pause_code_rain_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
-	_pause_code_rain_overlay.z_index = 0
-	_pause_code_rain_overlay.fade_duration = 0.35
-	pause_panel.add_child(_pause_code_rain_overlay)
-
-func _start_pause_code_rain_if_needed() -> void:
-	if not _pause_code_rain_overlay or not _is_code_rain_pause_scene():
-		return
-	_pause_code_rain_overlay.start_rain()
-
-func _stop_pause_code_rain(immediate: bool = false) -> void:
-	if _pause_code_rain_overlay and is_instance_valid(_pause_code_rain_overlay):
-		_pause_code_rain_overlay.stop_rain(immediate)
-
-func _is_code_rain_pause_scene() -> bool:
-	if not GameUIStyle.is_cyber_theme():
-		return false
-	var level := GameManager.current_level
-	if level == null or not is_instance_valid(level):
-		return false
-	return level is Level_03 or level is Level_04 or level is Level_05
+	if _resume_button and is_instance_valid(_resume_button):
+		_resume_button.call_deferred("grab_focus")
 
 func _is_fuzhan_memory_level() -> bool:
 	var level = GameManager.current_level
@@ -712,13 +736,13 @@ func _make_panel_btn(text: String, pos: Vector2, size: Vector2, font_size: int =
 	btn.position = pos
 	btn.custom_minimum_size = size
 	btn.size = size
-	btn.focus_mode = Control.FOCUS_NONE
 	var lbl := Label.new()
 	lbl.name = "Label"
 	lbl.text = text
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(lbl)
 	GameUIStyle.apply_texture_button(btn, font_size)
+	btn.focus_mode = Control.FOCUS_ALL
 	btn.pressed.connect(func() -> void: SFXManager.play(SFXManager.SFX.UI_CLICK))
 	_panel_buttons.append(btn)
 	return btn

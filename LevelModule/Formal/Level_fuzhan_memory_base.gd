@@ -58,6 +58,7 @@ var _right_edge_flash: ColorRect = null
 var _right_edge_glow: ColorRect = null
 var _right_edge_flash_active: bool = false
 var _enemies_frozen: bool = false
+var _narrative_pause_guard_token: int = -1
 
 
 func _ready() -> void:
@@ -600,7 +601,7 @@ func _find_nearby_drop() -> DropItem:
 func _build_ui() -> void:
 	_ui_layer = CanvasLayer.new()
 	_ui_layer.name = "MemoryRecoveryUI"
-	_ui_layer.layer = 20
+	_ui_layer.layer = UILayerContract.LEVEL_UI
 	add_child(_ui_layer)
 	_progress_label = Label.new()
 	_progress_label.name = "MemoryProgressLabel"
@@ -686,6 +687,7 @@ func _show_narrative(text: String, callback: Callable = Callable()) -> void:
 		return
 	if _narrative_open:
 		_close_narrative(false)
+	_narrative_pause_guard_token = InputManager.acquire_pause_guard("记忆回收叙事", self)
 	_set_enemies_frozen(true)
 	_narrative_open = true
 	_narrative_enter_pressed = false
@@ -749,6 +751,9 @@ func _close_narrative(invoke_callback: bool) -> void:
 	_narrative_poll_elapsed = 0.0
 	_narrative_enter_pressed = false
 	_narrative_open = false
+	if _narrative_pause_guard_token >= 0:
+		InputManager.release_pause_guard_token(_narrative_pause_guard_token)
+		_narrative_pause_guard_token = -1
 	if _narrative_panel and is_instance_valid(_narrative_panel):
 		_narrative_panel.hide()
 	if not _transition_running:

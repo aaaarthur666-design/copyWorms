@@ -4,6 +4,8 @@
 extends RefCounted
 class_name Level_04_SceneBuilder
 
+const RUNTIME_UI_BUILT_META: StringName = &"level_04_runtime_ui_built"
+
 var level: Level_04
 
 func _init(parent: Level_04) -> void:
@@ -15,7 +17,13 @@ func build_all() -> void:
 
 
 func _build_canvas_ui() -> void:
-	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer)
-	canvas.layer = 2
-	canvas.process_mode = Node.PROCESS_MODE_ALWAYS
-	Level_04_UIBuilder.new(level, canvas).build_all()
+	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer) as CanvasLayer
+	canvas.layer = UILayerContract.LEVEL_UI
+	canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
+	var special_fx = level._get_or_create_child("Level45SpecialFX", CanvasLayer) as CanvasLayer
+	special_fx.layer = UILayerContract.LEVEL45_SPECIAL_FX
+	special_fx.process_mode = Node.PROCESS_MODE_PAUSABLE
+	if level.get_meta(RUNTIME_UI_BUILT_META, false):
+		return
+	Level_04_UIBuilder.new(level, canvas, special_fx).build_all()
+	level.set_meta(RUNTIME_UI_BUILT_META, true)

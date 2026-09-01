@@ -13,6 +13,12 @@ class_name CodeRain
 ## 列间距（像素）
 @export var column_spacing: int = 22
 
+## 背景列数上限；保持 1280 宽设计基线附近的密度，避免全屏分辨率放大负载
+@export_range(1, 240, 1) var max_background_columns: int = 64
+
+## 雨滴逻辑与自定义绘制更新频率；淡入淡出仍由 Tween 按渲染帧平滑执行
+@export_range(1.0, 120.0, 1.0) var update_rate_hz: float = 30.0
+
 ## 下落速度范围（像素/秒）
 @export var speed_min: float = 50.0
 @export var speed_max: float = 180.0
@@ -68,18 +74,20 @@ class_name CodeRain
 # ---- 内部状态 ----
 
 # 背景层
-var _columns: Array = []          # Array[Dictionary{ x, y, speed, trail, len }]
+var _columns: Array[Dictionary] = []
 var _char_pool: Array[String] = []
 var _mutation_timer: float = 0.0
 
 # 前景层
-var _fn_columns: Array = []       # Array[Dictionary{ x, y, speed, text }]
+var _fn_columns: Array[Dictionary] = []
 var _fn_pool: Array[String] = []
 var _fn_mutation_timer: float = 0.0
 
 var _active: bool = false
 var _font: Font = null
 var _fade_tween: Tween = null
+var _update_accumulator: float = 0.0
+var _last_viewport_size: Vector2 = Vector2.ZERO
 
 
 # ============================================================
@@ -172,26 +180,32 @@ func _build_fn_pool() -> void:
 func _init_columns() -> void:
 	# ---- 背景层 ----
 	_columns.clear()
-	var screen_w = get_viewport_rect().size.x
-	if screen_w <= 0:
-		screen_w = 1280.0
-	var col_count = maxi(1, int(screen_w / column_spacing))
+	var viewport_size := _effective_viewport_size()
+	var screen_w := viewport_size.x
+	var safe_spacing := maxi(column_spacing, 1)
+	var natural_col_count := maxi(1, int(ceil(screen_w / float(safe_spacing))))
+	var col_count := mini(natural_col_count, maxi(max_background_columns, 1))
+	var effective_spacing := screen_w / float(col_count)
+	var jitter := minf(6.0, effective_spacing * 0.25)
 
 	for i in range(col_count):
 		_columns.append({
-			"x": float(i * column_spacing + randi_range(-6, 6)),
+			"x": (float(i) + 0.5) * effective_spacing + randf_range(-jitter, jitter),
 			"y": randf_range(-600.0, 0.0),
 			"speed": randf_range(speed_min, speed_max),
 			"trail": _random_trail(randi_range(trail_length_min, trail_length_max)),
 			"len": 0,
 		})
 		_columns[i]["len"] = _columns[i]["trail"].size()
+	_last_viewport_size = viewport_size
 
 	# ---- 前景层（函数名数据包，按槽位均匀分布） ----
 	_fn_columns.clear()
 	if _fn_pool.is_empty():
 		return
-	var safe_fn_count = mini(fn_count, _fn_pool.size())
+	var safe_fn_count := mini(maxi(fn_count, 0), _fn_pool.size())
+	if safe_fn_count <= 0:
+		return
 	var slot_width = maxf((screen_w - 80.0) / safe_fn_count, 300.0)  # 每槽宽度
 	for i in range(safe_fn_count):
 		var text = _fn_pool[randi() % _fn_pool.size()]
@@ -203,6 +217,15 @@ func _init_columns() -> void:
 			"speed": randf_range(fn_speed_min, fn_speed_max),
 			"text": text,
 		})
+
+
+func _effective_viewport_size() -> Vector2:
+	var viewport_size := get_viewport_rect().size
+	if viewport_size.x <= 0.0:
+		viewport_size.x = 1280.0
+	if viewport_size.y <= 0.0:
+		viewport_size.y = 720.0
+	return viewport_size
 
 
 func _random_trail(length: int) -> Array[String]:
@@ -221,24 +244,30 @@ func _process(delta: float) -> void:
 	if not _active:
 		return
 
-	var viewport_size = get_viewport_rect().size
-	var screen_w = viewport_size.x
-	var screen_h = viewport_size.y
-	if screen_w <= 0:
-		screen_w = 1280.0
-	if screen_h <= 0:
-		screen_h = 720.0
+	var update_interval := 1.0 / maxf(update_rate_hz, 1.0)
+	_update_accumulator += maxf(delta, 0.0)
+	if _update_accumulator < update_interval:
+		return
+	var step_delta := minf(_update_accumulator, 0.1)
+	_update_accumulator = fmod(_update_accumulator, update_interval)
+
+	var viewport_size := _effective_viewport_size()
+	if not viewport_size.is_equal_approx(_last_viewport_size):
+		_init_columns()
+		viewport_size = _last_viewport_size
+	var screen_w := viewport_size.x
+	var screen_h := viewport_size.y
 
 	# 推进每列位置
 	for col in _columns:
-		col["y"] += col["speed"] * delta
+		col["y"] += col["speed"] * step_delta
 		if col["y"] - col["len"] * char_size > screen_h + 80:
 			_reset_column(col, screen_h)
 
 	# 定期随机变更字符（模拟闪烁变换感）
-	_mutation_timer += delta
+	_mutation_timer += step_delta
 	if _mutation_timer >= char_mutation_interval:
-		_mutation_timer = 0.0
+		_mutation_timer = fmod(_mutation_timer, maxf(char_mutation_interval, 0.001))
 		for col in _columns:
 			var trail: Array = col["trail"]
 			if trail.size() > 0:
@@ -247,16 +276,16 @@ func _process(delta: float) -> void:
 
 	# ---- 前景层推进 ----
 	for fn_col in _fn_columns:
-		fn_col["y"] += fn_col["speed"] * delta
+		fn_col["y"] += fn_col["speed"] * step_delta
 		if fn_col["y"] > screen_h + 40:
 			_reset_fn_column(fn_col, screen_w)
 
 	# 前景函数名定期更换（比背景慢，避免频繁闪烁）
-	_fn_mutation_timer += delta
+	_fn_mutation_timer += step_delta
 	if _fn_mutation_timer >= fn_mutation_interval:
-		_fn_mutation_timer = 0.0
+		_fn_mutation_timer = fmod(_fn_mutation_timer, maxf(fn_mutation_interval, 0.001))
 		for fn_col in _fn_columns:
-			if randi() % 3 == 0:  # 每帧约1/3概率换一个函数名
+			if randi() % 3 == 0:
 				fn_col["text"] = _fn_pool[randi() % _fn_pool.size()]
 
 	queue_redraw()
@@ -289,7 +318,7 @@ func _draw() -> void:
 	if _columns.is_empty():
 		return
 
-	var screen_h = get_viewport_rect().size.y
+	var screen_h := _effective_viewport_size().y
 
 	# ---- 背景层：单字符雨 ----
 	for col in _columns:
@@ -332,9 +361,11 @@ func start_rain() -> void:
 	_init_columns()
 	_mutation_timer = 0.0
 	_fn_mutation_timer = 0.0
+	_update_accumulator = 0.0
 	visible = true
 	modulate.a = 0.0
 	set_process(true)
+	queue_redraw()
 	_fade_tween = create_tween()
 	_fade_tween.tween_property(self, "modulate:a", 1.0, fade_duration)
 	_fade_tween.tween_callback(func():
@@ -356,6 +387,7 @@ func stop_rain(immediate: bool = false) -> void:
 		visible = false
 		_columns.clear()
 		_fn_columns.clear()
+		_update_accumulator = 0.0
 		return
 	_fade_tween = create_tween()
 	_fade_tween.tween_property(self, "modulate:a", 0.0, fade_duration)
@@ -364,5 +396,6 @@ func stop_rain(immediate: bool = false) -> void:
 		visible = false
 		_columns.clear()
 		_fn_columns.clear()
+		_update_accumulator = 0.0
 		_fade_tween = null
 	)

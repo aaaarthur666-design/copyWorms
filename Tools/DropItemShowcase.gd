@@ -25,7 +25,7 @@ var _item_sprite: Sprite2D = null
 var _callback: Callable = Callable()
 
 func _ready() -> void:
-	layer = 800
+	layer = UILayerContract.LEVEL_ALERT
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 ## 展示掉落物

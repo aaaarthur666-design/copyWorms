@@ -29,7 +29,7 @@
 project.godot
 ├─ .agents/ / .codex/   Agent 规则、Skills、MCP 团队模板与本机配置边界
 ├─ addons/godot_ai/     Godot AI 编辑器插件；不属于导出后的游戏运行架构
-├─ Global/               全局状态、事件、输入、转场、音频
+├─ Global/               全局状态、事件、输入、转场、音频与 UI 层级契约
 ├─ LevelModule/
 │  ├─ Formal/            正式关卡、FSM、Builder、关卡数据
 │  └─ Scenes/            Pixelwork 地图及运行时脚本
@@ -80,6 +80,8 @@ flowchart LR
 ```
 
 `TitleScreen` 通过 `SceneTransitionManager` 进入 `MainEntry`。`MainEntry` 实例化 `Level_01`，订阅 `LEVEL_COMPLETE`，并在前半段流程中以替换子节点的方式承载关卡。
+
+正式主线的第三关入口固定为 `res://LevelModule/Formal/Level_03.tscn`。`Level_03_Official.tscn` 只保留为非主线兼容/验证场景：地图、碰撞、敌人和玩法节点可以不同，但关卡 UI 统一由 `Level_03.gd` 在运行时构建，共享 HUD 统一由 `UI/HUD.gd` 构建；兼容场景不得再序列化第二套 `CanvasLayerUI`、CodeRain、Glitch 或 HUD 子树。
 
 当前转场模型并未完全统一：
 
@@ -172,7 +174,11 @@ Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 hel
 
 `EventBus.emit()` 是同步中介者分发：返回前按订阅顺序完成当前监听快照；回调中订阅或退订只影响下一次发射。需要跨帧时必须显式调用 `emit_deferred()`；入队时会深拷贝 payload，延迟队列在暂停状态下也会继续排空。订阅以 `owner + method` 幂等去重，owner 离树后自动清理；同一 owner 可为同一事件登记多个方法，并可按 method 精确退订。`subscribe()` 默认建立场景级订阅，`subscribe_persistent()` 只用于 `MusicManager`、`SFXManager` 等应用级管理器，以及 `MainEntry` 这类明确跨越所托管子场景的宿主。每次有效转场都调用 `clear_transient()`：它移除场景级订阅并取消未投递的延迟事件，但保留显式跨转场订阅；`clear_all()` 只用于进程退出或明确的完全重置。玩家、敌人、关卡、交互、伤害和生命事件在分发前校验最小 payload 字段与类型。
 
-`InputManager` 的全局锁与动作锁都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。owner 离树会自动释放其全部锁，转场则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。它还统一维护玩法显示状态：只有标题页的用户点击入口能够激活全屏和鼠标捕获，HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性；headless 测试仅记录逻辑状态，不调用平台窗口 API。
+`InputManager` 的全局锁、动作锁和暂停守卫都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。`acquire_pause_guard()` 独立返回暂停守卫 token，只阻止 `ui_pause`，不阻断 modal 自身的翻页、确认或 ESC 关闭输入；对应流程应以 `release_pause_guard_token()` 精确释放。owner 离树会自动释放其全部锁和守卫，转场的 `force_unblock_all()` 则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。
+
+`ui_pause` 的处理顺序是硬转场、标题页退出、暂停阻断条件、正常暂停切换。暂停阻断条件包括输入锁、作用域式暂停守卫、对话、Game Over 和整树转场。被 modal 守卫阻止时，`InputManager` 不消费该事件，让图鉴、设置等当前覆盖界面仍能收到同一个 ESC 并关闭；硬转场和标题页退出则消费事件。`MainEntry` 的子关卡替换不进入 `SceneTransitionManager.is_transitioning`，因此其自有遮罩在清理前后都持有独立暂停守卫，直至淡出结束。
+
+`InputManager` 还统一维护玩法显示状态：只有标题页的用户点击入口能够激活全屏和鼠标捕获，HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性；headless 测试仅记录逻辑状态，不调用平台窗口 API。
 
 标题页复用 `ui_pause` 的 ESC 作为退出请求：`InputManager` 在 `TitleScreen` 当前场景下不切换暂停，而转发到标题页已有的退出处理；客户端关闭进程，Web 端显示关闭浏览器标签页提示。正式玩法场景仍保留 ESC 暂停/恢复逻辑。macOS 客户端在已进入全屏后支持 `Control + Command + F` 仅退出全屏，恢复进入全屏前的窗口模式，不退出游戏、不暂停且不改变鼠标捕获策略；Web 端不接管该快捷键。
 
@@ -283,7 +289,23 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 ### 8.1 HUD
 
-`UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，负责常驻战斗信息、暂停界面及部分关卡特效。HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点。
+`Global/UILayerContract.gd` 是 CanvasLayer 与共享 HUD 局部 z-order 的唯一层级契约：
+
+| 层级 | 常量 | 职责 |
+|---:|---|---|
+| 0 | `WORLD` | 地图、玩家、敌人和游戏世界 |
+| 100 | `LEVEL_UI` | 普通关卡 UI、Boss 血条、Boss 对话和叙事面板 |
+| 700 | `LEVEL_ALERT` | 关卡警告、黑屏和普通故障覆盖 |
+| 800 | `SHARED_HUD` | 所有关卡共用的 HUD、Game Over 和暂停系统 |
+| 900 | `LEVEL45_SPECIAL_FX` | 仅 Level 04/05 的 CodeRain 与边缘撕裂 |
+| 1000 | `TRANSITION` | 场景切换遮罩 |
+| 2000 | `CINEMATIC` | 强制视频、结束动画和不可暂停的全屏演出 |
+
+`UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，根 `CanvasLayer` 固定为 800，并把动态节点分为 `GameplayHUD(z=0)`、`GameOverPanel(z=900)`、`PauseBlocker/PausePanel(z=1000)` 和暂停二级窗口 `z=1100`。暂停时只隐藏 `GameplayHUD`，全屏 `PauseBlocker` 与 `PausePanel` 使用 `MOUSE_FILTER_STOP` 拦截指针输入；按钮在皮肤应用后恢复键盘/手柄焦点。HUD 不再创建关卡特有的暂停 CodeRain。关卡追加到共享战斗 HUD 的侵蚀条等控件必须通过 `add_gameplay_control()` 进入 `GameplayHUD`，这样暂停与终局禁用能统一生效。
+
+普通关卡 UI 必须低于共享暂停面板。Level 03 的 CodeRain 属于普通关卡 UI，暂停时随场景暂停；只有 Level 04/05 的 CodeRain 和 EdgeTear/右边缘故障进入 900 层，并且全部 Control 使用 `MOUSE_FILTER_IGNORE`、不得承担输入或暂停职责。Boss 血条、Boss 对话、StageWarning、ErosionVignette 和 SwapFlash 留在 100/700 层。转场与电影层在 900 之上，显示期间必须配对持有暂停守卫。
+
+HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点。`Level_final` 也实例化共享 HUD，但禁用 `GameplayHUD`，仅保留暂停系统；其对话低于 800，结束淡出位于 2000 并在强制演出期间守卫暂停。
 
 ### 8.2 音频
 
@@ -291,7 +313,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 ### 8.3 Shader 与工具
 
-项目包含代码雨、侵蚀、警告屏障、弹体和其他视觉工具。Shader 或材质在 headless/dummy 渲染器下的结果不能完全代表图形后端，涉及画面效果的修复必须再做一次可视化检查。
+项目包含代码雨、侵蚀、警告屏障、弹体和其他视觉工具。CodeRain 保留按视口覆盖的视觉布局，但背景列数上限固定为 64，内容逻辑与自定义绘制默认以 30 Hz 更新，避免 `canvas_items` 全屏目标分辨率和高刷新率放大逐字符重绘负载；淡入淡出 Tween 仍按渲染帧平滑执行。Shader 或材质在 headless/dummy 渲染器下的结果不能完全代表图形后端，涉及画面效果的修复必须再做一次可视化检查。
 
 ## 9. 配置与资源边界
 
@@ -332,13 +354,17 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 | P0 | 敌人和 Boss 的 `DEAD` 状态被早退拦截 | 先切状态再置死亡标记，死亡事件只广播一次 |
 | P0 | 新局入口只切模式，上一局梦境状态和检查点会残留 | 标题页入口统一调用 `GameManager.begin_new_run()`，同时复位临时状态和整局进度 |
 | P0 | 无效目标转场会先清理当前场景，再发现无法切换 | 目标场景先加载为 `PackedScene`；预检失败保证当前状态原样保留 |
-| P0 | `Level_03_Official` 的 `CodeRainOverlay` 未绑定脚本，运行时强类型赋值失败 | 正式场景显式绑定 `Tools/CodeRain.gd`，并纳入场景冒烟清单 |
+| P0 | `Level_03_Official` 的序列化 `CodeRainOverlay` 与运行时 UI 构建冲突，且旧节点曾缺失脚本绑定 | 删除兼容场景中的序列化关卡 UI/HUD；统一由 `Level_03.gd` 与 `UI/HUD.gd` 运行时构建，并保留场景冒烟入口 |
 | P1 | `EventBus` 用延迟调用模拟立即分发，且清场会误删 Autoload 订阅 | `emit()` 同步、`emit_deferred()` 显式跨帧；场景级/应用级订阅、精确退订、payload 校验和 owner 清理均有回归测试 |
 | P1 | 输入屏蔽只有全局计数，且玩家轮询和长按动作可绕过锁 | owner、嵌套计数和 token 精确释放已生效；移动、跳跃、蓄力与长按动作共用全局锁判断 |
 | P1 | `Level_03` 直接写对话布尔值并用无 owner 方式解锁 | 叙事面板改用 `begin_dialog/end_dialog` 与同 owner 输入锁配对 |
 | P1 | 场景冒烟只看进程退出码，会漏报脚本运行时错误 | 测试 runner 接入脚本错误捕获，ERROR 级脚本日志直接判定失败 |
 | P1 | HUD 依赖 `current_scene` | 改为读取 `GameManager.current_level` |
 | P1 | 可选 HUD 图标缺失会直接调用 `load()` | 先检查资源，缺失时无错误地使用代码文本占位 |
+| P1 | 共享 HUD 与关卡 UI 没有统一层级，暂停面板可被普通 UI 覆盖 | 新增 `UILayerContract`；共享 HUD 固定为 800，普通 UI 为 100/700，仅 Level 04/05 的 CodeRain/边缘撕裂为 900 |
+| P1 | CodeRain 按全屏视口无限增加字符列并逐帧重建大量绘制命令 | 保留全屏与层级契约，将背景列数限制为 64、内容更新限制为 30 Hz，并为 Level 04/05 的运行时构建增加幂等保护 |
+| P1 | 输入锁与嵌套全屏流程不能可靠阻止 ESC 暂停 | 新增 owner/token 暂停守卫；输入锁、对话、Game Over 和转场共同参与统一暂停阻断判断 |
+| P1 | `Level_03_Official` 同时保存序列化 UI 并由脚本再次构建 | 主线继续使用 `Level_03.tscn`；Official 只保留玩法内容，关卡 UI 与共享 HUD 均改为单一运行时来源 |
 | P1 | 正式资源路径大小写与磁盘不一致，部分 ext_resource 保存了失效 UID | `Enemy_PaperEffigy` 三处路径已统一大小写；玩家和 Level 03 shader UID 已按仓库内权威 `.uid` sidecar 同步，`Invalid UID` 被列为预检硬失败 |
 | P1 | fire-and-forget 协程、SceneTreeTimer/Tween、音频播放器和线程加载在短时退出时可能悬空 | 转场、叙事和淡入淡出改为节点所有的阶段机或 Timer；退出路径显式释放音频与线程加载，生命周期诊断被列为预检硬失败 |
 | P1 | Godot 4.6 首次并行导入多个动态字体时可能在 `ResourceSaver → PropertyUtils → ClassDB` 路径发生引擎竞态，并以 Unicode 解析错误或原生堆损坏退出 | 项目固定 `editor/import/use_multiple_threads=false`，让资源导入串行执行；预检会阻止该安全设置被移除。此设置只影响编辑器导入耗时，不改变游戏运行或导出行为 |
@@ -403,6 +429,8 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 ## 12. 当前验证基线
 
+以下条目记录本次 UI 层级修改之前已经完成的仓库基线，不代表本次修改已经重新通过。2026-09-01 的暂停层级统一实现目前只执行静态差异检查；按任务授权，Contract、场景实例化、Scene/Transition/MainScene smoke、Godot headless 启动和 Web 导出均尚未重跑，Level 01、Level 02_03、Level 03、Level 04、Level 05、复战、终局及 Web/客户端层级仍待真实图形环境人工检查。
+
 当前自动验证基线：
 
 - 本机 Godot 4.6.3 已完成全项目脚本与资源编译扫描，无 parse/compile error。
@@ -416,7 +444,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 - `Player_Warrior.tscn`、Cyber/Lingnan 玩家场景及 `Level_03_Official.tscn` 的失效 ext_resource UID 已依据相应脚本或 shader 的仓库内 `.uid` sidecar 修正；完整预检不再产生 `Invalid UID` 诊断。
 - 仓库中六个 TTF 源文件的 OpenType 表边界、必需表和 Unicode 名称记录已通过结构审计；首次字体导入崩溃来自 Godot 4.6 并行导入竞态，而不是中文路径或字体名称中的非法代理项。`project.godot` 已关闭多线程资源导入，预检会静态校验该保护设置。
 - DataConfig 已恢复为正式玩法数值的权威层：玩家三形态、Slash/弹体、普通敌人、Boss 行为、全部正式关卡及两个记忆区域均有运行时消费者；预检会阻止未消费字段和依赖脚本默认值的正式资源通过。
-- `Level_03_Official` 的 CodeRain 脚本绑定已通过编译与 headless 实例化，但像素雨的最终视觉表现仍需图形环境确认。
+- 旧版 `Level_03_Official` 的序列化 CodeRain 脚本绑定曾通过编译与 headless 实例化；本次已删除整套序列化 UI，改由运行时构建，因此新的兼容场景实例化与像素雨视觉表现均待重新验证。
 - 强制短时退出已具备显式场景、回调、音频与线程资源清理；完整预检当前未产生 ObjectDB 泄漏、资源仍在使用或 orphan callback 诊断，这些信息今后均按失败处理。
 
 一键入口为 `Scripts/preflight.ps1 -GodotPath <Godot 4.6 可执行文件>`；也可通过 `GODOT_46_BIN` 指定引擎。默认执行：

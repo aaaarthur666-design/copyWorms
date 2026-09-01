@@ -337,6 +337,7 @@ offset_left = -88.0
 offset_top = 8.0
 offset_right = 72.0
 offset_bottom = 32.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.9, 0.2, 0.8454809)
 theme_override_font_sizes/font_size = 28
 text = "按 Enter 与爷爷对话"
@@ -366,7 +367,12 @@ position = Vector2(124.3999, -66.799805)
 shape = SubResource("bg5_wall")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=258921447]
+process_mode = 1
 layer = 100
+
+[node name="Level45SpecialFX" type="CanvasLayer" parent="."]
+process_mode = 1
+layer = 900
 
 [node name="BossEntry" type="Area2D" parent="." unique_id=1973756917]
 position = Vector2(2842, 552)
