@@ -73,7 +73,7 @@ class_name Level03Data
 @export var dynamic_spawn_max_x: float = 6700.0
 @export var dynamic_spawn_y: float = 540.0
 @export var knockback_reverse_force: float = 350.0
-@export var damage_reduction_heal_divisor: float = 2.0
+@export_range(0.0, 1.0, 0.01) var player_damage_multiplier: float = 0.5
 
 # ---- 阶段5: 异常数据光团（全局坐标，赛博城偏移+3600后） ----
 @export var memory_echo_1_pos: Vector2 = Vector2(5384, 550)

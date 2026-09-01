@@ -8,6 +8,16 @@ const LEVEL_04_SCENE := "res://LevelModule/Formal/Level_04.tscn"
 const LEVEL_05_SCENE := "res://LevelModule/Formal/Level_05.tscn"
 const MAX_WAIT_FRAMES := 180
 const EXIT_SETTLE_SECONDS := 0.5
+const TRANSITION_EVENT: StringName = &"transition_smoke_event"
+
+
+class EventProbe:
+	extends Node
+
+	var call_count: int = 0
+
+	func record(_data: Dictionary) -> void:
+		call_count += 1
 
 
 class TransitionMonitor:
@@ -18,6 +28,8 @@ class TransitionMonitor:
 	var failures: Array[String] = []
 	var _pending_exit_code: int = 0
 	var _quit_timer: Timer = null
+	var _transient_listener: EventProbe = null
+	var _persistent_listener: EventProbe = null
 
 	func start() -> void:
 		process_mode = Node.PROCESS_MODE_ALWAYS
@@ -44,6 +56,16 @@ class TransitionMonitor:
 		_assert_true(GameManager.is_paused and tree.paused, "转场前测试场景必须处于暂停状态")
 		_assert_true(MusicManager.is_paused_by_game(), "暂停事件必须在转场前送达 MusicManager")
 
+		_transient_listener = EventProbe.new()
+		_transient_listener.name = "TransitionTransientListener"
+		add_child(_transient_listener)
+		_persistent_listener = EventProbe.new()
+		_persistent_listener.name = "TransitionPersistentListener"
+		add_child(_persistent_listener)
+		EventBus.subscribe(TRANSITION_EVENT, _transient_listener, &"record")
+		EventBus.subscribe_persistent(TRANSITION_EVENT, _persistent_listener, &"record")
+		EventBus.emit_deferred(TRANSITION_EVENT, {})
+
 		SceneTransitionManager.request_scene_change(TITLE_SCENE, self)
 		var title_loaded := await _wait_for_scene(TITLE_SCENE)
 		_assert_true(title_loaded, "必须能真实切换到 TitleScreen")
@@ -58,13 +80,23 @@ class TransitionMonitor:
 		_assert_false(MusicManager.is_paused_by_game(), "有效转场必须清理音乐暂停状态")
 		_assert_equal(GameManager.get_dream_flag(&"temporary_theme_flag"), "persist_across_level", "普通关卡转场必须保留同一局梦境状态")
 		_assert_equal(GameManager.checkpoint_stage, 2, "普通关卡转场必须保留同一局检查点")
+		_assert_equal(EventBus.get_listener_count(TRANSITION_EVENT), 1, "有效转场必须移除瞬态订阅并保留跨转场订阅")
+		EventBus.emit(TRANSITION_EVENT, {})
+		_assert_equal(_transient_listener.call_count, 0, "转场后瞬态监听者不得收到新事件")
+		_assert_equal(_persistent_listener.call_count, 1, "转场后跨转场监听者必须继续收取新事件")
+		await tree.process_frame
+		await tree.process_frame
+		_assert_equal(_persistent_listener.call_count, 1, "转场必须取消清理前尚未投递的延迟事件")
 
 		var title := tree.current_scene
 		_assert_true(title != null and title.has_method("_on_start_game"), "TitleScreen 必须暴露已连接的正式开始回调")
+		_assert_false(InputManager.is_gameplay_display_active(), "TitleScreen 必须处于菜单鼠标模式")
 		if title == null or not title.has_method("_on_start_game"):
 			await _finish(dialog_owner)
 			return
 		title.call("_on_start_game")
+		_assert_true(InputManager.is_gameplay_display_active(), "正式开始入口必须激活游戏全屏状态")
+		_assert_true(InputManager.is_gameplay_pointer_captured(), "正式开始入口必须请求捕获并隐藏鼠标")
 		var main_entry_loaded := await _wait_for_scene(MAIN_ENTRY_SCENE)
 		_assert_true(main_entry_loaded, "TitleScreen 正式开始入口必须真实切换到 MainEntry")
 		if not main_entry_loaded:
@@ -76,6 +108,11 @@ class TransitionMonitor:
 		_assert_equal(GameManager.checkpoint_scene_path, LEVEL_01_SCENE, "正式开始入口必须用首关检查点替换上一局检查点")
 		_assert_equal(GameManager.checkpoint_stage, 0, "正式开始入口必须清空上一局检查点阶段")
 		_assert_true(GameManager.checkpoint_data.is_empty(), "正式开始入口必须清空上一局检查点数据")
+
+		GameManager.toggle_pause()
+		_assert_false(InputManager.is_gameplay_pointer_captured(), "暂停菜单必须释放并显示鼠标")
+		GameManager.toggle_pause()
+		_assert_true(InputManager.is_gameplay_pointer_captured(), "恢复游戏必须重新捕获并隐藏鼠标")
 
 		SceneTransitionManager.request_scene_change(LEVEL_03_SCENE, tree.current_scene)
 		_assert_true(await _wait_for_scene(LEVEL_03_SCENE), "必须能真实进入 Level 03")
@@ -109,6 +146,11 @@ class TransitionMonitor:
 		MusicManager.clear_game_pause()
 		MusicManager.stop_bgm(0.0)
 		SFXManager.stop_all()
+		if is_instance_valid(_persistent_listener):
+			EventBus.unsubscribe_all(_persistent_listener)
+			_persistent_listener.queue_free()
+		if is_instance_valid(_transient_listener):
+			_transient_listener.queue_free()
 		if is_instance_valid(dialog_owner):
 			dialog_owner.queue_free()
 		if is_instance_valid(current):

@@ -314,7 +314,14 @@ static func _validate_level_data(errors: Array[String]) -> void:
 		_require(level_03.dynamic_spawn_positive_side_chance >= 0.0 and level_03.dynamic_spawn_positive_side_chance <= 1.0, SCOPE, "动态敌人正向生成概率必须在 0..1", errors)
 		_validate_ordered_pair(SCOPE, "dynamic_spawn_distance", level_03.dynamic_spawn_distance_min, level_03.dynamic_spawn_distance_max, errors)
 		_validate_ordered_pair(SCOPE, "dynamic_spawn_x", level_03.dynamic_spawn_min_x, level_03.dynamic_spawn_max_x, errors)
-		_require(level_03.knockback_reverse_force >= 0.0 and level_03.damage_reduction_heal_divisor > 0.0, SCOPE, "伤害反向推力或减伤回补除数非法", errors)
+		_require(
+			level_03.knockback_reverse_force >= 0.0
+			and level_03.player_damage_multiplier >= 0.0
+			and level_03.player_damage_multiplier <= 1.0,
+			SCOPE,
+			"伤害反向推力或玩家承伤倍率非法",
+			errors
+		)
 		_require(level_03.required_memory_echoes > 0 and level_03.required_memory_echoes <= 2, SCOPE, "记忆光团目标只能在 1..2", errors)
 		_require(level_03.glitch_ambient_intensity >= 0.0 and level_03.glitch_spike_intensity >= level_03.glitch_ambient_intensity and level_03.glitch_decay_duration > 0.0, SCOPE, "故障强度或衰减时长非法", errors)
 		_require(not level_03.cleaner_spawn_points.is_empty() and not level_03.security_spawn_points.is_empty(), SCOPE, "赛博城正式敌人生成点不能为空", errors)

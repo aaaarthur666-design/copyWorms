@@ -27,6 +27,7 @@ class TestListener:
 
 class DummyEnemy:
 	extends Node2D
+	var config: EnemyConfig = null
 
 
 class TransitionCleanupProbe:
@@ -68,6 +69,7 @@ func _run() -> void:
 	await _test_game_manager_lifecycle()
 	_test_new_run_reset()
 	await _test_enemy_damage_event_pipeline()
+	await _test_player_damage_event_pipeline()
 	await _test_input_lock_ownership()
 	_test_scene_transition_preflight()
 	_test_runtime_state()
@@ -337,6 +339,76 @@ func _test_enemy_damage_event_pipeline() -> void:
 		enemy.queue_free()
 	enemy_config = null
 	damage_listener.queue_free()
+	death_listener.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	EventBus.clear_transient()
+	SFXManager.set_muted(false)
+
+
+func _test_player_damage_event_pipeline() -> void:
+	EventBus.clear_transient()
+	GameManager.reset_transient_state()
+	SFXManager.set_muted(true)
+	var damage_listener := TestListener.new()
+	damage_listener.name = "PlayerDamageListener"
+	add_child(damage_listener)
+	var hurt_listener := TestListener.new()
+	hurt_listener.name = "PlayerHurtListener"
+	add_child(hurt_listener)
+	var health_listener := TestListener.new()
+	health_listener.name = "PlayerHealthListener"
+	add_child(health_listener)
+	var death_listener := TestListener.new()
+	death_listener.name = "PlayerDeathListener"
+	add_child(death_listener)
+	EventBus.subscribe(GlobalDefine.EventName.DAMAGE_APPLIED, damage_listener, &"record")
+	EventBus.subscribe(GlobalDefine.EventName.PLAYER_HURT, hurt_listener, &"record")
+	EventBus.subscribe(GlobalDefine.EventName.HEALTH_CHANGED, health_listener, &"record")
+	EventBus.subscribe(GlobalDefine.EventName.PLAYER_DIED, death_listener, &"record")
+
+	var player := PlayerBase.new()
+	player.name = "DamagePipelinePlayer"
+	var player_config := PlayerConfig.new()
+	player_config.max_health = 10
+	player.config = player_config
+	add_child(player)
+	player.runtime_incoming_damage_multiplier = 0.5
+	player.take_damage(5, Vector2.ZERO, self)
+	_assert_equal(player.current_health, 7, "玩家运行时减伤必须在扣血前统一取整")
+	_assert_equal(damage_listener.call_count, 1, "玩家普通受伤必须同步发射一次 damage_applied")
+	var direct_payload: Dictionary = damage_listener.received_payloads[0]
+	_assert_equal(direct_payload["source"], self, "玩家 damage_applied 必须保留伤害来源")
+	_assert_equal(direct_payload["raw_damage"], 5, "玩家 damage_applied 必须保留原始伤害")
+	_assert_equal(direct_payload["damage"], 3, "玩家 damage_applied 必须报告最终伤害")
+	_assert_equal(hurt_listener.received_payloads[0]["damage"], 3, "player_hurt 必须报告最终伤害")
+	_assert_equal(health_listener.call_count, 1, "一次玩家伤害只能广播一次 health_changed")
+
+	player.is_invincible = false
+	var contact_enemy := DummyEnemy.new()
+	contact_enemy.name = "ContactDamageEnemy"
+	contact_enemy.config = EnemyConfig.new()
+	contact_enemy.config.attack_damage = 5
+	add_child(contact_enemy)
+	player._take_contact_damage(contact_enemy)
+	_assert_equal(player.current_health, 4, "接触伤害必须经过同一运行时减伤结算")
+	_assert_equal(damage_listener.call_count, 2, "接触伤害也只能发射一次 damage_applied")
+	_assert_equal(damage_listener.received_payloads[1]["source"], contact_enemy, "接触伤害必须保留敌人来源")
+
+	player.is_invincible = false
+	player.take_damage(20, Vector2.ZERO, self)
+	_assert_equal(player.current_state, GlobalDefine.PlayerState.DEAD, "玩家致死伤害必须先进入 DEAD 状态")
+	_assert_equal(death_listener.call_count, 1, "玩家死亡事件必须只发射一次")
+	_assert_equal(damage_listener.call_count, 3, "致死伤害仍须完整广播 damage_applied")
+	player.take_damage(20, Vector2.ZERO, self)
+	player.die()
+	_assert_equal(death_listener.call_count, 1, "死亡后的重复伤害或 die() 不得重复广播死亡")
+
+	player.queue_free()
+	contact_enemy.queue_free()
+	damage_listener.queue_free()
+	hurt_listener.queue_free()
+	health_listener.queue_free()
 	death_listener.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

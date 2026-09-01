@@ -40,8 +40,8 @@ func _ready() -> void:
 	# 发射游戏开始事件
 	EventBus.emit(GlobalDefine.EventName.GAME_START)
 
-	# 订阅关卡完成事件 → 多关卡切换（架构文档 §18.2 预留接入点）
-	EventBus.subscribe(GlobalDefine.EventName.LEVEL_COMPLETE, self, "_on_level_complete")
+	# MainEntry 跨越其托管的子关卡转场，需保留监听；离树时仍由 owner 生命周期自动清理。
+	EventBus.subscribe_persistent(GlobalDefine.EventName.LEVEL_COMPLETE, self, "_on_level_complete")
 
 	# 加载正式关卡（后续由关卡模块替换）
 	_load_formal_level()

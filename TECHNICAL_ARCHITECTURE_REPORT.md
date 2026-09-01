@@ -21,7 +21,7 @@
 | Resource 配置 (`.tres`) | 26 |
 | Shader (`.gdshader`) | 8 |
 
-项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。
+项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。标题页保持可见鼠标；用户点击正式或精彩入口后，桌面端进入独占全屏，Web 端请求浏览器全屏，并捕获隐藏鼠标。暂停或游戏结束界面临时释放鼠标，继续游戏时重新捕获；返回标题页只恢复鼠标，不主动退出已经进入的全屏状态。
 
 ## 2. 仓库分层
 
@@ -106,7 +106,7 @@ flowchart TD
     FLAGS --> L3[Level_03 应用能力配置]
 ```
 
-`/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 把配置结果写入 `GameManager.dream_runtime_state`。`Level_03` 当前仍通过 `dream_runtime_flags` 兼容字典读取这些标记，减伤恢复为 `PLAYER_HURT` 后的旧回补逻辑。三种玩家形态、Slash、关卡流程和敌人行为的正式数值均由对应 DataConfig 资源提供。
+`/memory` 进入两个复战场景并记录返回原因；完成记忆条件后，`/config` 把配置结果写入 `GameManager.dream_runtime_state`。`Level_03` 通过类型化运行时状态应用二段跳和玩家承伤倍率；减伤倍率来自 `Level03Data.player_damage_multiplier`，在统一玩家伤害链扣血前生效，并在切换为 Cyber 形态后重新注入。三种玩家形态、Slash、关卡流程和敌人行为的正式数值均由对应 DataConfig 资源提供。
 
 复战流程的当前契约如下：
 
@@ -164,15 +164,15 @@ Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 hel
 - 检查点状态
 - `DreamRuntimeState` 类型化跨关卡状态
 
-`dream_runtime_flags` 仅作为旧代码兼容属性：读取返回深拷贝，整表赋值会经过类型校验。新增代码应使用 `dream_runtime_state`、`set_dream_flag()` 和 `get_dream_flag()`；不能对兼容属性返回的 Dictionary 做原地修改。已知键由 `DreamRuntimeState.VALUE_TYPES` 校验，未知赛题键暂时透传，以便赛题发布后扩展。 `Level_03` 因本次稳定性回退暂时保留兼容字典读取，不能作为新增关卡模板。
+`dream_runtime_flags` 仅作为旧代码兼容属性：读取返回深拷贝，整表赋值会经过类型校验。新增代码应使用 `dream_runtime_state`、`set_dream_flag()` 和 `get_dream_flag()`；不能对兼容属性返回的 Dictionary 做原地修改。已知键由 `DreamRuntimeState.VALUE_TYPES` 校验，未知赛题键暂时透传，以便赛题发布后扩展。`Level_03` 的玩家能力和承伤倍率已经改用类型化状态读取。
 
-任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`SceneTransitionManager.cleanup_for_transition()` 统一复位暂停、游戏结束、玩家/敌人引用、Boss、对话 owner、输入锁、动作锁、音乐暂停和 UI 焦点，但保留同一局需要跨关卡延续的梦境状态与检查点。标题页两个新局入口统一调用 `GameManager.begin_new_run()`，在临时状态复位之外继续清空 `DreamRuntimeState`、检查点场景、阶段和数据，禁止上一局进度污染新流程。
+任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`SceneTransitionManager.cleanup_for_transition()` 统一清除 EventBus 场景级订阅和尚未投递的延迟事件，并复位暂停、游戏结束、玩家/敌人引用、Boss、对话 owner、输入锁、动作锁、音乐暂停和 UI 焦点，但保留同一局需要跨关卡延续的梦境状态、检查点和显式跨转场订阅。标题页两个新局入口统一调用 `GameManager.begin_new_run()`，在临时状态复位之外继续清空 `DreamRuntimeState`、检查点场景、阶段和数据，禁止上一局进度污染新流程。
 
 ### 4.3 事件与输入锁契约
 
-`EventBus.emit()` 是同步中介者分发：返回前按订阅顺序完成当前监听快照；回调中订阅或退订只影响下一次发射。需要跨帧时必须显式调用 `emit_deferred()`；入队时会深拷贝 payload，延迟队列在暂停状态下也会继续排空。订阅以 `owner + method` 幂等去重，owner 离树后自动清理；同一 owner 可为同一事件登记多个方法，并可按 method 精确退订。`subscribe()` 默认建立场景级订阅，`subscribe_persistent()` 只用于 `MusicManager`、`SFXManager` 等确需覆盖整个应用生命周期的 Autoload 监听。场景隔离和测试清场使用 `clear_transient()`：它移除场景级订阅并取消未投递的延迟事件，但保留应用级订阅；`clear_all()` 只用于进程退出或明确的完全重置。玩家、敌人、关卡、交互、伤害和生命事件在分发前校验最小 payload 字段与类型。
+`EventBus.emit()` 是同步中介者分发：返回前按订阅顺序完成当前监听快照；回调中订阅或退订只影响下一次发射。需要跨帧时必须显式调用 `emit_deferred()`；入队时会深拷贝 payload，延迟队列在暂停状态下也会继续排空。订阅以 `owner + method` 幂等去重，owner 离树后自动清理；同一 owner 可为同一事件登记多个方法，并可按 method 精确退订。`subscribe()` 默认建立场景级订阅，`subscribe_persistent()` 只用于 `MusicManager`、`SFXManager` 等应用级管理器，以及 `MainEntry` 这类明确跨越所托管子场景的宿主。每次有效转场都调用 `clear_transient()`：它移除场景级订阅并取消未投递的延迟事件，但保留显式跨转场订阅；`clear_all()` 只用于进程退出或明确的完全重置。玩家、敌人、关卡、交互、伤害和生命事件在分发前校验最小 payload 字段与类型。
 
-`InputManager` 的全局锁与动作锁都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。owner 离树会自动释放其全部锁，转场则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。
+`InputManager` 的全局锁与动作锁都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。owner 离树会自动释放其全部锁，转场则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。它还统一维护玩法显示状态：只有标题页的用户点击入口能够激活全屏和鼠标捕获，HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性；headless 测试仅记录逻辑状态，不调用平台窗口 API。
 
 ## 5. 核心数据流
 
@@ -189,7 +189,7 @@ flowchart LR
     BUS --> HUD[HUD / 关卡逻辑]
 ```
 
-玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。两条输入路径都必须服从同一个全局锁判断，Cyber 与 Lingnan 的长按普攻、技能蓄力和冲刺前摇也不得绕过该锁。敌人受伤链仍由 `DamageCalculator` 与 `EnemyBase.take_damage()` 统一结算，并同步发射 `damage_applied`。玩家受伤链已恢复改动前行为：直接扣血后发射 `PLAYER_HURT` 与 `HEALTH_CHANGED`；`Level_03` 的梦境减伤由事件回调回补生命，因此不再宣称具备扣血前倍率结算。
+玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。两条输入路径都必须服从同一个全局锁判断，Cyber 与 Lingnan 的长按普攻、技能蓄力和冲刺前摇也不得绕过该锁。敌人受伤链仍由 `DamageCalculator` 与 `EnemyBase.take_damage()` 统一结算。玩家的普通受伤和接触受伤统一进入 `PlayerBase.take_damage()`，按“原始伤害 → 形态护盾/倍率 → 关卡运行时倍率 → 最终伤害 → 扣血 → 状态 → 事件”执行；Lingnan 护盾和蓄力减伤通过形态钩子接入，Cyber 反击保留攻击来源。成功扣血后依次同步发射一次 `DAMAGE_APPLIED`、`PLAYER_HURT` 和 `HEALTH_CHANGED`，其中事件伤害值均为最终伤害；致死状态先落为 `DEAD`，`PLAYER_DIED` 只广播一次。
 
 ### 5.2 敌人生命周期
 
@@ -339,6 +339,7 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 | P1 | 可选 HUD 图标缺失会直接调用 `load()` | 先检查资源，缺失时无错误地使用代码文本占位 |
 | P1 | 正式资源路径大小写与磁盘不一致，部分 ext_resource 保存了失效 UID | `Enemy_PaperEffigy` 三处路径已统一大小写；玩家和 Level 03 shader UID 已按仓库内权威 `.uid` sidecar 同步，`Invalid UID` 被列为预检硬失败 |
 | P1 | fire-and-forget 协程、SceneTreeTimer/Tween、音频播放器和线程加载在短时退出时可能悬空 | 转场、叙事和淡入淡出改为节点所有的阶段机或 Timer；退出路径显式释放音频与线程加载，生命周期诊断被列为预检硬失败 |
+| P1 | Godot 4.6 首次并行导入多个动态字体时可能在 `ResourceSaver → PropertyUtils → ClassDB` 路径发生引擎竞态，并以 Unicode 解析错误或原生堆损坏退出 | 项目固定 `editor/import/use_multiple_threads=false`，让资源导入串行执行；预检会阻止该安全设置被移除。此设置只影响编辑器导入耗时，不改变游戏运行或导出行为 |
 
 2026-08-31 已对上轮造成回归的 Player、Slash 和 Level 03 数据迁移执行选择性回退；EventBus、输入锁、敌人生命周期等已通过验证的基础设施保留。
 
@@ -350,7 +351,6 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 |---|---|
 | 主线存在两种转场模型 | 统一由 `MainEntry` 托管，或明确从某关开始整树切换 |
 | 大型关卡脚本职责过多 | 确定按阶段、系统还是场景区域拆分 |
-| `Level_03` 梦境减伤仍依赖受伤后回补 | 若后续重做扣血前减伤，必须覆盖 Cyber 换肤后的状态继承与致死边界 |
 
 ### 10.3 需要资产或人工验证
 
@@ -403,30 +403,32 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的运行�
 
 当前自动验证基线：
 
-- 本机 Godot 4.6.2 已完成全项目脚本与资源编译扫描，无 parse/compile error。
+- 本机 Godot 4.6.3 已完成全项目脚本与资源编译扫描，无 parse/compile error。
 - `Scripts/check_dataconfig_consumers.ps1` 当前通过 807 个导出字段审计；除 5 个明确的名称/图标元数据外，所有字段均有正式运行时消费者，非敌人资源显式写出全部导出值，敌人资源显式写出基类与实际原型会读取的字段。
-- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 88 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/应用级生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外继续覆盖新局重置、无效转场预检、输入锁与玩家轮询、敌人注册、对话状态、运行时状态、伤害计算和 DataConfig 审计。
-- `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前通过 21 项断言；实际执行标题页正式开始到 `MainEntry`，并继续切换 `Level_03 → Level_04 → Level_05`，检查暂停、输入、对话、音乐、梦境状态与检查点的清理/保留边界，以及退出前不存在仍在运行的 SceneTree Tween。
+- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 102 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/跨转场生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外覆盖玩家与敌人的统一伤害事件、扣血前倍率、接触伤害来源、致死顺序和死亡幂等，并继续覆盖新局重置、无效转场预检、输入锁、运行时状态、伤害计算和 DataConfig 审计。
+- `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前通过 30 项断言；实际执行标题页正式开始到 `MainEntry`，并继续切换 `Level_03 → Level_04 → Level_05`，检查全屏逻辑状态、鼠标捕获、暂停、输入、对话、音乐、梦境状态与检查点的清理/保留边界，同时验证有效转场会清除瞬态订阅和延迟事件但保留跨转场订阅，以及退出前不存在仍在运行的 SceneTree Tween。
 - `Tests/SelfTest/SceneSmokeRunner.tscn` 已逐一挂载并运行 21 个正式关卡、玩家与敌人场景；runner 使用显式阶段机和清理等待窗口，除 ERROR 级脚本日志外，也会让 `Invalid UID`、ObjectDB 泄漏、资源仍在使用及 orphan callback 等生命周期诊断直接导致预检失败。`Level_03_Official` 已纳入清单。
 - 清理感知的标题主场景 headless 短跑成功；Web 预设资源包导出成功。
 - `res://` 路径存在性与大小写审计当前通过 244 条字面量路径；`Enemy_PaperEffigy.tscn` 的三处引用已与磁盘大小写一致。
 - 导出日志确认 `addons/godot_ai/` 与 `Tests/` 没有进入正式包。
 - `Player_Warrior.tscn`、Cyber/Lingnan 玩家场景及 `Level_03_Official.tscn` 的失效 ext_resource UID 已依据相应脚本或 shader 的仓库内 `.uid` sidecar 修正；完整预检不再产生 `Invalid UID` 诊断。
+- 仓库中六个 TTF 源文件的 OpenType 表边界、必需表和 Unicode 名称记录已通过结构审计；首次字体导入崩溃来自 Godot 4.6 并行导入竞态，而不是中文路径或字体名称中的非法代理项。`project.godot` 已关闭多线程资源导入，预检会静态校验该保护设置。
 - DataConfig 已恢复为正式玩法数值的权威层：玩家三形态、Slash/弹体、普通敌人、Boss 行为、全部正式关卡及两个记忆区域均有运行时消费者；预检会阻止未消费字段和依赖脚本默认值的正式资源通过。
 - `Level_03_Official` 的 CodeRain 脚本绑定已通过编译与 headless 实例化，但像素雨的最终视觉表现仍需图形环境确认。
 - 强制短时退出已具备显式场景、回调、音频与线程资源清理；完整预检当前未产生 ObjectDB 泄漏、资源仍在使用或 orphan callback 诊断，这些信息今后均按失败处理。
 
 一键入口为 `Scripts/preflight.ps1 -GodotPath <Godot 4.6 可执行文件>`；也可通过 `GODOT_46_BIN` 指定引擎。默认执行：
 
-1. `git diff --check`
-2. `res://` 路径存在性与大小写审计
-3. DataConfig 消费者与显式值审计
-4. 全项目脚本/资源编译
-5. 88 项核心契约与 DataConfig 结构审计
-6. 21 项正式主线真实转场冒烟
-7. 清理感知的主场景短跑
-8. 21 个正式场景实例化冒烟
-9. Web 资源包导出
+1. Godot 4.6 版本与字体串行导入安全设置校验
+2. `git diff --check`
+3. `res://` 路径存在性与大小写审计
+4. DataConfig 消费者与显式值审计
+5. 全项目脚本/资源编译
+6. 102 项核心契约与 DataConfig 结构审计
+7. 25 项正式主线真实转场冒烟
+8. 清理感知的主场景短跑
+9. 21 个正式场景实例化冒烟
+10. Web 资源包导出
 
 涉及相邻场景真实转场、shader、动画、音频或最终布局时，仍须追加图形环境下的人工游玩、画面或试听检查；headless 不能替代这些验证。
 

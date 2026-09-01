@@ -129,7 +129,7 @@ dynamic_spawn_min_x = 4100.0
 dynamic_spawn_max_x = 6700.0
 dynamic_spawn_y = 540.0
 knockback_reverse_force = 350.0
-damage_reduction_heal_divisor = 2.0
+player_damage_multiplier = 0.5
 memory_echo_1_subtitle = "（街坊三婆的声音）：
 哎呀，阿明休学啦？
 唔紧要啦，后生仔边个冇跌过跤。

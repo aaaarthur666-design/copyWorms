@@ -23,6 +23,7 @@ var _transitioned: bool = false
 var _web_quit_hint: Label = null
 
 func _ready() -> void:
+	InputManager.activate_menu_pointer()
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
 	print("[TitleScreen] 标题画面加载")
 	# 标题界面播放结局主题音乐
@@ -145,12 +146,14 @@ func _start_transition() -> void:
 func _on_start_game() -> void:
 	SFXManager.play(SFXManager.SFX.UI_CLICK)
 	print("[TitleScreen] >>> 开始正式游戏按钮被点击 <<<")
+	InputManager.activate_gameplay_display()
 	GameManager.begin_new_run(GlobalDefine.RunMode.FORMAL)
 	SceneTransitionManager.request_scene_change("res://Global/MainEntry.tscn", self)
 
 func _on_highlight_start() -> void:
 	SFXManager.play(SFXManager.SFX.UI_CLICK)
 	print("[TitleScreen] >>> 从精彩处开始按钮被点击 <<<")
+	InputManager.activate_gameplay_display()
 	GameManager.begin_new_run(GlobalDefine.RunMode.FORMAL)
 	SceneTransitionManager.request_scene_change(HIGHLIGHT_SCENE, self)
 

@@ -20,6 +20,8 @@ var can_attack_hold_dash: bool = true
 # 运行时移速倍率（关卡可临时调节，如"沉重化"; 默认1.0零影响）
 # 不直接修改共享 PlayerConfig.tres
 var runtime_move_speed_multiplier: float = 1.0
+# 运行时承伤倍率（关卡状态临时注入；形态自身减伤由 _prepare_incoming_damage 提供）
+var runtime_incoming_damage_multiplier: float = 1.0
 
 # 状态变量
 var current_state: int = GlobalDefine.PlayerState.IDLE
@@ -28,6 +30,7 @@ var max_health: int = 0
 var is_invincible: bool = false
 var is_facing_right: bool = true
 var _is_super_armor: bool = false  # 霸体：受击不击退不中断
+var _death_notified: bool = false
 var can_double_jump: bool = false
 var has_double_jumped: bool = false
 
@@ -273,42 +276,13 @@ func _check_enemy_contact(_delta: float) -> void:
 		if mr.intersects(er): _take_contact_damage(enemy); return
 
 func _take_contact_damage(enemy: Node2D) -> void:
-	var atk = config.default_contact_damage
-	if enemy.config:
-		atk = enemy.config.attack_damage
-	current_health = maxi(current_health - atk, 0)
-	# 霸体：只扣血，不击退不中断，但仍需无敌帧防止连续受伤
-	if _is_super_armor:
-		is_invincible = true
-		invincible_timer = config.hurt_invincible_time
-		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
-		EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": atk, "current_health": current_health})
-		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
-		if current_health <= 0:
-			die()
-		return
-	is_invincible = true
-	invincible_timer = config.contact_invincible_time
-	is_attacking = false
-	attack_timer = 0.0
-	_attack_started_in_air = false
-	_attack_windup_pending = false
-	is_dashing = false
-	dash_timer = 0.0
-	attack_cooldown_timer = 0.0
-	var kb_dir = signf(global_position.x - enemy.global_position.x)
-	if kb_dir == 0:
-		kb_dir = 1.0
-	velocity = Vector2(kb_dir * config.contact_knockback_horizontal, config.contact_knockback_vertical)
-	# 受击时推开周围敌人，防止无敌结束后立刻再次被贴身
-	_push_nearby_enemies()
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
-	EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": atk, "current_health": current_health})
-	EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
-	if current_health <= 0:
-		die()
-	else:
-		_change_state(GlobalDefine.PlayerState.HURT)
+	var raw_damage: int = config.default_contact_damage
+	if "config" in enemy and enemy.config:
+		raw_damage = enemy.config.attack_damage
+	var direction := signf(global_position.x - enemy.global_position.x)
+	if direction == 0.0:
+		direction = 1.0
+	take_damage(raw_damage, Vector2(direction, 0.0), enemy, true)
 
 ## 受击时推开周围敌人，防止贴身连击
 func _push_nearby_enemies() -> void:
@@ -565,22 +539,59 @@ func perform_skill() -> void:
 func perform_skill_2() -> void:
 	perform_skill()
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: Node = null) -> void:
+func take_damage(
+	raw_damage: int,
+	knockback_dir: Vector2 = Vector2.ZERO,
+	source: Node = null,
+	is_contact: bool = false
+) -> void:
 	if is_invincible or current_state == GlobalDefine.PlayerState.DEAD:
 		return
-	current_health = maxi(current_health - damage, 0)
-	# 霸体：只扣血，不击退不中断不进入HURT，但仍需无敌帧防止连续受伤
-	if _is_super_armor:
-		is_invincible = true
-		invincible_timer = config.hurt_invincible_time
-		SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
-		EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": damage, "current_health": current_health})
-		EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
-		if current_health <= 0:
-			die()
+	var prepared := _prepare_incoming_damage(maxi(raw_damage, 0))
+	var damage_base := maxi(int(prepared.get("damage", raw_damage)), 0)
+	if damage_base <= 0:
 		return
+	var form_multiplier := maxf(float(prepared.get("multiplier", 1.0)), 0.0)
+	var total_multiplier := form_multiplier * maxf(runtime_incoming_damage_multiplier, 0.0)
+	var damage := DamageCalculator.resolve_incoming(damage_base, total_multiplier)
+	if damage <= 0:
+		return
+
+	current_health = maxi(current_health - damage, 0)
 	is_invincible = true
-	invincible_timer = config.hurt_invincible_time
+	invincible_timer = config.hurt_invincible_time if _is_super_armor else (config.contact_invincible_time if is_contact else config.hurt_invincible_time)
+	if not _is_super_armor:
+		_cancel_actions_for_damage()
+		_apply_damage_knockback(knockback_dir, is_contact)
+		_push_nearby_enemies()
+
+	var is_lethal := current_health <= 0
+	if is_lethal:
+		_change_state(GlobalDefine.PlayerState.DEAD)
+	elif not _is_super_armor:
+		_change_state(GlobalDefine.PlayerState.HURT)
+
+	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
+	EventBus.emit(GlobalDefine.EventName.DAMAGE_APPLIED, {
+		"target": self,
+		"source": source,
+		"raw_damage": raw_damage,
+		"damage": damage,
+		"current_health": current_health,
+	})
+	EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {
+		"player": self,
+		"source": source,
+		"raw_damage": raw_damage,
+		"damage": damage,
+		"current_health": current_health,
+	})
+	EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
+	if is_lethal:
+		_notify_death()
+
+
+func _cancel_actions_for_damage() -> void:
 	is_attacking = false
 	attack_timer = 0.0
 	_attack_started_in_air = false
@@ -588,23 +599,34 @@ func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: No
 	is_dashing = false
 	dash_timer = 0.0
 	attack_cooldown_timer = 0.0
-	if knockback_dir != Vector2.ZERO:
-		var kb_speed = config.hurt_knockback
-		_knockback_force = signf(knockback_dir.x) * kb_speed
+
+
+func _apply_damage_knockback(knockback_dir: Vector2, is_contact: bool) -> void:
+	if is_contact:
+		var direction := signf(knockback_dir.x)
+		if direction == 0.0:
+			direction = 1.0
+		_knockback_force = 0.0
 		_knockback_timer = 0.0
-		velocity.y = config.hurt_knockback_vertical
-	# 受击时推开周围敌人，防止贴身连击
-	_push_nearby_enemies()
-	SFXManager.play_pitched(SFXManager.SFX.PLAYER_HURT, config.hurt_sfx_pitch_min, config.hurt_sfx_pitch_max)
-	EventBus.emit(GlobalDefine.EventName.PLAYER_HURT, {"player": self, "damage": damage, "current_health": current_health})
-	EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {"target": self, "current_health": current_health, "max_health": max_health})
-	if current_health <= 0:
-		die()
-	else:
-		_change_state(GlobalDefine.PlayerState.HURT)
+		velocity = Vector2(direction * config.contact_knockback_horizontal, config.contact_knockback_vertical)
+		return
+	if knockback_dir == Vector2.ZERO:
+		return
+	_knockback_force = signf(knockback_dir.x) * config.hurt_knockback
+	_knockback_timer = 0.0
+	velocity.y = config.hurt_knockback_vertical
 
 func die() -> void:
+	if _death_notified:
+		return
 	_change_state(GlobalDefine.PlayerState.DEAD)
+	_notify_death()
+
+
+func _notify_death() -> void:
+	if _death_notified:
+		return
+	_death_notified = true
 	EventBus.emit(GlobalDefine.EventName.PLAYER_DIED, {"player": self})
 	_on_die()
 
@@ -642,6 +664,10 @@ func _on_physics_process(_delta: float) -> void: pass
 func _on_attack() -> void: pass
 func _on_dash() -> void: pass
 func _on_skill() -> void: pass
+
+## 形态可在此消费护盾并返回剩余伤害与自身承伤倍率；最终取整只由基类执行一次。
+func _prepare_incoming_damage(raw_damage: int) -> Dictionary:
+	return {"damage": raw_damage, "multiplier": 1.0}
 
 func _play_skill_release_sfx() -> void:
 	_stop_skill_charge_sfx()

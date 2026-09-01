@@ -298,13 +298,22 @@ func _apply_dream_runtime_flags() -> void:
 	var flags = GameManager.dream_runtime_flags
 	if flags.is_empty():
 		print("[Level_03] 无跨关卡配置，使用默认值")
+	else:
+		print("[Level_03] 应用跨关卡配置: ", flags)
+	_apply_runtime_player_modifiers(GameManager.player_ref as PlayerBase)
+
+
+func _apply_runtime_player_modifiers(player: PlayerBase) -> void:
+	if player == null or not is_instance_valid(player):
 		return
-	print("[Level_03] 应用跨关卡配置: ", flags)
-	var player = GameManager.player_ref
-	if player and is_instance_valid(player):
-		if flags.get("base_jump_height", 10) > 50:
-			player.can_double_jump = true
-			print("[Level_03] 跨关卡跳跃增强: 启用二段跳")
+	player.runtime_incoming_damage_multiplier = (
+		level_data.player_damage_multiplier
+		if bool(GameManager.dream_runtime_state.get_value(&"player_damage_reduction", false))
+		else 1.0
+	)
+	if GameManager.dream_runtime_state.has_enhanced_jump():
+		player.can_double_jump = true
+		print("[Level_03] 跨关卡跳跃增强: 启用二段跳")
 
 
 # ============================================================
@@ -485,14 +494,12 @@ func _cache_ui_refs() -> void:
 # ============================================================
 
 func _restore_combat_mechanics() -> void:
-	var player = GameManager.player_ref
+	var player := GameManager.player_ref as PlayerBase
 	if not player: return
 	player.can_attack = true
 	player.can_dash = true
 	player.can_skill = true
-	var flags = GameManager.dream_runtime_flags
-	if flags.get("base_jump_height", 10) > 50:
-		player.can_double_jump = true
+	_apply_runtime_player_modifiers(player)
 
 func _swap_player_to_cyber() -> void:
 	var old_player = GameManager.player_ref
@@ -524,6 +531,7 @@ func _swap_player_to_cyber() -> void:
 	new_player.velocity = Vector2.ZERO
 	new_player.is_facing_right = saved_facing_right
 	GameManager.register_player(new_player)
+	_apply_runtime_player_modifiers(new_player as PlayerBase)
 	print("[Level_03] 玩家切换为赛博皮肤")
 
 func _enforce_level_restrictions() -> void:
@@ -1229,18 +1237,6 @@ func _on_player_hurt(data: Dictionary) -> void:
 		return
 	var player = data.get("player")
 	if not player or not is_instance_valid(player): return
-
-	var flags = GameManager.dream_runtime_flags
-	var has_damage_reduction = flags.get("player_damage_reduction", false)
-	if has_damage_reduction:
-		var heal_amount = int(data.get("damage", 0) / level_data.damage_reduction_heal_divisor)
-		if heal_amount > 0 and player.current_health < player.max_health:
-			player.current_health = mini(player.current_health + heal_amount, player.max_health)
-			EventBus.emit(GlobalDefine.EventName.HEALTH_CHANGED, {
-				"target": player,
-				"current_health": player.current_health,
-				"max_health": player.max_health
-			})
 
 	# 赛博阶段：击退方向反转
 	if current_state in [LevelState.CYBER_CITY, LevelState.MEMORY_COLLECTION]:

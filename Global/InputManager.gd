@@ -17,10 +17,61 @@ var _next_lock_token: int = 1
 var _input_locks: Dictionary = {}
 var _blocked_actions: Dictionary = {}
 var _tracked_owner_ids: Dictionary = {}
+var _gameplay_display_active: bool = false
+var _gameplay_pointer_captured: bool = false
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+## 由标题页的实际开始按钮调用。桌面端进入独占全屏；Web 端使用浏览器全屏。
+## 调用必须留在用户点击回调中，否则浏览器可能拒绝全屏和鼠标捕获请求。
+func activate_gameplay_display() -> void:
+	_gameplay_display_active = true
+	if not _is_headless_display():
+		var fullscreen_mode := DisplayServer.WINDOW_MODE_FULLSCREEN
+		if not OS.has_feature("web"):
+			fullscreen_mode = DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+		DisplayServer.window_set_mode(fullscreen_mode)
+	_set_gameplay_pointer_captured(true)
+
+
+## 进入标题页时恢复可操作的鼠标，但保留已进入的全屏状态。
+func activate_menu_pointer() -> void:
+	_gameplay_display_active = false
+	_set_gameplay_pointer_captured(false)
+
+
+## 暂停、游戏结束等局内可点击界面临时释放鼠标。
+func show_gameplay_ui_pointer() -> void:
+	if _gameplay_display_active:
+		_set_gameplay_pointer_captured(false)
+
+
+## 关闭局内界面或重新载入玩法 HUD 后恢复捕获。
+func restore_gameplay_pointer() -> void:
+	if _gameplay_display_active:
+		_set_gameplay_pointer_captured(true)
+
+
+func is_gameplay_display_active() -> bool:
+	return _gameplay_display_active
+
+
+func is_gameplay_pointer_captured() -> bool:
+	return _gameplay_pointer_captured
+
+
+func _set_gameplay_pointer_captured(captured: bool) -> void:
+	_gameplay_pointer_captured = captured
+	if _is_headless_display():
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if captured else Input.MOUSE_MODE_VISIBLE
+
+
+func _is_headless_display() -> bool:
+	return DisplayServer.get_name() == "headless"
 
 
 func _input(event: InputEvent) -> void:

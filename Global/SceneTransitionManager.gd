@@ -64,6 +64,7 @@ func cleanup_for_transition(source: Node = null) -> void:
 			_call_prepare_for_exit(current)
 		tree.paused = false
 
+	EventBus.clear_transient()
 	GameManager.reset_transient_state()
 	InputManager.force_unblock_all()
 	MusicManager.clear_game_pause()

@@ -31,6 +31,14 @@ if ($versionExitCode -ne 0 -or $versionText -notmatch '^4\.6(?:\.|$)') {
 }
 Write-Host "[preflight] Godot $versionText"
 
+$projectSettingsPath = Join-Path $projectRoot 'project.godot'
+$projectSettingsText = Get-Content -LiteralPath $projectSettingsPath -Raw
+$editorSection = [regex]::Match($projectSettingsText, '(?ms)^\[editor\]\s*(?<body>.*?)(?=^\[|\z)')
+if (-not $editorSection.Success -or $editorSection.Groups['body'].Value -notmatch '(?m)^import/use_multiple_threads=false\s*$') {
+    throw 'project.godot 必须保持 editor/import/use_multiple_threads=false，以规避 Godot 4.6 动态字体并行导入的引擎竞态崩溃。'
+}
+Write-Host '[preflight] 字体导入线程安全设置 PASS'
+
 function Invoke-GodotCheck {
     param(
         [Parameter(Mandatory = $true)][string]$Name,

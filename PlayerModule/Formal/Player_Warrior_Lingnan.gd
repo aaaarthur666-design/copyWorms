@@ -601,7 +601,9 @@ func _on_game_action(action: StringName, _event: InputEvent) -> void:
 
 # ---- 蓄力期间减伤 ----
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: Node = null) -> void:
+func _prepare_incoming_damage(raw_damage: int) -> Dictionary:
+	var prepared := super._prepare_incoming_damage(raw_damage)
+	var damage := int(prepared["damage"])
 	if _bagua_shield_hp > 0:
 		var absorbed = mini(damage, _bagua_shield_hp)
 		_bagua_shield_hp -= absorbed
@@ -610,11 +612,13 @@ func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: No
 		if _bagua_shield_hp <= 0:
 			_break_bagua_shield()
 		if damage <= 0:
-			return
-	# 蓄力期间减伤50%
+			prepared["damage"] = 0
+			return prepared
+	prepared["damage"] = damage
+	# 蓄力减伤与关卡减伤在 PlayerBase 中合并，并且只取整一次。
 	if _is_charging:
-		damage = max(1, int(round(damage * lingnan_config.charge_damage_multiplier)))
-	super.take_damage(damage, knockback_dir)
+		prepared["multiplier"] = lingnan_config.charge_damage_multiplier
+	return prepared
 
 # ---- 蓄力期间吸附周围敌人 ----
 

@@ -342,21 +342,21 @@ func _do_skill2_manual_stab() -> void:
 	_clear_skill2_pose()
 	_finish_skill2_sequence(true)
 
-func take_damage(damage: int, knockback_dir: Vector2 = Vector2.ZERO, _source: Node = null) -> void:
+func take_damage(
+	damage: int,
+	knockback_dir: Vector2 = Vector2.ZERO,
+	source: Node = null,
+	is_contact: bool = false
+) -> void:
 	if _skill2_sequence_active:
 		return
 	if _skill2_charging:
-		_trigger_skill2_counter(_find_skill2_attacker(knockback_dir))
+		var attacker := source as Node2D
+		if attacker == null:
+			attacker = _find_skill2_attacker(knockback_dir)
+		_trigger_skill2_counter(attacker)
 		return
-	super.take_damage(damage, knockback_dir)
-
-func _take_contact_damage(enemy: Node2D) -> void:
-	if _skill2_sequence_active:
-		return
-	if _skill2_charging:
-		_trigger_skill2_counter(enemy)
-		return
-	super._take_contact_damage(enemy)
+	super.take_damage(damage, knockback_dir, source, is_contact)
 
 func _trigger_skill2_counter(enemy: Node2D) -> void:
 	if _skill2_sequence_active:

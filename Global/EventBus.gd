@@ -4,7 +4,7 @@
 # 契约:
 #   - emit() 同步分发；需要跨帧时显式使用 emit_deferred()
 #   - 订阅以 owner + method 幂等去重，owner 离树后自动清理
-#   - 场景级订阅可批量清理；应用级订阅在 Autoload 生命周期内保留
+#   - 场景级订阅可批量清理；应用级或跨子场景宿主订阅可显式保留
 #   - 分发使用监听快照，允许回调内订阅/退订而不破坏本轮遍历
 #   - 核心事件在分发前校验最小 payload 契约
 # ============================================================
@@ -43,7 +43,7 @@ func subscribe(event_name: StringName, owner: Node, method: StringName) -> bool:
 	return _subscribe(event_name, owner, method, false)
 
 
-## 注册应用级订阅。clear_transient() 不会移除；owner 离树或显式退订仍会清理。
+## 注册跨转场订阅。clear_transient() 不会移除；owner 离树或显式退订仍会清理。
 func subscribe_persistent(event_name: StringName, owner: Node, method: StringName) -> bool:
 	return _subscribe(event_name, owner, method, true)
 

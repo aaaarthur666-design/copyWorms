@@ -47,6 +47,7 @@ func suppress_skill_icon(suppress: bool) -> void:
 func _ready() -> void:
 	# 关键：暂停时 HUD 必须继续运行，否则按钮无法响应
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	InputManager.restore_gameplay_pointer()
 	_health_frame_lingnan = load("res://Assets/UI/血条岭南.png") as Texture2D
 	_health_frame_cyber = load("res://Assets/UI/血条赛博.png") as Texture2D
 	_build_ui()
@@ -608,11 +609,13 @@ func _update_health_frame() -> void:
 	_health_frame.texture = tex
 
 func _on_game_pause(_data: Dictionary = {}) -> void:
+	InputManager.show_gameplay_ui_pointer()
 	_refresh_panel_buttons()
 	pause_panel.show()
 	_start_pause_code_rain_if_needed()
 
 func _on_game_resume(_data: Dictionary = {}) -> void:
+	InputManager.restore_gameplay_pointer()
 	_stop_pause_code_rain(true)
 	pause_panel.hide()
 
@@ -621,6 +624,7 @@ func _on_game_over(_data: Dictionary = {}) -> void:
 		GameManager.is_game_over = false
 		game_over_panel.hide()
 		return
+	InputManager.show_gameplay_ui_pointer()
 	_refresh_panel_buttons()
 	game_over_panel.show()
 
