@@ -28,6 +28,9 @@ decoupling → `godot-signals-groups`; physics bodies/collisions → `godot-phys
 - `SceneTransitionManager` is the dedicated level-transition manager and the only
   whole-tree scene-change entry. `MainEntry` may replace a managed child level, but must
   reuse the manager's shared cleanup.
+- Put valid-transition teardown in `prepare_for_level_exit()` and keep `_exit_tree()` to
+  idempotent release of node-owned connections, callbacks, guards, and resources. Do not
+  invoke broader global cleanup merely because a node leaves the tree.
 - Keep level loading out of `GameManager`, level scripts, and UI; use exact project paths
   and do not add formal scene dependencies without authorization.
 

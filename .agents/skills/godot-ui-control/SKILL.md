@@ -29,6 +29,14 @@ the project's `KeybindManager` path; or complete genre-specific UI templates.
   gamepad rebinding path; do not create a second persistence format.
 - For a whole-tree level change from a button, call `SceneTransitionManager` and let its
   cleanup handle input/dialogue/pause state. Use `EventBus` for cross-module UI events.
+- Read `Global/UILayerContract.gd` before assigning a formal `CanvasLayer.layer` or
+  shared-HUD `z_index`; do not duplicate its numeric values in level or UI scripts.
+- Add level-owned gameplay indicators through `HUD.add_gameplay_control()` so pause and
+  final-scene suppression affect them with the rest of `GameplayHUD`. Do not serialize a
+  second HUD/UI subtree when the level script or builder already creates it at runtime.
+- Purely visual full-screen effects must use `MOUSE_FILTER_IGNORE`. Interactive blockers
+  use `MOUSE_FILTER_STOP`, restore keyboard/gamepad focus when closed, and acquire an
+  owner-scoped pause-guard token when ESC must close the modal without opening pause.
 
 ## Core workflow
 
