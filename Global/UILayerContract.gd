@@ -10,6 +10,7 @@ const SHARED_HUD: int = 800
 const LEVEL45_SPECIAL_FX: int = 900
 const TRANSITION: int = 1000
 const CINEMATIC: int = 2000
+const CINEMATIC_DIALOG: int = 2100
 
 ## Local z-order inside the shared HUD CanvasLayer.
 const HUD_GAMEPLAY_Z: int = 0

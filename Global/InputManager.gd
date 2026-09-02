@@ -1,7 +1,8 @@
 # ============================================================
 # InputManager.gd - 统一输入管理器 (Autoload, PROCESS_MODE_ALWAYS)
 #
-# 输入锁由 owner 管理：owner 离树自动释放，嵌套锁按 token 独立计数。
+# 输入锁、暂停守卫与鼠标释放请求都由 owner 管理：owner 离树自动释放，
+# 嵌套状态按 token 独立计数。
 # 旧的 reason-only unblock 仍兼容，但新代码应同时传入 owner。
 # ============================================================
 extends Node
@@ -18,8 +19,10 @@ var captured_this_frame: StringName = &""
 var _pause_allowed: bool = true
 var _next_lock_token: int = 1
 var _next_pause_guard_token: int = 1
+var _next_pointer_release_token: int = 1
 var _input_locks: Dictionary = {}
 var _pause_guards: Dictionary = {}
+var _pointer_release_requests: Dictionary = {}
 var _blocked_actions: Dictionary = {}
 var _tracked_owner_ids: Dictionary = {}
 var _gameplay_display_active: bool = false
@@ -64,13 +67,13 @@ func _enter_gameplay_fullscreen() -> void:
 		if not OS.has_feature("web"):
 			fullscreen_mode = DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
 		DisplayServer.window_set_mode(fullscreen_mode)
-	_set_gameplay_pointer_captured(true)
+	_refresh_gameplay_pointer()
 
 
 ## 进入标题页时恢复可操作的鼠标，但保留已进入的全屏状态。
 func activate_menu_pointer() -> void:
 	_gameplay_display_active = false
-	_set_gameplay_pointer_captured(false)
+	_refresh_gameplay_pointer()
 
 
 ## 暂停、游戏结束等局内可点击界面临时释放鼠标。
@@ -81,8 +84,59 @@ func show_gameplay_ui_pointer() -> void:
 
 ## 关闭局内界面或重新载入玩法 HUD 后恢复捕获。
 func restore_gameplay_pointer() -> void:
-	if _gameplay_display_active and _fullscreen_active:
-		_set_gameplay_pointer_captured(true)
+	_prune_dead_owners()
+	_refresh_gameplay_pointer()
+
+
+## 全屏玩法中的可点击演出或模态界面申请显示鼠标。
+## 每个调用者必须保存并精确释放 token；owner 离树与转场清理会兜底释放。
+func acquire_pointer_release(reason: String, owner: Node = null) -> int:
+	var token := _next_pointer_release_token
+	_next_pointer_release_token += 1
+	_pointer_release_requests[token] = {
+		"reason": reason,
+		"owner_id": _owner_id(owner),
+		"owner": weakref(owner) if owner else null,
+	}
+	_track_owner(owner)
+	_refresh_gameplay_pointer()
+	return token
+
+
+## 按 owner + reason 释放最近一次匹配请求；新代码优先使用 token 精确释放。
+func release_pointer_release(reason: String = "", owner: Node = null) -> bool:
+	_prune_dead_owners()
+	var owner_id := _owner_id(owner)
+	var matching_token := -1
+	var tokens: Array = _pointer_release_requests.keys()
+	tokens.sort()
+	tokens.reverse()
+	for token: int in tokens:
+		var entry: Dictionary = _pointer_release_requests[token]
+		if owner and int(entry["owner_id"]) != owner_id:
+			continue
+		if reason != "" and String(entry["reason"]) != reason:
+			continue
+		matching_token = token
+		break
+	if matching_token < 0:
+		return false
+	_pointer_release_requests.erase(matching_token)
+	_refresh_gameplay_pointer()
+	return true
+
+
+func release_pointer_release_token(token: int) -> bool:
+	if not _pointer_release_requests.has(token):
+		return false
+	_pointer_release_requests.erase(token)
+	_refresh_gameplay_pointer()
+	return true
+
+
+func is_pointer_release_requested() -> bool:
+	_prune_dead_owners()
+	return not _pointer_release_requests.is_empty()
 
 
 func is_gameplay_display_active() -> bool:
@@ -95,6 +149,17 @@ func is_gameplay_pointer_captured() -> bool:
 
 func is_fullscreen_active() -> bool:
 	return _fullscreen_active
+
+
+func _refresh_gameplay_pointer() -> void:
+	var should_capture := (
+		_gameplay_display_active
+		and _fullscreen_active
+		and _pointer_release_requests.is_empty()
+		and not GameManager.is_paused
+		and not GameManager.is_game_over
+	)
+	_set_gameplay_pointer_captured(should_capture)
 
 
 func _set_gameplay_pointer_captured(captured: bool) -> void:
@@ -430,9 +495,11 @@ func release_input_for_owner(owner: Node) -> void:
 func force_unblock_all() -> void:
 	_input_locks.clear()
 	_pause_guards.clear()
+	_pointer_release_requests.clear()
 	clear_action_blocks()
 	_pause_allowed = true
 	_refresh_input_lock_state()
+	_refresh_gameplay_pointer()
 
 
 func set_pause_allowed(allowed: bool) -> void:
@@ -458,6 +525,16 @@ func get_active_pause_guards() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for token: int in _pause_guards:
 		var entry: Dictionary = _pause_guards[token].duplicate()
+		entry["token"] = token
+		result.append(entry)
+	return result
+
+
+func get_active_pointer_releases() -> Array[Dictionary]:
+	_prune_dead_owners()
+	var result: Array[Dictionary] = []
+	for token: int in _pointer_release_requests:
+		var entry: Dictionary = _pointer_release_requests[token].duplicate()
 		entry["token"] = token
 		result.append(entry)
 	return result
@@ -489,6 +566,9 @@ func _release_owner_id(owner_id: int) -> void:
 	for token: int in _pause_guards.keys():
 		if int(_pause_guards[token]["owner_id"]) == owner_id:
 			_pause_guards.erase(token)
+	for token: int in _pointer_release_requests.keys():
+		if int(_pointer_release_requests[token]["owner_id"]) == owner_id:
+			_pointer_release_requests.erase(token)
 	for action: StringName in _blocked_actions.keys():
 		var owners: Dictionary = _blocked_actions[action]
 		owners.erase(owner_id)
@@ -497,6 +577,7 @@ func _release_owner_id(owner_id: int) -> void:
 		else:
 			_blocked_actions[action] = owners
 	_refresh_input_lock_state()
+	_refresh_gameplay_pointer()
 
 
 func _prune_dead_owners() -> void:
@@ -508,6 +589,12 @@ func _prune_dead_owners() -> void:
 		if owner_ref == null or owner_ref.get_ref() == null:
 			stale_ids[int(entry["owner_id"])] = true
 	for entry: Dictionary in _pause_guards.values():
+		if int(entry["owner_id"]) == 0:
+			continue
+		var owner_ref: WeakRef = entry["owner"] as WeakRef
+		if owner_ref == null or owner_ref.get_ref() == null:
+			stale_ids[int(entry["owner_id"])] = true
+	for entry: Dictionary in _pointer_release_requests.values():
 		if int(entry["owner_id"]) == 0:
 			continue
 		var owner_ref: WeakRef = entry["owner"] as WeakRef

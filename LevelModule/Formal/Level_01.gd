@@ -53,6 +53,7 @@ var _fsm: Level_01_FSM = null
 var _phone_vibrate_tween: Tween = null
 var _flicker_tween: Tween = null
 var _level_input_rules_active: bool = false
+var _ide_pointer_release_token: int = -1
 
 # 左侧边缘黄色闪烁光效（提示左侧有未查看内容）
 var _left_edge_flash: ColorRect = null
@@ -214,6 +215,7 @@ func _on_ready() -> void:
 
 
 func _exit_tree() -> void:
+	_release_ide_pointer()
 	_level_input_rules_active = false
 	_clear_level_input_rules()
 	_disconnect_input_manager()
@@ -350,12 +352,13 @@ func _add_physics_blocker(parent: Node2D, size: Vector2) -> void:
 	parent.add_child(blocker)
 
 func _cache_ui_refs() -> void:
-	var canvas = $CanvasLayerUI
+	var canvas := get_node_or_null("CanvasLayerUI") as CanvasLayer
 	if not canvas: return
 	_narrative_panel = canvas.get_node_or_null("NarrativePanel")
 	if _narrative_panel: _narrative_text = _narrative_panel.get_node_or_null("RichTextLabel")
 	_sleep_overlay = canvas.get_node_or_null("SleepOverlay")
-	_ide_ui = canvas.get_node_or_null("IdeUI")
+	var ide_canvas := get_node_or_null("IdeCanvasLayer") as CanvasLayer
+	_ide_ui = ide_canvas.get_node_or_null("IdeUI") if ide_canvas else null
 	if _ide_ui:
 		_chat_window = _ide_ui.get_node_or_null("ChatWindow")
 		_viewport_container = _ide_ui.get_node_or_null("ViewportContainer")
@@ -756,10 +759,24 @@ func _enter_ide_mode() -> void:
 	_freeze_player(true)
 	# 阶段3d: IDE 对话期间全局屏蔽输入
 	InputManager.block_input("IDE对话", self)
+	_acquire_ide_pointer()
 	if _ide_ui: _ide_ui.show()
 	current_chat_index = 0
 	if _chat_window: _chat_window.text = ""
 	_render_next_chat_line()
+
+
+func _acquire_ide_pointer() -> void:
+	if _ide_pointer_release_token >= 0:
+		return
+	_ide_pointer_release_token = InputManager.acquire_pointer_release("Level01 IDE交互", self)
+
+
+func _release_ide_pointer() -> void:
+	if _ide_pointer_release_token < 0:
+		return
+	InputManager.release_pointer_release_token(_ide_pointer_release_token)
+	_ide_pointer_release_token = -1
 
 func _render_next_chat_line() -> void:
 	if not level_data:
@@ -875,6 +892,7 @@ func _on_preview_crashed() -> void:
 	if _mini_viewport:
 		for child in _mini_viewport.get_children(): child.queue_free()
 	if _ide_ui: _ide_ui.hide()
+	_release_ide_pointer()
 	_stop_code_scroll()
 	current_state = LevelState.PHONE_RINGING
 	if _phone_node: _phone_node.set_active(true)
@@ -1116,6 +1134,7 @@ func _cleanup_input_before_level_switch() -> void:
 	_disconnect_input_manager()
 	get_viewport().gui_release_focus()
 	_clear_level_input_rules()
+	_release_ide_pointer()
 	InputManager.force_unblock_all()
 
 func _disconnect_input_manager() -> void:

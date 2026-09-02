@@ -43,6 +43,9 @@ func _attach_dream_visual_layers(dream: Node2D) -> void:
 		if scene_path.contains("PixelworkMapStitch"):
 			to_reparent.append(child)
 	for node in to_reparent:
+		# Pixelwork 会在离树时停止处理并卸载运行时图块。先重新武装 _ready，
+		# 让本次运行时重挂载完成后立即重建地图，而不是留下空图层。
+		node.request_ready()
 		node.reparent(dream)
 
 func _build_interactives() -> void:

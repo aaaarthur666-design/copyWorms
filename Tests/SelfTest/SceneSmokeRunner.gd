@@ -111,6 +111,8 @@ func _fail_current_scene(message: String) -> void:
 func _finish_loaded_scene() -> void:
 	print("[SCENE SMOKE] loaded %s" % _current_scene_path)
 	if is_instance_valid(_current_instance):
+		_validate_fullscreen_ide_layer(_current_instance)
+		_validate_level_02_pixelwork_runtime(_current_instance)
 		if _current_instance.has_method("prepare_for_level_exit"):
 			_current_instance.call("prepare_for_level_exit")
 		_current_instance.queue_free()
@@ -128,6 +130,70 @@ func _finish_scene_cleanup() -> void:
 	_current_scene_path = ""
 	_phase = SmokePhase.IDLE
 	call_deferred("_start_next_scene")
+
+
+func _validate_fullscreen_ide_layer(scene_root: Node) -> void:
+	var is_level_01 := _current_scene_path == "res://LevelModule/Formal/Level_01.tscn"
+	var is_level_02_03 := _current_scene_path == "res://LevelModule/Formal/Level_02_03.tscn"
+	if not is_level_01 and not is_level_02_03:
+		return
+
+	var level_canvas := scene_root.get_node_or_null("CanvasLayerUI") as CanvasLayer
+	if level_canvas == null:
+		_failures.append("%s 缺少普通关卡 UI 层" % _current_scene_path)
+	elif level_canvas.layer != UILayerContract.LEVEL_UI:
+		_failures.append("%s 普通关卡 UI 不得随 IDE 一起抬升" % _current_scene_path)
+
+	var ide_canvas := scene_root.get_node_or_null("IdeCanvasLayer") as CanvasLayer
+	if ide_canvas == null:
+		_failures.append("%s 缺少独立 IDE 全屏演出层" % _current_scene_path)
+		return
+	if ide_canvas.layer != UILayerContract.CINEMATIC:
+		_failures.append("%s IDE 演出层未使用 CINEMATIC" % _current_scene_path)
+
+	var hud := scene_root.get_node_or_null("HUD") as CanvasLayer
+	if hud == null:
+		_failures.append("%s 缺少共享 HUD，无法验证 IDE 覆盖关系" % _current_scene_path)
+	elif ide_canvas.layer <= hud.layer:
+		_failures.append("%s IDE 演出层必须高于共享 HUD" % _current_scene_path)
+
+	var required_children := PackedStringArray(["IdeUI"])
+	if is_level_02_03:
+		required_children.append("ConfigEditorUI")
+		required_children.append("RecompileLogPanel")
+	for child_name: String in required_children:
+		if ide_canvas.get_node_or_null(child_name) == null:
+			_failures.append("%s 的 %s 未归入 IDE 全屏演出层" % [_current_scene_path, child_name])
+
+	if not scene_root.has_method("_acquire_ide_pointer") or not scene_root.has_method("_release_ide_pointer"):
+		_failures.append("%s 缺少 IDE 鼠标释放生命周期" % _current_scene_path)
+		return
+	var pointer_request_count := InputManager.get_active_pointer_releases().size()
+	scene_root.call("_acquire_ide_pointer")
+	if InputManager.get_active_pointer_releases().size() != pointer_request_count + 1:
+		_failures.append("%s 打开 IDE 时未申请显示鼠标" % _current_scene_path)
+	scene_root.call("_release_ide_pointer")
+	if InputManager.get_active_pointer_releases().size() != pointer_request_count:
+		_failures.append("%s 关闭 IDE 时未归还鼠标释放请求" % _current_scene_path)
+
+
+func _validate_level_02_pixelwork_runtime(scene_root: Node) -> void:
+	if _current_scene_path != "res://LevelModule/Formal/Level_02.tscn":
+		return
+	var dream_root := scene_root.get_node_or_null("DreamWorldRoot")
+	if dream_root == null:
+		_failures.append("Level 2 缺少 DreamWorldRoot")
+		return
+	var map_root: Node = null
+	for child in dream_root.get_children():
+		if child.scene_file_path.contains("PixelworkMapStitch"):
+			map_root = child
+			break
+	if map_root == null:
+		_failures.append("Level 2 的 Pixelwork 地图未归入 DreamWorldRoot")
+		return
+	if not map_root.is_processing():
+		_failures.append("Level 2 的 Pixelwork 地图重挂载后未恢复运行时图块处理")
 
 
 func _begin_shutdown() -> void:

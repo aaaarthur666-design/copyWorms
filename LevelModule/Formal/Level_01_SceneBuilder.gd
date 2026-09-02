@@ -80,6 +80,9 @@ func _build_canvas_ui() -> void:
 	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer)
 	canvas.layer = UILayerContract.LEVEL_UI
 	canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
+	var ide_canvas = level._get_or_create_child("IdeCanvasLayer", CanvasLayer)
+	ide_canvas.layer = UILayerContract.CINEMATIC
+	ide_canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
 
-	var ui_builder = Level_01_UIBuilder.new(level, canvas)
+	var ui_builder = Level_01_UIBuilder.new(level, canvas, ide_canvas)
 	ui_builder.build_all()

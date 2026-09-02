@@ -2,7 +2,7 @@
 
 > 唯一架构文档
 >
-> 更新日期：2026-09-01
+> 更新日期：2026-09-02
 >
 > 目标引擎：Godot 4.6，GL Compatibility
 >
@@ -21,7 +21,7 @@
 | Resource 配置 (`.tres`) | 26 |
 | Shader (`.gdshader`) | 8 |
 
-项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。标题页保持可见鼠标；用户点击正式或精彩入口后，导出桌面端进入独占全屏，Web 端请求浏览器全屏，并捕获隐藏鼠标。Godot 编辑器中的图形运行默认保持窗口化和可见鼠标，避免嵌入式游戏窗口锁死 IDE；玩家仍可按 F11 主动切换全屏。暂停或游戏结束界面临时释放鼠标，继续游戏时只在全屏状态下重新捕获；返回标题页只恢复鼠标，不主动退出已经进入的全屏状态。
+项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。标题页保持可见鼠标；用户点击正式或精彩入口后，导出桌面端进入独占全屏，Web 端请求浏览器全屏，并捕获隐藏鼠标。Godot 编辑器中的图形运行默认保持窗口化和可见鼠标，避免嵌入式游戏窗口锁死 IDE；玩家仍可按 F11 主动切换全屏。暂停、游戏结束以及 IDE/图鉴等可点击局内界面会临时释放鼠标；关闭最后一个交互界面后只在全屏玩法状态重新捕获。返回标题页只恢复鼠标，不主动退出已经进入的全屏状态。
 
 ## 2. 仓库分层
 
@@ -144,7 +144,7 @@ flowchart TD
 | `GlobalDefine` | 运行模式、状态、事件名、碰撞层等常量 |
 | `EventBus` | 跨模块事件订阅、广播和延迟广播 |
 | `GameManager` | 玩家、敌人、关卡、检查点、暂停和跨关卡状态 |
-| `InputManager` | 游戏动作分发、动作屏蔽和全局输入锁 |
+| `InputManager` | 游戏动作分发、动作屏蔽、全局输入锁和 owner 化鼠标释放请求 |
 | `KeybindManager` | 按键映射读取、修改和持久化 |
 | `MusicManager` | BGM 播放、淡入淡出及暂停联动 |
 | `SFXManager` | 音效播放、实例管理和防抖 |
@@ -168,17 +168,17 @@ Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 hel
 
 `dream_runtime_flags` 仅作为旧代码兼容属性：读取返回深拷贝，整表赋值会经过类型校验。新增代码应使用 `dream_runtime_state`、`set_dream_flag()` 和 `get_dream_flag()`；不能对兼容属性返回的 Dictionary 做原地修改。已知键由 `DreamRuntimeState.VALUE_TYPES` 校验，未知赛题键暂时透传，以便赛题发布后扩展。`Level_03` 的玩家能力和承伤倍率已经改用类型化状态读取。
 
-任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`SceneTransitionManager.cleanup_for_transition()` 统一清除 EventBus 场景级订阅和尚未投递的延迟事件，并复位暂停、游戏结束、玩家/敌人引用、Boss、对话 owner、输入锁、动作锁、音乐暂停和 UI 焦点，但保留同一局需要跨关卡延续的梦境状态、检查点和显式跨转场订阅。标题页两个新局入口统一调用 `GameManager.begin_new_run()`，在临时状态复位之外继续清空 `DreamRuntimeState`、检查点场景、阶段和数据，禁止上一局进度污染新流程。
+任何临时关卡状态如果写入全局层，都必须在转场或新流程开始时明确清理。`SceneTransitionManager.cleanup_for_transition()` 统一清除 EventBus 场景级订阅和尚未投递的延迟事件，并复位暂停、游戏结束、玩家/敌人引用、Boss、对话 owner、输入锁、动作锁、鼠标释放请求、音乐暂停和 UI 焦点，但保留同一局需要跨关卡延续的梦境状态、检查点和显式跨转场订阅。标题页两个新局入口统一调用 `GameManager.begin_new_run()`，在临时状态复位之外继续清空 `DreamRuntimeState`、检查点场景、阶段和数据，禁止上一局进度污染新流程。
 
 ### 4.3 事件与输入锁契约
 
 `EventBus.emit()` 是同步中介者分发：返回前按订阅顺序完成当前监听快照；回调中订阅或退订只影响下一次发射。需要跨帧时必须显式调用 `emit_deferred()`；入队时会深拷贝 payload，延迟队列在暂停状态下也会继续排空。订阅以 `owner + method` 幂等去重，owner 离树后自动清理；同一 owner 可为同一事件登记多个方法，并可按 method 精确退订。`subscribe()` 默认建立场景级订阅，`subscribe_persistent()` 只用于 `MusicManager`、`SFXManager` 等应用级管理器，以及 `MainEntry` 这类明确跨越所托管子场景的宿主。每次有效转场都调用 `clear_transient()`：它移除场景级订阅并取消未投递的延迟事件，但保留显式跨转场订阅；`clear_all()` 只用于进程退出或明确的完全重置。玩家、敌人、关卡、交互、伤害和生命事件在分发前校验最小 payload 字段与类型。
 
-`InputManager` 的全局锁、动作锁和暂停守卫都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。`acquire_pause_guard()` 独立返回暂停守卫 token，只阻止 `ui_pause`，不阻断 modal 自身的翻页、确认或 ESC 关闭输入；对应流程应以 `release_pause_guard_token()` 精确释放。owner 离树会自动释放其全部锁和守卫，转场的 `force_unblock_all()` 则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。
+`InputManager` 的全局锁、动作锁、暂停守卫和鼠标释放请求都按 owner 管理。`block_input()` 返回 token；可通过 `unblock_input_token()` 精确释放，或使用 `owner + reason` 配对释放。`acquire_pause_guard()` 独立返回暂停守卫 token，只阻止 `ui_pause`，不阻断 modal 自身的翻页、确认或 ESC 关闭输入；对应流程应以 `release_pause_guard_token()` 精确释放。全屏玩法中的可点击演出或模态 UI 必须调用 `acquire_pointer_release()`，并以 `release_pointer_release_token()` 精确归还；多个界面的 token 可以叠加，只有最后一个请求归还后才允许恢复捕获。owner 离树会自动释放其全部锁、守卫和鼠标请求，转场的 `force_unblock_all()` 则执行最终兜底清理。事件分发和玩家每帧轮询必须共用 `is_gameplay_input_blocked()`：锁定时方向为零、跳跃不得起跳，尚未开始的长按动作不得计时；已经进入蓄力或冲刺前摇的动作暂停计时，不能把锁定期间读到的“松键”解释为释放技能。
 
 `ui_pause` 的处理顺序是硬转场、标题页退出、暂停阻断条件、正常暂停切换。暂停阻断条件包括输入锁、作用域式暂停守卫、对话、Game Over 和整树转场。被 modal 守卫阻止时，`InputManager` 不消费该事件，让图鉴、设置等当前覆盖界面仍能收到同一个 ESC 并关闭；硬转场和标题页退出则消费事件。`MainEntry` 的子关卡替换不进入 `SceneTransitionManager.is_transitioning`，因此其自有遮罩在清理前后都持有独立暂停守卫，直至淡出结束。
 
-`InputManager` 还统一维护玩法显示状态：标题页的用户点击入口激活玩法显示策略；编辑器图形运行保持窗口化和可见鼠标，导出桌面端进入独占全屏并捕获鼠标，Web 端请求浏览器全屏。HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性，且窗口化状态不会重新捕获；headless 测试仍记录正式全屏逻辑状态，但不调用平台窗口 API。
+`InputManager` 还统一维护玩法显示状态：标题页的用户点击入口激活玩法显示策略；编辑器图形运行保持窗口化和可见鼠标，导出桌面端进入独占全屏并捕获鼠标，Web 端请求浏览器全屏。鼠标是否捕获由玩法激活、全屏、暂停、Game Over 和鼠标释放 token 共同决定；HUD 只负责通知暂停、游戏结束和恢复玩法，业务 UI 不得直接写 `Input.mouse_mode`。窗口化状态不会重新捕获；headless 测试仍记录正式全屏逻辑状态，但不调用平台窗口 API。
 
 标题页复用 `ui_pause` 的 ESC 作为退出请求：`InputManager` 在 `TitleScreen` 当前场景下不切换暂停，而转发到标题页已有的退出处理；客户端关闭进程，Web 端显示关闭浏览器标签页提示。正式玩法场景仍保留 ESC 暂停/恢复逻辑。桌面客户端使用 F11 切换全屏，macOS 额外支持 `Control + Command + F`；退出全屏时恢复进入玩法前的窗口模式并释放鼠标，重新进入全屏时重新捕获，不退出游戏也不暂停。Web 端不接管这些桌面快捷键。
 
@@ -231,7 +231,7 @@ flowchart LR
 
 ### 5.4 地图数据
 
-Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的 `@tool` 运行时脚本读取，再生成地图层、碰撞和关卡节点。`Edit Preview` 模式会在编辑器内异步生成地图图块；离树时必须停止处理、排空尚未完成的线程加载并卸载生成图块，避免短时退出残留资源。Godot 不会为同一节点的再次入树自动重跑 `_ready()`，因此编辑器离树清理后必须调用 `request_ready()`，让场景刷新或重新挂载时完整重建预览。运行时最终销毁仍保持相同的资源清理路径，不因编辑器预览恢复而放宽。
+Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的 `@tool` 运行时脚本读取，再生成地图层、碰撞和关卡节点。`Edit Preview` 模式会在编辑器内异步生成地图图块；离树时必须停止处理、排空尚未完成的线程加载并卸载生成图块，避免短时退出残留资源。Godot 不会为同一节点的再次入树自动重跑 `_ready()`，因此编辑器离树清理后必须调用 `request_ready()`，让场景刷新或重新挂载时完整重建预览；正式运行中如果 Builder 需要把已入树的 Pixelwork 节点重挂到其他父节点，也必须在 `reparent()` 前请求再次 ready，使离树清理后的地图立即恢复处理与图块加载。运行时最终销毁仍保持相同的资源清理路径，不因重入恢复而放宽。
 
 地图源数据与运行时装配脚本必须同步维护；只替换图片而不更新碰撞数据，会产生视觉和物理边界不一致。
 
@@ -304,10 +304,13 @@ Pixelwork 生成数据由 `LevelModule/Scenes/PixelworkMapStitch/` 下的 `@tool
 | 900 | `LEVEL45_SPECIAL_FX` | 仅 Level 04/05 的 CodeRain 与边缘撕裂 |
 | 1000 | `TRANSITION` | 场景切换遮罩 |
 | 2000 | `CINEMATIC` | 强制视频、结束动画和不可暂停的全屏演出 |
+| 2100 | `CINEMATIC_DIALOG` | 全屏演出内部仍需交互的模态弹窗 |
 
 `UI/HUD.gd` 订阅生命、Boss、侵蚀、任务和关卡事件，根 `CanvasLayer` 固定为 800，并把动态节点分为 `GameplayHUD(z=0)`、`GameOverPanel(z=900)`、`PauseBlocker/PausePanel(z=1000)` 和暂停二级窗口 `z=1100`。暂停时只隐藏 `GameplayHUD`，全屏 `PauseBlocker` 与 `PausePanel` 使用 `MOUSE_FILTER_STOP` 拦截指针输入；按钮在皮肤应用后恢复键盘/手柄焦点。HUD 不再创建关卡特有的暂停 CodeRain。关卡追加到共享战斗 HUD 的侵蚀条等控件必须通过 `add_gameplay_control()` 进入 `GameplayHUD`，这样暂停与终局禁用能统一生效。
 
 普通关卡 UI 必须低于共享暂停面板。Level 03 的 CodeRain 属于普通关卡 UI，暂停时随场景暂停；只有 Level 04/05 的 CodeRain 和 EdgeTear/右边缘故障进入 900 层，并且全部 Control 使用 `MOUSE_FILTER_IGNORE`、不得承担输入或暂停职责。Boss 血条、Boss 对话、StageWarning、ErosionVignette 和 SwapFlash 留在 100/700 层。转场与电影层在 900 之上，显示期间必须配对持有暂停守卫。
+
+`Level_01` 与 `Level_02_03` 的 CodeBuddy IDE 属于不可暂停的全屏演出，必须使用独立的 `IdeCanvasLayer` 并固定在 2000；`Level_02_03` 的配置编辑器和重编译日志与 IDE 同层，IDE 内打开的岭南梦物志使用 2100。普通叙事、提示和故障覆盖继续留在 `CanvasLayerUI`，不得为了修复 IDE 遮挡而整体抬升普通关卡 UI。IDE 流程在打开时同时持有 owner 输入锁和鼠标释放 token；岭南梦物志另持独立 token，因此关闭内层图鉴不会误捕获外层 IDE 正在使用的鼠标。退出、离树或转场时由显式释放和全局清理双重兜底。
 
 HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `SceneTree.current_scene`，因为前半段关卡是 `MainEntry` 的子节点。`Level_final` 也实例化共享 HUD，但禁用 `GameplayHUD`，仅保留暂停系统；其对话低于 800，结束淡出位于 2000 并在强制演出期间守卫暂停。
 
@@ -362,6 +365,7 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 | P1 | `EventBus` 用延迟调用模拟立即分发，且清场会误删 Autoload 订阅 | `emit()` 同步、`emit_deferred()` 显式跨帧；场景级/应用级订阅、精确退订、payload 校验和 owner 清理均有回归测试 |
 | P1 | 输入屏蔽只有全局计数，且玩家轮询和长按动作可绕过锁 | owner、嵌套计数和 token 精确释放已生效；移动、跳跃、蓄力与长按动作共用全局锁判断 |
 | P1 | 编辑器运行进入独占全屏并捕获鼠标，导致 IDE 无法正常点击 | 编辑器图形运行默认窗口化并保持鼠标可见；导出版本保留正式全屏策略，桌面 F11 可切换且退出全屏同步释放鼠标 |
+| P1 | 正式全屏玩法始终捕获鼠标，IDE 输入框、配置按钮和岭南梦物志无法点击 | `InputManager` 增加 owner/token 鼠标释放租约；两套 IDE 与图鉴按生命周期申请，嵌套关闭、owner 离树和转场清理均可恢复正确状态 |
 | P1 | 花旦剑气命中后立即销毁，Cyber 技能 2 把弹体当反击目标而失效 | 剑气保存 Boss 发起者，反击先解析注册中的发起者；直接伤害来源仍保持为弹体 |
 | P1 | 岭南技能 2 在花旦免疫期内无反馈，看起来像技能未生效 | Boss 眩晕接口返回明确结果；首次眩晕保留原数值，免疫期命中显示冷色反馈而不改平衡 |
 | P1 | `Level_03` 直接写对话布尔值并用无 owner 方式解锁 | 叙事面板改用 `begin_dialog/end_dialog` 与同 owner 输入锁配对 |
@@ -369,12 +373,14 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 | P1 | HUD 依赖 `current_scene` | 改为读取 `GameManager.current_level` |
 | P1 | 可选 HUD 图标缺失会直接调用 `load()` | 先检查资源，缺失时无错误地使用代码文本占位 |
 | P1 | 共享 HUD 与关卡 UI 没有统一层级，暂停面板可被普通 UI 覆盖 | 新增 `UILayerContract`；共享 HUD 固定为 800，普通 UI 为 100/700，仅 Level 04/05 的 CodeRain/边缘撕裂为 900 |
+| P1 | 统一层级后全屏 IDE 仍留在普通关卡 UI，导致 800 层的血条穿透演出画面 | 两套 IDE、配置和编译流程改用独立 2000 层；IDE 内档案弹窗使用 2100，普通叙事层保持 100 |
 | P1 | CodeRain 按全屏视口无限增加字符列并逐帧重建大量绘制命令 | 保留全屏与层级契约，将背景列数限制为 64、内容更新限制为 30 Hz，并为 Level 04/05 的运行时构建增加幂等保护 |
 | P1 | 输入锁与嵌套全屏流程不能可靠阻止 ESC 暂停 | 新增 owner/token 暂停守卫；输入锁、对话、Game Over 和转场共同参与统一暂停阻断判断 |
 | P1 | `Level_03_Official` 同时保存序列化 UI 并由脚本再次构建 | 主线继续使用 `Level_03.tscn`；Official 只保留玩法内容，关卡 UI 与共享 HUD 均改为单一运行时来源 |
 | P1 | 正式资源路径大小写与磁盘不一致，部分 ext_resource 保存了失效 UID | `Enemy_PaperEffigy` 三处路径已统一大小写；玩家和 Level 03 shader UID 已按仓库内权威 `.uid` sidecar 同步，`Invalid UID` 被列为预检硬失败 |
 | P1 | fire-and-forget 协程、SceneTreeTimer/Tween、音频播放器和线程加载在短时退出时可能悬空 | 转场、叙事和淡入淡出改为节点所有的阶段机或 Timer；退出路径显式释放音频与线程加载，生命周期诊断被列为预检硬失败 |
 | P1 | Pixelwork `@tool` 地图离树清理后永久停止处理，编辑器重新挂载同一节点时不再生成预览 | 保留停止处理、排空线程加载与卸载图块；仅在编辑器离树时请求下一次入树重跑 `_ready()`，恢复预览且不削弱退出清理 |
+| P1 | Level 2 运行时把 Pixelwork 地图重挂到 `DreamWorldRoot` 会触发离树卸载，重入后不再初始化 | Builder 在 `reparent()` 前请求再次 ready；地图保留梦境根节点归组，并在重入后恢复图块处理 |
 | P1 | Godot 4.6 首次并行导入多个动态字体时可能在 `ResourceSaver → PropertyUtils → ClassDB` 路径发生引擎竞态，并以 Unicode 解析错误或原生堆损坏退出 | 项目固定 `editor/import/use_multiple_threads=false`，让资源导入串行执行；预检会阻止该安全设置被移除。此设置只影响编辑器导入耗时，不改变游戏运行或导出行为 |
 
 2026-08-31 已对上轮造成回归的 Player、Slash 和 Level 03 数据迁移执行选择性回退；EventBus、输入锁、敌人生命周期等已通过验证的基础设施保留。
@@ -382,6 +388,12 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 2026-09-01 已修正正式资源路径大小写与失效 UID，并收紧短时自测退出的异步、音频和线程资源清理；完整预检已恢复通过。
 
 2026-09-02 已在保留 Pixelwork 异步加载排空和图块卸载的前提下，补齐编辑器工具节点再次入树的初始化协议，恢复场景编辑器内地图预览。
+
+2026-09-02 已补齐 Level 2 正式运行中的 Pixelwork 重挂载协议：地图进入 `DreamWorldRoot` 前先请求再次 ready，避免离树清理后留下空图层。
+
+2026-09-02 已把两套 CodeBuddy IDE 从普通关卡 UI 中拆出，恢复为高于共享 HUD 的全屏演出层，并为 IDE 内部档案弹窗保留更高的交互层。
+
+2026-09-02 已把局内鼠标可见性纳入 `InputManager` 的 owner/token 生命周期：正常全屏玩法保持捕获隐藏，IDE、配置编辑与岭南梦物志打开时释放显示，嵌套界面只归还自身 token，离树和转场统一清理。
 
 ### 10.2 需要架构决策但不需要新资产
 
@@ -439,15 +451,15 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 
 ## 12. 当前验证基线
 
-以下条目记录当前仓库自动验证基线。2026-09-01 的显示策略与花旦技能 2 修复已重新执行 Godot 编译扫描、Contract 自测和四个受影响正式场景的实例化；桌面 F11、编辑器嵌入窗口鼠标行为以及岭南免疫反馈仍需真实图形环境人工检查。2026-09-02 的 Pixelwork 修复已在 Godot 4.6.2 编辑器提示模式中逐一确认 8 个场景的同实例离树/重入和全部预览图块重建，运行态场景冒烟也通过 8/8；由于 4.6.2 非 recovery 的 headless 编辑器自身会在退出时产生固定 RID/ObjectDB 诊断，该专项模式不并入严格预检，预检改用 8 项源码顺序契约防止修复被误删，最终画面仍需真实编辑器人工确认。本次 Transition smoke 实际执行到 `Level_05`，但入场遮罩的暂停守卫在帧数等待窗口内未释放，连带产生暂停与鼠标两项失败；该时序问题未在本次无关修复中扩大处理范围。
+以下条目记录当前仓库自动验证基线。2026-09-01 的显示策略与花旦技能 2 修复已重新执行 Godot 编译扫描、Contract 自测和四个受影响正式场景的实例化；桌面 F11、编辑器嵌入窗口鼠标行为以及岭南免疫反馈仍需真实图形环境人工检查。2026-09-02 的 Pixelwork 修复已在 Godot 4.6.2 编辑器提示模式中逐一确认 8 个场景的同实例离树/重入和全部预览图块重建，运行态场景冒烟也通过 8/8；由于 4.6.2 非 recovery 的 headless 编辑器自身会在退出时产生固定 RID/ObjectDB 诊断，该专项模式不并入严格预检，预检改用 8 项源码顺序契约防止修复被误删，最终画面仍需真实编辑器人工确认。Level 2 运行时重挂载另由 Builder 顺序契约与正式场景冒烟检查保护。同日 IDE 层级修复已通过 Godot 4.6.2 编译、126 项核心契约、两处正式场景实例化及 GL Compatibility 图形截图检查；第一关与 `Level_02_03` 的 IDE 画面均未再显示共享血条。鼠标租约修复已通过 139 项核心契约与两个正式 IDE 场景的运行态申请/归还检查，其中覆盖嵌套界面、owner 离树和转场清理；另用 Windows OpenGL Compatibility 图形探针确认实际 `Input.mouse_mode` 能在玩法捕获、交互释放、关闭恢复和暂停保持可见之间正确切换。完整桌面导出中的全流程人工点击仍需最终确认。本次 Transition smoke 实际执行到 `Level_05`，但入场遮罩的暂停守卫在帧数等待窗口内未释放，连带产生暂停与鼠标两项失败；该时序问题未在本次无关修复中扩大处理范围。
 
 当前自动验证基线：
 
 - 本机 Godot 4.6.2 已完成全项目脚本与资源编译扫描，无 parse/compile error；仓库契约锁定 4.6 分支，不锁定补丁版本。
 - `Scripts/check_dataconfig_consumers.ps1` 当前通过 807 个导出字段审计；除 5 个明确的名称/图标元数据外，所有字段均有正式运行时消费者，非敌人资源显式写出全部导出值，敌人资源显式写出基类与实际原型会读取的字段。
-- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 122 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/跨转场生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外覆盖玩家与敌人的统一伤害事件、扣血前倍率、接触伤害来源、致死顺序和死亡幂等，并继续覆盖新局重置、无效转场预检、输入锁、编辑器安全显示策略、花旦剑气发起者追溯、Cyber 反击目标及伤害结算、岭南眩晕与免疫结果、运行时状态、伤害计算、DataConfig 审计，以及 8 份 Pixelwork 地图的“停止处理 → 排空线程加载 → 编辑器重入请求 ready”源码契约。
+- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 139 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/跨转场生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外覆盖玩家与敌人的统一伤害事件、扣血前倍率、接触伤害来源、致死顺序和死亡幂等，并继续覆盖新局重置、无效转场预检、输入锁、编辑器安全显示策略、鼠标释放 token 的嵌套/精确释放/owner 离树/转场清理、两个 IDE 与岭南梦物志接入、全屏 IDE/共享 HUD/演出内部弹窗的层级顺序、花旦剑气发起者追溯、Cyber 反击目标及伤害结算、岭南眩晕与免疫结果、运行时状态、伤害计算、DataConfig 审计、8 份 Pixelwork 地图的“停止处理 → 排空线程加载 → 编辑器重入请求 ready”源码契约，以及 Level 2 的“运行时请求 ready → 重挂载”顺序契约。
 - `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前执行 37 项断言，其中 34 项通过；实际完成标题页正式开始到 `MainEntry` 以及 `Level_03 → Level_04 → Level_05` 切换，但 `MainEntry` 入场遮罩的暂停守卫未在 runner 的帧数等待窗口内释放，连带导致暂停和鼠标捕获两项断言失败。显示逻辑状态、新局重置、相邻转场、瞬态/跨转场订阅边界和退出 Tween 清理均执行到位；需要单独修正或稳定该计时型 smoke runner 后才能恢复全绿基线。
-- `Tests/SelfTest/SceneSmokeRunner.tscn` 已逐一挂载并运行 21 个正式关卡、玩家与敌人场景；runner 使用显式阶段机和清理等待窗口，除 ERROR 级脚本日志外，也会让 `Invalid UID`、ObjectDB 泄漏、资源仍在使用及 orphan callback 等生命周期诊断直接导致预检失败。`Level_03_Official` 已纳入清单。
+- `Tests/SelfTest/SceneSmokeRunner.tscn` 已逐一挂载并运行 21 个正式关卡、玩家与敌人场景；runner 使用显式阶段机和清理等待窗口，除 ERROR 级脚本日志外，也会让 `Invalid UID`、ObjectDB 泄漏、资源仍在使用及 orphan callback 等生命周期诊断直接导致预检失败。`Level_03_Official` 已纳入清单；第一关和 `Level_02_03` 还会校验普通 UI 保持 100、独立 IDE 层为 2000、IDE 高于实际 HUD，检查 IDE/配置/编译节点的父层，并实际验证 IDE 鼠标请求的申请与归还；Level 2 会额外校验 Pixelwork 地图已归入 `DreamWorldRoot` 且重挂载后仍在处理图块。
 - 清理感知的标题主场景 headless 短跑成功；Web 预设资源包导出成功。
 - `res://` 路径存在性与大小写审计当前通过 244 条字面量路径；`Enemy_PaperEffigy.tscn` 的三处引用已与磁盘大小写一致。
 - 导出日志确认 `addons/godot_ai/` 与 `Tests/` 没有进入正式包。
@@ -464,7 +476,7 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 3. `res://` 路径存在性与大小写审计
 4. DataConfig 消费者与显式值审计
 5. 全项目脚本/资源编译
-6. 122 项核心契约与 DataConfig 结构审计
+6. 139 项核心契约与 DataConfig 结构审计
 7. 正式主线真实转场冒烟
 8. 清理感知的主场景短跑
 9. 21 个正式场景实例化冒烟

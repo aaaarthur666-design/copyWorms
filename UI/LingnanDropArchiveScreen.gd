@@ -119,12 +119,13 @@ var _usage_label: Label = null
 var _article_label: RichTextLabel = null
 var _was_opened: bool = false
 var _pause_guard_token: int = -1
+var _pointer_release_token: int = -1
 static var _owned_drop_ids: Dictionary = {}
 static var _active_screens: Array = []
 
 
 func _ready() -> void:
-	layer = UILayerContract.LEVEL_ALERT
+	layer = UILayerContract.CINEMATIC_DIALOG
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	visible = false
@@ -221,6 +222,7 @@ func open(selected_id: String = "") -> void:
 		_active_screens.append(self)
 	InputManager.block_input("岭南图鉴", self)
 	_pause_guard_token = InputManager.acquire_pause_guard("岭南图鉴", self)
+	_pointer_release_token = InputManager.acquire_pointer_release("岭南梦物志", self)
 	var player = GameManager.player_ref
 	if player and is_instance_valid(player) and player.has_method("set_frozen"):
 		player.set_frozen(true)
@@ -256,6 +258,9 @@ func _restore_game_state() -> void:
 	if _pause_guard_token >= 0:
 		InputManager.release_pause_guard_token(_pause_guard_token)
 		_pause_guard_token = -1
+	if _pointer_release_token >= 0:
+		InputManager.release_pointer_release_token(_pointer_release_token)
+		_pointer_release_token = -1
 
 
 func _build_ui() -> void:

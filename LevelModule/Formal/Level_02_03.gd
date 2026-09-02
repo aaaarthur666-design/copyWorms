@@ -116,6 +116,7 @@ var _enemy_scene: PackedScene = null
 var _street_enemies: Array[Node2D] = []
 var _reality_space_config: LevelConfig = null
 var _reality_player_rules_active: bool = false
+var _ide_pointer_release_token: int = -1
 
 
 # ============================================================
@@ -218,6 +219,7 @@ func _bind_spawn_points() -> void:
 
 
 func _exit_tree() -> void:
+	_release_ide_pointer()
 	if InputManager.game_action.is_connected(_on_game_action):
 		InputManager.game_action.disconnect(_on_game_action)
 	if _reality_player_rules_active:
@@ -940,6 +942,7 @@ func _enter_ide_chat() -> void:
 	current_state = LevelState.REALITY_IDE_CHAT
 	_freeze_player(true)
 	InputManager.block_input("IDE对话", self)
+	_acquire_ide_pointer()
 	var flags := LevelFuzhanSub01.ensure_state()
 	var default_speakers: Array[String] = []
 	var default_texts: Array[String] = []
@@ -971,6 +974,19 @@ func _enter_ide_chat() -> void:
 		_chat_input.placeholder_text = "按 Enter 确认对话..."
 		_chat_input.editable = true
 	_render_next_chat_line()
+
+
+func _acquire_ide_pointer() -> void:
+	if _ide_pointer_release_token >= 0:
+		return
+	_ide_pointer_release_token = InputManager.acquire_pointer_release("Level02 CodeBuddy IDE交互", self)
+
+
+func _release_ide_pointer() -> void:
+	if _ide_pointer_release_token < 0:
+		return
+	InputManager.release_pointer_release_token(_ide_pointer_release_token)
+	_ide_pointer_release_token = -1
 
 
 func _render_next_chat_line() -> void:
@@ -1104,6 +1120,7 @@ func _start_memory_recovery_area(area: int) -> void:
 	await get_tree().create_timer(level_data.memory_launch_prepare_delay).timeout
 	if _ide_ui:
 		_ide_ui.hide()
+	_release_ide_pointer()
 	_stop_drop_archive_button_highlight()
 	get_viewport().gui_release_focus()
 
@@ -1145,6 +1162,7 @@ func _start_memory_recovery_area(area: int) -> void:
 func _switch_to_memory_scene(area: int) -> void:
 	var next_path := LevelFuzhanSub01.area_scene_path(area)
 	get_viewport().gui_release_focus()
+	_release_ide_pointer()
 	InputManager.force_unblock_all()
 	_stop_left_edge_flash()
 	_stop_phone_vibration()
@@ -1302,6 +1320,7 @@ func _run_recompile_sequence() -> void:
 		_recompile_panel.hide()
 	if _ide_ui:
 		_ide_ui.hide()
+	_release_ide_pointer()
 	_stop_drop_archive_button_highlight()
 	get_viewport().gui_release_focus()
 	_freeze_player(false)
@@ -1372,6 +1391,7 @@ func _emit_level_complete() -> void:
 	_level_complete_emitted = true
 	var next_path = level_data.next_level_path
 	get_viewport().gui_release_focus()
+	_release_ide_pointer()
 	InputManager.force_unblock_all()
 	_cleanup_dream_interference()
 	_stop_left_edge_flash()
@@ -1507,6 +1527,11 @@ func _build_all_ui() -> void:
 	canvas.name = "CanvasLayerUI"
 	canvas.layer = UILayerContract.LEVEL_UI
 	add_child(canvas)
+	var ide_canvas = CanvasLayer.new()
+	ide_canvas.name = "IdeCanvasLayer"
+	ide_canvas.layer = UILayerContract.CINEMATIC
+	ide_canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(ide_canvas)
 
 	# 黑屏遮罩
 	_blackout_overlay = ColorRect.new()
@@ -1785,7 +1810,7 @@ func _build_all_ui() -> void:
 	_chat_input.text_changed.connect(_on_chat_text_changed)
 	chat_panel.add_child(_chat_input)
 
-	canvas.add_child(_ide_ui)
+	ide_canvas.add_child(_ide_ui)
 
 	# 配置编辑器
 	_config_ui = Panel.new()
@@ -1831,7 +1856,7 @@ func _build_all_ui() -> void:
 	_recompile_button.size = Vector2(300, 48)
 	GameUIStyle.apply_code_button(_recompile_button, 16)
 	_config_ui.add_child(_recompile_button)
-	canvas.add_child(_config_ui)
+	ide_canvas.add_child(_config_ui)
 
 	# 重编译日志
 	_recompile_panel = Panel.new()
@@ -1845,7 +1870,7 @@ func _build_all_ui() -> void:
 	_recompile_log.add_theme_font_size_override("normal_font_size", 22)
 	_recompile_log.add_theme_color_override("default_color", Color(0.5, 0.9, 0.55))
 	_recompile_panel.add_child(_recompile_log)
-	canvas.add_child(_recompile_panel)
+	ide_canvas.add_child(_recompile_panel)
 
 	# 连接按钮信号
 	for i in range(_config_buttons.size()):

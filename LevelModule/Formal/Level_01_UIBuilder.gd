@@ -7,10 +7,12 @@ class_name Level_01_UIBuilder
 
 var level: Level_01
 var canvas: CanvasLayer
+var ide_canvas: CanvasLayer
 
-func _init(parent: Level_01, canvas_layer: CanvasLayer) -> void:
+func _init(parent: Level_01, canvas_layer: CanvasLayer, ide_canvas_layer: CanvasLayer) -> void:
 	level = parent
 	canvas = canvas_layer
+	ide_canvas = ide_canvas_layer
 
 func build_all() -> void:
 	_build_sleep_overlay()
@@ -140,7 +142,7 @@ func _build_ide_ui() -> void:
 	level._viewport_container = viewport_container
 	ide.add_child(viewport_container)
 
-	canvas.add_child(ide)
+	ide_canvas.add_child(ide)
 	level._ide_ui = ide
 
 func _load_ide_background_texture() -> Texture2D:

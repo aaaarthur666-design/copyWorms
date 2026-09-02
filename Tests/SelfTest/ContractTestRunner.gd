@@ -84,11 +84,14 @@ func _run() -> void:
 	await _test_player_damage_event_pipeline()
 	await _test_huadan_skill2_contracts()
 	await _test_input_lock_ownership()
+	await _test_pointer_release_ownership()
 	_test_display_policy()
+	_test_ui_layer_contract()
 	_test_scene_transition_preflight()
 	_test_runtime_state()
 	_test_damage_calculator()
 	_test_pixelwork_editor_reentry_contract()
+	_test_level_02_pixelwork_runtime_reparent_contract()
 	_test_config_resources()
 
 	EventBus.clear_all()
@@ -469,6 +472,48 @@ func _test_input_lock_ownership() -> void:
 	owner_b.queue_free()
 
 
+func _test_pointer_release_ownership() -> void:
+	InputManager.force_unblock_all()
+	GameManager.is_paused = false
+	GameManager.is_game_over = false
+	InputManager.activate_menu_pointer()
+	InputManager.activate_gameplay_display()
+	_assert_true(InputManager.is_fullscreen_active(), "headless 契约测试必须进入正式全屏逻辑状态")
+	_assert_true(InputManager.is_gameplay_pointer_captured(), "无交互界面时全屏玩法必须捕获并隐藏鼠标")
+
+	var ide_owner := Node.new()
+	ide_owner.name = "PointerReleaseIdeOwner"
+	add_child(ide_owner)
+	InputManager.acquire_pointer_release("IDE交互", ide_owner)
+	_assert_true(InputManager.is_pointer_release_requested(), "IDE 请求必须释放并显示鼠标")
+	_assert_false(InputManager.is_gameplay_pointer_captured(), "存在鼠标释放请求时不得继续捕获鼠标")
+
+	var archive := LingnanDropArchiveScreen.new()
+	archive.name = "PointerReleaseArchiveProbe"
+	add_child(archive)
+	archive.open()
+	_assert_equal(InputManager.get_active_pointer_releases().size(), 2, "IDE 内图鉴必须形成独立的嵌套鼠标释放请求")
+	archive.close()
+	_assert_equal(InputManager.get_active_pointer_releases().size(), 1, "关闭内层图鉴不得释放外层 IDE 的鼠标请求")
+	_assert_false(InputManager.is_gameplay_pointer_captured(), "外层 IDE 仍打开时不得提前重新捕获鼠标")
+	await get_tree().process_frame
+
+	ide_owner.queue_free()
+	await get_tree().process_frame
+	_assert_false(InputManager.is_pointer_release_requested(), "鼠标请求 owner 离树后必须自动清理")
+	_assert_true(InputManager.is_gameplay_pointer_captured(), "最后一个请求释放后应恢复全屏玩法鼠标捕获")
+
+	var transition_owner := Node.new()
+	transition_owner.name = "PointerReleaseTransitionOwner"
+	add_child(transition_owner)
+	InputManager.acquire_pointer_release("转场清理探针", transition_owner)
+	InputManager.force_unblock_all()
+	_assert_false(InputManager.is_pointer_release_requested(), "转场兜底清理必须移除全部鼠标释放请求")
+	_assert_true(InputManager.is_gameplay_pointer_captured(), "转场清理后正常全屏玩法必须恢复鼠标捕获")
+	transition_owner.queue_free()
+	InputManager.activate_menu_pointer()
+
+
 func _test_display_policy() -> void:
 	_assert_true(
 		InputManager._editor_safe_display_policy(true, false, false),
@@ -485,6 +530,38 @@ func _test_display_policy() -> void:
 	_assert_false(
 		InputManager._editor_safe_display_policy(true, false, true),
 		"headless 自测必须保留可断言的正式显示逻辑"
+	)
+
+
+func _test_ui_layer_contract() -> void:
+	_assert_true(
+		UILayerContract.CINEMATIC > UILayerContract.SHARED_HUD,
+		"全屏 IDE 演出层必须高于共享 HUD"
+	)
+	_assert_true(
+		UILayerContract.CINEMATIC_DIALOG > UILayerContract.CINEMATIC,
+		"全屏演出内部弹窗必须高于演出主体"
+	)
+	var archive := LingnanDropArchiveScreen.new()
+	archive.name = "ArchiveLayerContractProbe"
+	add_child(archive)
+	_assert_equal(
+		archive.layer,
+		UILayerContract.CINEMATIC_DIALOG,
+		"岭南梦物志弹窗必须覆盖 IDE 演出与共享 HUD"
+	)
+	archive.queue_free()
+	var level_01_source := FileAccess.get_file_as_string("res://LevelModule/Formal/Level_01.gd")
+	_assert_true(
+		level_01_source.contains("InputManager.acquire_pointer_release(\"Level01 IDE交互\"")
+		and level_01_source.contains("InputManager.release_pointer_release_token(_ide_pointer_release_token)"),
+		"Level 01 IDE 必须成对申请和释放鼠标"
+	)
+	var level_02_03_source := FileAccess.get_file_as_string("res://LevelModule/Formal/Level_02_03.gd")
+	_assert_true(
+		level_02_03_source.contains("InputManager.acquire_pointer_release(\"Level02 CodeBuddy IDE交互\"")
+		and level_02_03_source.contains("InputManager.release_pointer_release_token(_ide_pointer_release_token)"),
+		"Level 02_03 IDE、配置与重编译流程必须成对申请和释放鼠标"
 	)
 
 
@@ -599,6 +676,22 @@ func _test_pixelwork_editor_reentry_contract() -> void:
 			and (next_function_index < 0 or request_index < next_function_index),
 			"Pixelwork 地图必须先停止处理并排空线程加载，再为编辑器重入请求 ready：%s" % script_path
 		)
+
+
+func _test_level_02_pixelwork_runtime_reparent_contract() -> void:
+	var builder_path := "res://LevelModule/Formal/Level_02_SceneBuilder.gd"
+	var source := FileAccess.get_file_as_string(builder_path)
+	var loop_index := source.find("\tfor node in to_reparent:")
+	var ready_index := source.find("\t\tnode.request_ready()", loop_index)
+	var reparent_index := source.find("\t\tnode.reparent(dream)", loop_index)
+	var next_function_index := source.find("\nfunc ", loop_index + 1)
+	_assert_true(
+		loop_index >= 0
+		and ready_index > loop_index
+		and reparent_index > ready_index
+		and (next_function_index < 0 or reparent_index < next_function_index),
+		"Level 2 必须在运行时重挂 Pixelwork 地图前请求再次 ready"
+	)
 
 
 func _test_config_resources() -> void:
