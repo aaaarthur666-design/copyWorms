@@ -32,12 +32,32 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-## 由标题页的实际开始按钮调用。桌面端进入独占全屏；Web 端使用浏览器全屏。
+## 由标题页的实际开始按钮调用。编辑器图形运行保持窗口与可见鼠标；
+## 正式桌面端进入独占全屏，Web 端使用浏览器全屏。
 ## 调用必须留在用户点击回调中，否则浏览器可能拒绝全屏和鼠标捕获请求。
 func activate_gameplay_display() -> void:
 	if not _gameplay_display_active and not _is_headless_display():
 		_window_mode_before_gameplay = _non_fullscreen_restore_mode(DisplayServer.window_get_mode())
 	_gameplay_display_active = true
+	if _should_use_editor_safe_display():
+		_fullscreen_active = false
+		_set_gameplay_pointer_captured(false)
+		return
+	_enter_gameplay_fullscreen()
+
+
+## 退出全屏但不退出游戏、不暂停；窗口化后同步释放鼠标，避免继续锁住桌面。
+func exit_fullscreen() -> void:
+	if not _fullscreen_active:
+		return
+	_fullscreen_active = false
+	_set_gameplay_pointer_captured(false)
+	if _is_headless_display():
+		return
+	DisplayServer.window_set_mode(_window_mode_before_gameplay)
+
+
+func _enter_gameplay_fullscreen() -> void:
 	_fullscreen_active = true
 	if not _is_headless_display():
 		var fullscreen_mode := DisplayServer.WINDOW_MODE_FULLSCREEN
@@ -45,17 +65,6 @@ func activate_gameplay_display() -> void:
 			fullscreen_mode = DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
 		DisplayServer.window_set_mode(fullscreen_mode)
 	_set_gameplay_pointer_captured(true)
-
-
-## macOS 客户端退出全屏，但不退出游戏、不暂停，也不改变玩法显示状态。
-func exit_fullscreen() -> void:
-	if not _fullscreen_active:
-		return
-	_fullscreen_active = false
-	if _is_headless_display():
-		return
-	DisplayServer.window_set_mode(_window_mode_before_gameplay)
-	_set_gameplay_pointer_captured(_gameplay_pointer_captured)
 
 
 ## 进入标题页时恢复可操作的鼠标，但保留已进入的全屏状态。
@@ -72,7 +81,7 @@ func show_gameplay_ui_pointer() -> void:
 
 ## 关闭局内界面或重新载入玩法 HUD 后恢复捕获。
 func restore_gameplay_pointer() -> void:
-	if _gameplay_display_active:
+	if _gameplay_display_active and _fullscreen_active:
 		_set_gameplay_pointer_captured(true)
 
 
@@ -82,6 +91,10 @@ func is_gameplay_display_active() -> bool:
 
 func is_gameplay_pointer_captured() -> bool:
 	return _gameplay_pointer_captured
+
+
+func is_fullscreen_active() -> bool:
+	return _fullscreen_active
 
 
 func _set_gameplay_pointer_captured(captured: bool) -> void:
@@ -95,9 +108,25 @@ func _is_headless_display() -> bool:
 	return DisplayServer.get_name() == "headless"
 
 
+func _should_use_editor_safe_display() -> bool:
+	return _editor_safe_display_policy(
+		OS.has_feature("editor"),
+		OS.has_feature("web"),
+		_is_headless_display()
+	)
+
+
+## 纯策略函数供 headless 契约测试覆盖，不读取或修改平台窗口状态。
+func _editor_safe_display_policy(is_editor: bool, is_web: bool, is_headless: bool) -> bool:
+	return is_editor and not is_web and not is_headless
+
+
 func _input(event: InputEvent) -> void:
-	if _is_macos_fullscreen_exit_shortcut(event) and _fullscreen_active:
-		exit_fullscreen()
+	if _is_desktop_fullscreen_toggle_shortcut(event) and (_fullscreen_active or _gameplay_display_active):
+		if _fullscreen_active:
+			exit_fullscreen()
+		else:
+			_enter_gameplay_fullscreen()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -219,14 +248,16 @@ func _is_title_screen_active() -> bool:
 	)
 
 
-func _is_macos_fullscreen_exit_shortcut(event: InputEvent) -> bool:
-	if OS.has_feature("web") or not OS.has_feature("macos") or not event is InputEventKey:
+func _is_desktop_fullscreen_toggle_shortcut(event: InputEvent) -> bool:
+	if OS.has_feature("web") or _is_headless_display() or not event is InputEventKey:
 		return false
 	var key_event := event as InputEventKey
-	return (
-		key_event.pressed
-		and not key_event.echo
-		and (key_event.keycode == KEY_F or key_event.physical_keycode == KEY_F)
+	if not key_event.pressed or key_event.echo:
+		return false
+	if key_event.keycode == KEY_F11 or key_event.physical_keycode == KEY_F11:
+		return true
+	return OS.has_feature("macos") and (
+		(key_event.keycode == KEY_F or key_event.physical_keycode == KEY_F)
 		and key_event.ctrl_pressed
 		and key_event.meta_pressed
 	)

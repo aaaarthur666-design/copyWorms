@@ -351,12 +351,26 @@ func take_damage(
 	if _skill2_sequence_active:
 		return
 	if _skill2_charging:
-		var attacker := source as Node2D
-		if attacker == null:
-			attacker = _find_skill2_attacker(knockback_dir)
+		var attacker := _resolve_skill2_counter_target(source, knockback_dir)
 		_trigger_skill2_counter(attacker)
 		return
 	super.take_damage(damage, knockback_dir, source, is_contact)
+
+
+func _resolve_skill2_counter_target(source: Node, knockback_dir: Vector2) -> Node2D:
+	var direct_source := source as Node2D
+	if is_instance_valid(direct_source) and direct_source.has_method("get_damage_instigator"):
+		var instigator := direct_source.call("get_damage_instigator") as Node2D
+		if _is_registered_counter_target(instigator):
+			return instigator
+	if _is_registered_counter_target(direct_source):
+		return direct_source
+	return _find_skill2_attacker(knockback_dir)
+
+
+func _is_registered_counter_target(candidate: Node2D) -> bool:
+	return is_instance_valid(candidate) and candidate in GameManager.get_enemies()
+
 
 func _trigger_skill2_counter(enemy: Node2D) -> void:
 	if _skill2_sequence_active:

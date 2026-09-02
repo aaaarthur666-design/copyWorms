@@ -921,9 +921,9 @@ func _fire_sword() -> void:
 		get_parent().add_child(s)
 		s.global_position = spawn_pos
 		if s.has_method("setup_by_dir"):
-			s.setup_by_dir(dir, dmg, config.boss_projectile_speed, config.boss_projectile_max_lifetime)
+			s.setup_by_dir(dir, dmg, config.boss_projectile_speed, config.boss_projectile_max_lifetime, self)
 		else:
-			s.setup(target.global_position, dmg, config.boss_projectile_speed, config.boss_projectile_max_lifetime)
+			s.setup(target.global_position, dmg, config.boss_projectile_speed, config.boss_projectile_max_lifetime, self)
 
 
 ## Phase 4: 近战攻击时额外发射一道剑气
@@ -938,7 +938,7 @@ func _fire_sword_from_melee() -> void:
 	)
 	get_parent().add_child(s)
 	s.global_position = spawn_pos
-	s.setup(target.global_position, _get_ranged_dmg(), config.boss_projectile_speed, config.boss_projectile_max_lifetime)
+	s.setup(target.global_position, _get_ranged_dmg(), config.boss_projectile_speed, config.boss_projectile_max_lifetime, self)
 
 
 # ============================================================

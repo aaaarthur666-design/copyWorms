@@ -21,7 +21,7 @@
 | Resource 配置 (`.tres`) | 26 |
 | Shader (`.gdshader`) | 8 |
 
-项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。标题页保持可见鼠标；用户点击正式或精彩入口后，桌面端进入独占全屏，Web 端请求浏览器全屏，并捕获隐藏鼠标。暂停或游戏结束界面临时释放鼠标，继续游戏时重新捕获；返回标题页只恢复鼠标，不主动退出已经进入的全屏状态。
+项目入口在 `project.godot` 中配置为 `UI/TitleScreen.tscn`，基准视口为 1280×720，拉伸模式为 `canvas_items`。标题页保持可见鼠标；用户点击正式或精彩入口后，导出桌面端进入独占全屏，Web 端请求浏览器全屏，并捕获隐藏鼠标。Godot 编辑器中的图形运行默认保持窗口化和可见鼠标，避免嵌入式游戏窗口锁死 IDE；玩家仍可按 F11 主动切换全屏。暂停或游戏结束界面临时释放鼠标，继续游戏时只在全屏状态下重新捕获；返回标题页只恢复鼠标，不主动退出已经进入的全屏状态。
 
 ## 2. 仓库分层
 
@@ -178,9 +178,9 @@ Godot AI 插件还会注册编辑器联动专用的 `_mcp_game_helper`。该 hel
 
 `ui_pause` 的处理顺序是硬转场、标题页退出、暂停阻断条件、正常暂停切换。暂停阻断条件包括输入锁、作用域式暂停守卫、对话、Game Over 和整树转场。被 modal 守卫阻止时，`InputManager` 不消费该事件，让图鉴、设置等当前覆盖界面仍能收到同一个 ESC 并关闭；硬转场和标题页退出则消费事件。`MainEntry` 的子关卡替换不进入 `SceneTransitionManager.is_transitioning`，因此其自有遮罩在清理前后都持有独立暂停守卫，直至淡出结束。
 
-`InputManager` 还统一维护玩法显示状态：只有标题页的用户点击入口能够激活全屏和鼠标捕获，HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性；headless 测试仅记录逻辑状态，不调用平台窗口 API。
+`InputManager` 还统一维护玩法显示状态：标题页的用户点击入口激活玩法显示策略；编辑器图形运行保持窗口化和可见鼠标，导出桌面端进入独占全屏并捕获鼠标，Web 端请求浏览器全屏。HUD 只负责在暂停、游戏结束和恢复玩法时临时切换鼠标可见性，且窗口化状态不会重新捕获；headless 测试仍记录正式全屏逻辑状态，但不调用平台窗口 API。
 
-标题页复用 `ui_pause` 的 ESC 作为退出请求：`InputManager` 在 `TitleScreen` 当前场景下不切换暂停，而转发到标题页已有的退出处理；客户端关闭进程，Web 端显示关闭浏览器标签页提示。正式玩法场景仍保留 ESC 暂停/恢复逻辑。macOS 客户端在已进入全屏后支持 `Control + Command + F` 仅退出全屏，恢复进入全屏前的窗口模式，不退出游戏、不暂停且不改变鼠标捕获策略；Web 端不接管该快捷键。
+标题页复用 `ui_pause` 的 ESC 作为退出请求：`InputManager` 在 `TitleScreen` 当前场景下不切换暂停，而转发到标题页已有的退出处理；客户端关闭进程，Web 端显示关闭浏览器标签页提示。正式玩法场景仍保留 ESC 暂停/恢复逻辑。桌面客户端使用 F11 切换全屏，macOS 额外支持 `Control + Command + F`；退出全屏时恢复进入玩法前的窗口模式并释放鼠标，重新进入全屏时重新捕获，不退出游戏也不暂停。Web 端不接管这些桌面快捷键。
 
 ## 5. 核心数据流
 
@@ -197,7 +197,7 @@ flowchart LR
     BUS --> HUD[HUD / 关卡逻辑]
 ```
 
-玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。两条输入路径都必须服从同一个全局锁判断，Cyber 与 Lingnan 的长按普攻、技能蓄力和冲刺前摇也不得绕过该锁。敌人受伤链仍由 `DamageCalculator` 与 `EnemyBase.take_damage()` 统一结算。玩家的普通受伤和接触受伤统一进入 `PlayerBase.take_damage()`，按“原始伤害 → 形态护盾/倍率 → 关卡运行时倍率 → 最终伤害 → 扣血 → 状态 → 事件”执行；Lingnan 护盾和蓄力减伤通过形态钩子接入，Cyber 反击保留攻击来源。成功扣血后依次同步发射一次 `DAMAGE_APPLIED`、`PLAYER_HURT` 和 `HEALTH_CHANGED`，其中事件伤害值均为最终伤害；致死状态先落为 `DEAD`，`PLAYER_DIED` 只广播一次。
+玩家持续移动和跳跃采用每帧轮询；离散动作通过 `InputManager` 分发。两条输入路径都必须服从同一个全局锁判断，Cyber 与 Lingnan 的长按普攻、技能蓄力和冲刺前摇也不得绕过该锁。敌人受伤链仍由 `DamageCalculator` 与 `EnemyBase.take_damage()` 统一结算。玩家的普通受伤和接触受伤统一进入 `PlayerBase.take_damage()`，按“原始伤害 → 形态护盾/倍率 → 关卡运行时倍率 → 最终伤害 → 扣血 → 状态 → 事件”执行；Lingnan 护盾和蓄力减伤通过形态钩子接入，Cyber 反击保留攻击来源。花旦剑气仍以弹体自身作为直接伤害来源，但同时保存 Boss 发起者；Cyber 技能 2 优先沿该契约追溯并锁定仍在敌人注册表中的 Boss，避免弹体命中后销毁使反击失去目标。Lingnan 技能 2 尊重花旦既有眩晕免疫时长，首次命中返回成功，免疫期内返回失败并显示冷色免疫反馈。成功扣血后依次同步发射一次 `DAMAGE_APPLIED`、`PLAYER_HURT` 和 `HEALTH_CHANGED`，其中事件伤害值均为最终伤害；致死状态先落为 `DEAD`，`PLAYER_DIED` 只广播一次。
 
 ### 5.2 敌人生命周期
 
@@ -357,6 +357,9 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 | P0 | `Level_03_Official` 的序列化 `CodeRainOverlay` 与运行时 UI 构建冲突，且旧节点曾缺失脚本绑定 | 删除兼容场景中的序列化关卡 UI/HUD；统一由 `Level_03.gd` 与 `UI/HUD.gd` 运行时构建，并保留场景冒烟入口 |
 | P1 | `EventBus` 用延迟调用模拟立即分发，且清场会误删 Autoload 订阅 | `emit()` 同步、`emit_deferred()` 显式跨帧；场景级/应用级订阅、精确退订、payload 校验和 owner 清理均有回归测试 |
 | P1 | 输入屏蔽只有全局计数，且玩家轮询和长按动作可绕过锁 | owner、嵌套计数和 token 精确释放已生效；移动、跳跃、蓄力与长按动作共用全局锁判断 |
+| P1 | 编辑器运行进入独占全屏并捕获鼠标，导致 IDE 无法正常点击 | 编辑器图形运行默认窗口化并保持鼠标可见；导出版本保留正式全屏策略，桌面 F11 可切换且退出全屏同步释放鼠标 |
+| P1 | 花旦剑气命中后立即销毁，Cyber 技能 2 把弹体当反击目标而失效 | 剑气保存 Boss 发起者，反击先解析注册中的发起者；直接伤害来源仍保持为弹体 |
+| P1 | 岭南技能 2 在花旦免疫期内无反馈，看起来像技能未生效 | Boss 眩晕接口返回明确结果；首次眩晕保留原数值，免疫期命中显示冷色反馈而不改平衡 |
 | P1 | `Level_03` 直接写对话布尔值并用无 owner 方式解锁 | 叙事面板改用 `begin_dialog/end_dialog` 与同 owner 输入锁配对 |
 | P1 | 场景冒烟只看进程退出码，会漏报脚本运行时错误 | 测试 runner 接入脚本错误捕获，ERROR 级脚本日志直接判定失败 |
 | P1 | HUD 依赖 `current_scene` | 改为读取 `GameManager.current_level` |
@@ -429,14 +432,14 @@ HUD 应通过 `GameManager.current_level` 判断实际关卡，不应只依赖 `
 
 ## 12. 当前验证基线
 
-以下条目记录本次 UI 层级修改之前已经完成的仓库基线，不代表本次修改已经重新通过。2026-09-01 的暂停层级统一实现目前只执行静态差异检查；按任务授权，Contract、场景实例化、Scene/Transition/MainScene smoke、Godot headless 启动和 Web 导出均尚未重跑，Level 01、Level 02_03、Level 03、Level 04、Level 05、复战、终局及 Web/客户端层级仍待真实图形环境人工检查。
+以下条目记录当前仓库自动验证基线。2026-09-01 的显示策略与花旦技能 2 修复已重新执行 Godot 编译扫描、Contract 自测和四个受影响正式场景的实例化；桌面 F11、编辑器嵌入窗口鼠标行为以及岭南免疫反馈仍需真实图形环境人工检查。本次 Transition smoke 实际执行到 `Level_05`，但入场遮罩的暂停守卫在帧数等待窗口内未释放，连带产生暂停与鼠标两项失败；该时序问题未在本次无关修复中扩大处理范围。
 
 当前自动验证基线：
 
-- 本机 Godot 4.6.3 已完成全项目脚本与资源编译扫描，无 parse/compile error。
+- 本机 Godot 4.6.2 已完成全项目脚本与资源编译扫描，无 parse/compile error；仓库契约锁定 4.6 分支，不锁定补丁版本。
 - `Scripts/check_dataconfig_consumers.ps1` 当前通过 807 个导出字段审计；除 5 个明确的名称/图标元数据外，所有字段均有正式运行时消费者，非敌人资源显式写出全部导出值，敌人资源显式写出基类与实际原型会读取的字段。
-- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 102 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/跨转场生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外覆盖玩家与敌人的统一伤害事件、扣血前倍率、接触伤害来源、致死顺序和死亡幂等，并继续覆盖新局重置、无效转场预检、输入锁、运行时状态、伤害计算和 DataConfig 审计。
-- `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前通过 30 项断言；实际执行标题页正式开始到 `MainEntry`，并继续切换 `Level_03 → Level_04 → Level_05`，检查全屏逻辑状态、鼠标捕获、暂停、输入、对话、音乐、梦境状态与检查点的清理/保留边界，同时验证有效转场会清除瞬态订阅和延迟事件但保留跨转场订阅，以及退出前不存在仍在运行的 SceneTree Tween。
+- `Tests/SelfTest/ContractTestRunner.tscn` 当前通过 114 项断言；EventBus 覆盖同步顺序、快照分发、幂等订阅、场景级/跨转场生命周期、精确退订、暂停态延迟投递、payload 深拷贝与校验、延迟队列取消和 owner 自动清理，此外覆盖玩家与敌人的统一伤害事件、扣血前倍率、接触伤害来源、致死顺序和死亡幂等，并继续覆盖新局重置、无效转场预检、输入锁、编辑器安全显示策略、花旦剑气发起者追溯、Cyber 反击目标及伤害结算、岭南眩晕与免疫结果、运行时状态、伤害计算和 DataConfig 审计。
+- `Tests/SelfTest/TransitionSmokeRunner.tscn` 当前执行 37 项断言，其中 34 项通过；实际完成标题页正式开始到 `MainEntry` 以及 `Level_03 → Level_04 → Level_05` 切换，但 `MainEntry` 入场遮罩的暂停守卫未在 runner 的帧数等待窗口内释放，连带导致暂停和鼠标捕获两项断言失败。显示逻辑状态、新局重置、相邻转场、瞬态/跨转场订阅边界和退出 Tween 清理均执行到位；需要单独修正或稳定该计时型 smoke runner 后才能恢复全绿基线。
 - `Tests/SelfTest/SceneSmokeRunner.tscn` 已逐一挂载并运行 21 个正式关卡、玩家与敌人场景；runner 使用显式阶段机和清理等待窗口，除 ERROR 级脚本日志外，也会让 `Invalid UID`、ObjectDB 泄漏、资源仍在使用及 orphan callback 等生命周期诊断直接导致预检失败。`Level_03_Official` 已纳入清单。
 - 清理感知的标题主场景 headless 短跑成功；Web 预设资源包导出成功。
 - `res://` 路径存在性与大小写审计当前通过 244 条字面量路径；`Enemy_PaperEffigy.tscn` 的三处引用已与磁盘大小写一致。
