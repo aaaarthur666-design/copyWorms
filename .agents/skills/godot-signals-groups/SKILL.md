@@ -29,12 +29,15 @@ autoload (see `godot-nodes-scenes`); in HackathonGame use the existing `EventBus
 - Use typed Godot signals for local node/sub-scene contracts. Use `EventBus` for
   cross-module events with project event-name constants, string method names, and a
   dynamic `Dictionary` payload; validate payload keys at both boundaries.
-- `EventBus.emit()` dispatches synchronously over a listener snapshot. Callback order
-  can therefore affect same-stack state, while subscriptions added or removed inside a
-  callback affect only later emissions. Use `emit_deferred()` only when the next process
-  frame is intentional; transient cleanup cancels events still waiting in that queue.
-- GDScript has no `try/catch` boundary around listener calls. Validate handlers and
-  payloads before dispatch, and do not promise that `EventBus` isolates callback errors.
+- `EventBus.emit()` synchronously walks a snapshot of current listeners in subscription
+  order and returns after their callbacks finish. Subscription changes made during a
+  callback apply to the next emission; use `emit_deferred()` for an explicit queue boundary.
+- Use `subscribe()` for scene-scoped listeners. Reserve `subscribe_persistent()` for
+  explicit cross-transition managers or hosts. Transitions clear transient listeners and
+  queued deferred events while preserving persistent subscriptions; owner exit also cleans
+  up its registrations.
+- Its `has_method()` check is not a GDScript `try/catch`: `_safe_call()` does not provide a
+  real exception boundary. Validate handlers and payloads; do not promise error isolation.
 - Groups are for local categorization/broadcast. Enemy registration is not a group-based
   substitute: `EnemyBase._ready()` owns registration and `GameManager` owns the list.
 

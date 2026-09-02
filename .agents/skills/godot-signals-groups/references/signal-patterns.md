@@ -87,10 +87,12 @@ get_tree().set_group("enemies", "modulate", Color.RED)  # set a property on all
 
 For generic projects, events that cross scenes can live on an autoload. In HackathonGame,
 use the existing `EventBus` contract instead of adding another bus: subscribe with a
-string method name and emit a validated `Dictionary` payload. `emit()` is synchronous and
-uses a listener snapshot; `emit_deferred()` copies the payload and queues it for the next
-process frame. Scene-transition cleanup removes non-persistent subscriptions and pending
-transient events while preserving explicitly persistent listeners.
+string method name and emit a validated `Dictionary` payload. `emit()` synchronously walks
+a snapshot of current listeners in subscription order; subscribe/unsubscribe calls made
+inside a callback affect the next emission. Use `emit_deferred()` only for an explicit
+queue boundary. Scene listeners use `subscribe()`, while only deliberate cross-transition
+managers or hosts use `subscribe_persistent()`; transition cleanup removes transient
+listeners and queued deferred events but preserves persistent subscriptions.
 
 ```gdscript
 # Generic autoload example; use EventBus in HackathonGame.

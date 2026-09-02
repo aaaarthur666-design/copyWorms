@@ -52,7 +52,7 @@ If the request does not clearly authorize formal implementation, remain read-onl
 
 After the mandatory sources, inspect only the evidence needed for the request:
 
-- Scene lifecycle or progression: `project.godot`, `UI/TitleScreen.tscn`, `UI/MainEntry.*`, the affected level scenes/scripts, `Global/SceneTransitionManager.gd`, and cleanup paths.
+- Scene lifecycle or progression: `project.godot`, `UI/TitleScreen.tscn`, `Global/MainEntry.*`, the affected level scenes/scripts, `Global/SceneTransitionManager.gd`, and cleanup paths.
 - Global state, events, input, or audio: the relevant files under `Global/`, their subscribers/callers, and affected HUD or level consumers.
 - Player, enemy, or combat behavior: the applicable base class, concrete override, `DataConfig/` resources, spawning path, event consumers, and Boss overrides when lifecycle semantics are involved.
 - Level 02 memory/replay flow: read section 3.2 of `TECHNICAL_ARCHITECTURE_REPORT.md` and the actual `Level_02_03`/fuzhan scripts. Treat the scripts and approved source text as authoritative for dialogue.
@@ -86,7 +86,7 @@ Do not guess a scene relationship from names alone. Confirm it from `.tscn`, scr
 - Treat `.codex/config.example.toml` and `.codex/README.md` as this repository's shared project policy. The active `.codex/config.toml` is local and Git-ignored; compare it with the template before MCP use. Do not add the project server to a user-level Codex config unless the user explicitly requests a cross-project setup.
 - Treat MCP allowlists as client-specific and tool-based, not as a server-wide or path-based sandbox. Confirm each active client has the intended allowlist, and continue to enforce protected paths and current-task authorization independently.
 - Treat project-scoped loading as a Codex client boundary, not server-side project isolation. Before every MCP write, confirm the editor state and session list identify HackathonGame, its project path, and the intended current scene; explicitly activate the correct session when more than one exists.
-- Under Godot AI 3.2.0, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support. Keep the new `custom_manage` outside the Codex allowlist until this repository contains reviewed, registered custom tools.
+- Under the repository-pinned Godot AI 3.2.4, `node_manage` also exposes group membership writes and `tileset_manage` is read-only. Do not use the bundled group operations without a matching request, and do not claim TileSet write support. Keep `custom_manage` outside the Codex allowlist until this repository contains reviewed, registered custom tools.
 - Delete isolated MCP test artifacts after validation unless the user explicitly designates them as versioned regression fixtures; before deletion, navigate the editor away from the target scene and confirm no formal dependency exists.
 - Keep cross-Skill references callable: name another Skill only when it is bundled with the repository or discoverable in the current environment. Express unsupported domains as ordinary prose; if a missing route is found, repair or report it instead of auto-installing or pretending to invoke it.
 - Do not describe loopback MCP as fully offline: inspect Godot AI telemetry and update-check behavior whenever network egress or privacy is in scope.
