@@ -29,7 +29,8 @@ system the way the engine intends. Targets **Godot 4.6** (GDScript 2.0).
   `SceneTransitionManager` owns whole-tree transitions, `GameManager` owns only required
   cross-scene state, and `DataConfig` owns formal tunables.
 - At the dynamic boundary, `EventBus` uses string method names and `Dictionary` payloads;
-  validate keys and remember that callbacks are deferred by the project implementation.
+  validate keys. `emit()` dispatches synchronously over a listener snapshot, while
+  `emit_deferred()` explicitly queues work for the next process frame.
 
 ## Core workflow
 
