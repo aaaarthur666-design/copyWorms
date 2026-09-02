@@ -85,6 +85,10 @@ func _exit_tree() -> void:
 		var record: Dictionary = _tile_records[index]
 		_unload_tile(record)
 		_tile_records[index] = record
+	# The editor can detach and reattach the same @tool node. Re-arm _ready()
+	# after cleanup so the generated preview is rebuilt on the next tree entry.
+	if Engine.is_editor_hint():
+		request_ready()
 
 func _drain_pending_tile_loads() -> void:
 	var pending_paths: Dictionary = {}

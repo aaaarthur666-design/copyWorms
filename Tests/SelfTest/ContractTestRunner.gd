@@ -39,6 +39,18 @@ class TransitionCleanupProbe:
 		prepare_calls += 1
 
 
+const PIXELWORK_RUNTIME_SCRIPTS: PackedStringArray = [
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level 2/2D__2026-06-14T09-34-36-404Z_20260616_150503_986_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level 3/2D_8_8-bit_2026-06-15T03-39-38-815Z_resized_20260615_151851_729_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level_02_01/2D__2026-06-14T08-50-38-613Z_20260616_161150_777_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level_02_03/Level_02_03_20260617_121550_267_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level_03_determined/Level_03_base_20260618_191924_077_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level_03_Lingnanbase/Level_03_base_20260618_154541_665_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level04_Cyber/Level04_Cyber_runtime.gd",
+	"res://LevelModule/Scenes/PixelworkMapStitch/Level04_Lingnan/Level04_Lingnan_runtime.gd",
+]
+
+
 var _failures: Array[String] = []
 var _assertion_count: int = 0
 
@@ -76,6 +88,7 @@ func _run() -> void:
 	_test_scene_transition_preflight()
 	_test_runtime_state()
 	_test_damage_calculator()
+	_test_pixelwork_editor_reentry_contract()
 	_test_config_resources()
 
 	EventBus.clear_all()
@@ -568,6 +581,24 @@ func _test_damage_calculator() -> void:
 	_assert_true(bool(result["is_crit"]), "100% 暴击率必须暴击")
 	_assert_equal(DamageCalculator.resolve_incoming(21, 0.5), 11, "目标侧减伤必须在扣血前统一取整")
 	_assert_equal(DamageCalculator.resolve_incoming(0, 0.5), 0, "零伤害不得被最小伤害抬高")
+
+
+func _test_pixelwork_editor_reentry_contract() -> void:
+	for script_path in PIXELWORK_RUNTIME_SCRIPTS:
+		var source := FileAccess.get_file_as_string(script_path)
+		var exit_index := source.find("func _exit_tree() -> void:")
+		var stop_index := source.find("\tset_process(false)", exit_index)
+		var drain_index := source.find("\t_drain_pending_tile_loads()", exit_index)
+		var request_index := source.find("\tif Engine.is_editor_hint():\n\t\trequest_ready()", exit_index)
+		var next_function_index := source.find("\nfunc ", exit_index + 1)
+		_assert_true(
+			exit_index >= 0
+			and stop_index > exit_index
+			and drain_index > stop_index
+			and request_index > drain_index
+			and (next_function_index < 0 or request_index < next_function_index),
+			"Pixelwork 地图必须先停止处理并排空线程加载，再为编辑器重入请求 ready：%s" % script_path
+		)
 
 
 func _test_config_resources() -> void:
