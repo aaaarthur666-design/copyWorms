@@ -284,6 +284,7 @@ func _do_bagua_shockwave(charge_ratio: float) -> void:
 
 	var shock_range := lerpf(lingnan_config.bagua_min_range, lingnan_config.bagua_max_range, charge_ratio)
 	var push_force := lerpf(lingnan_config.bagua_min_push_force, lingnan_config.bagua_max_push_force, charge_ratio)
+	var huadan_stun_blocked := false
 	for enemy in GameManager.get_enemies():
 		if not is_instance_valid(enemy):
 			continue
@@ -291,11 +292,13 @@ func _do_bagua_shockwave(charge_ratio: float) -> void:
 		if dist > shock_range:
 			continue
 		if enemy is Enemy_BossHuadan or enemy.name.find("Huadan") >= 0:
-			_stun_huadan(enemy)
+			if not _stun_huadan(enemy):
+				huadan_stun_blocked = true
+				_spawn_bagua_immune_feedback(enemy)
 			continue
 		_push_enemy_from_bagua(enemy, push_force, dist, shock_range)
 
-	_spawn_bagua_shockwave_effect(shock_range)
+	_spawn_bagua_shockwave_effect(shock_range, huadan_stun_blocked)
 	var cam = get_node_or_null("SmoothCamera")
 	if cam and cam.has_method("shake"):
 		cam.shake(lingnan_config.bagua_camera_shake_base + charge_ratio * lingnan_config.bagua_camera_shake_bonus, lingnan_config.bagua_camera_shake_duration)
@@ -314,24 +317,48 @@ func _push_enemy_from_bagua(enemy: Node2D, push_force: float, dist: float, shock
 	else:
 		enemy.global_position += push_dir * final_force * lingnan_config.bagua_non_body_displacement
 
-func _stun_huadan(enemy: Node2D) -> void:
+func _stun_huadan(enemy: Node2D) -> bool:
 	if enemy.has_method("apply_lingnan_bagua_stun"):
-		enemy.call("apply_lingnan_bagua_stun", lingnan_config.bagua_huadan_stun_time)
-		return
+		return bool(enemy.call("apply_lingnan_bagua_stun", lingnan_config.bagua_huadan_stun_time))
+	var applied := false
 	if "stun_timer" in enemy:
 		enemy.set("stun_timer", maxf(float(enemy.get("stun_timer")), lingnan_config.bagua_huadan_stun_time))
+		applied = true
 	if enemy.has_method("_cancel_attack"):
 		enemy.call("_cancel_attack")
 	if enemy is CharacterBody2D:
 		(enemy as CharacterBody2D).velocity = Vector2.ZERO
+	return applied
 
-func _spawn_bagua_shockwave_effect(shock_range: float) -> void:
+
+func _spawn_bagua_immune_feedback(enemy: Node2D) -> void:
+	var parent := get_parent()
+	if not parent or not is_instance_valid(enemy):
+		return
+	var ring := Line2D.new()
+	ring.width = 3.0
+	ring.default_color = Color(0.5, 0.65, 0.82, 0.9)
+	ring.z_index = 21
+	ring.global_position = enemy.global_position
+	var radius := 54.0
+	var segments := 36
+	for i in range(segments + 1):
+		var a := TAU * float(i) / float(segments)
+		ring.add_point(Vector2(cos(a), sin(a)) * radius)
+	parent.add_child(ring)
+	var tween := ring.create_tween()
+	tween.tween_property(ring, "scale", Vector2(0.72, 0.72), 0.18).set_trans(Tween.TRANS_SINE)
+	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.18)
+	tween.tween_callback(ring.queue_free)
+
+
+func _spawn_bagua_shockwave_effect(shock_range: float, stun_blocked: bool = false) -> void:
 	var parent = get_parent()
 	if not parent:
 		return
 	var ring := Line2D.new()
 	ring.width = 4.0
-	ring.default_color = Color(1.0, 0.86, 0.36, 0.86)
+	ring.default_color = Color(0.5, 0.65, 0.82, 0.82) if stun_blocked else Color(1.0, 0.86, 0.36, 0.86)
 	ring.z_index = 20
 	ring.global_position = global_position
 	var segments := 72

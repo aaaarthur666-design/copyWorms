@@ -8,7 +8,15 @@ class_name Level_04
 
 enum LevelState { HOMOMORPHIC_COMBAT, STAGE2, STAGE3, LEVEL_END_TRANSIT }
 
+const PAUSE_GUARD_INTRO := "Level04Intro"
+const PAUSE_GUARD_STAGE2 := "Level04Stage2Transition"
+const PAUSE_GUARD_STAGE3 := "Level04Stage3Transition"
+const PAUSE_GUARD_CAMERA_PAN := "Level04CameraPan"
+const PAUSE_GUARD_ENDING := "Level04EndingPrompt"
+
 var current_state: int = LevelState.HOMOMORPHIC_COMBAT
+var _pause_guard_tokens: Dictionary = {}
+var _cleanup_complete: bool = false
 
 # ---- 地图切换 ----
 var _current_world: int = 0
@@ -150,13 +158,13 @@ func _swap_player_skin(skin: String) -> void:
 func _on_ready() -> void:
 	super._on_ready()
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
-	# 入场黑屏遮罩（初始化在黑屏下进行，末尾淡出呈现关卡）
-	_play_intro_fade_in()
 	if not level_config: level_config = load("res://DataConfig/Level/Level04Config.tres") as LevelConfig; _apply_config()
 	if not level_data:  level_data  = load("res://DataConfig/Level/Level04Data.tres") as Level04Data
 	if not level_config or not level_data:
 		push_error("[Level_04] 必需的 LevelConfig/Level04Data 加载失败，停止初始化")
 		return
+	# 入场黑屏遮罩（初始化在黑屏下进行，末尾淡出呈现关卡）
+	_play_intro_fade_in()
 
 	var wolf = "res://EnemyModule/Formal/Enemy_CyberWolf.tscn"
 	if ResourceLoader.exists(wolf): _enemy_cyber_wolf_scene = load(wolf)
@@ -266,11 +274,34 @@ func _get_or_create_child(node_name: String, node_type) -> Node:
 	var e = get_node_or_null(node_name); if e: return e
 	var n = node_type.new(); n.name = node_name; add_child(n); return n
 
+
+func _acquire_pause_guard(scope: String) -> void:
+	if _pause_guard_tokens.has(scope):
+		return
+	_pause_guard_tokens[scope] = InputManager.acquire_pause_guard(scope, self)
+
+
+func _release_pause_guard(scope: String) -> void:
+	var token := int(_pause_guard_tokens.get(scope, 0))
+	if token > 0:
+		InputManager.release_pause_guard_token(token)
+	_pause_guard_tokens.erase(scope)
+
+
+func _release_all_pause_guards() -> void:
+	for token_value: Variant in _pause_guard_tokens.values():
+		var token := int(token_value)
+		if token > 0:
+			InputManager.release_pause_guard_token(token)
+	_pause_guard_tokens.clear()
+
 ## 入场黑屏遮罩：创建满黑 CanvasLayer，覆盖整个初始化过程
 func _play_intro_fade_in() -> void:
+	_acquire_pause_guard(PAUSE_GUARD_INTRO)
 	var cv = CanvasLayer.new()
 	cv.name = "IntroFadeCanvas"
-	cv.layer = 2000
+	cv.layer = UILayerContract.CINEMATIC
+	cv.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(cv)
 	var black = ColorRect.new()
 	black.name = "IntroFadeBlack"
@@ -282,12 +313,21 @@ func _play_intro_fade_in() -> void:
 ## 初始化完成后淡出黑屏（1.5s），完成后自动清理遮罩节点
 func _finish_intro_fade_in() -> void:
 	var cv = get_node_or_null("IntroFadeCanvas")
-	if not cv: return
+	if not cv:
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		return
 	var black = cv.get_node_or_null("IntroFadeBlack")
-	if not black: return
+	if not black:
+		cv.queue_free()
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		return
 	var tw = black.create_tween()
 	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(cv.queue_free)
+	tw.tween_callback(func() -> void:
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		if is_instance_valid(cv):
+			cv.queue_free()
+	)
 
 func _load_hud() -> void:
 	var p = "res://UI/HUD.tscn"
@@ -307,10 +347,14 @@ func _cache_ui_refs() -> void:
 	if not c: return
 	_narrative_panel = c.get_node_or_null("NarrativePanel")
 	if _narrative_panel: _narrative_text = _narrative_panel.get_node_or_null("RichTextLabel")
-	_code_rain_overlay = c.get_node_or_null("CodeRainOverlay")
 	_glitch_overlay = c.get_node_or_null("GlitchOverlay")
 	_ending_prompt = c.get_node_or_null("EndingPrompt")
 	if _ending_prompt: _ending_label = _ending_prompt.get_node_or_null("EndingLabel")
+	var special_fx = get_node_or_null("Level45SpecialFX")
+	if special_fx:
+		_code_rain_overlay = special_fx.get_node_or_null("CodeRainOverlay")
+		_right_edge_flash = special_fx.get_node_or_null("RightEdgeFlash")
+		_right_edge_glow = special_fx.get_node_or_null("RightEdgeGlow")
 
 func _start_code_rain() -> void:
 	if _code_rain_overlay and is_instance_valid(_code_rain_overlay):
@@ -465,6 +509,7 @@ func _show_floating_text(txt: String) -> void:
 		_float_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_float_text.add_theme_font_size_override("font_size", 24)
 		_float_text.add_theme_color_override("font_color", Color(1, 0.9, 0.4))
+		_float_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_float_text.size = Vector2(200, 30)
 		add_child(_float_text)
 	_float_text.text = txt
@@ -702,7 +747,7 @@ func _schedule_world_narrative(text: String, expected_world: int) -> void:
 	var timer := Timer.new()
 	timer.name = "WorldNarrativeTimer"
 	timer.one_shot = true
-	timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	timer.process_mode = Node.PROCESS_MODE_PAUSABLE
 	timer.timeout.connect(
 		_on_world_narrative_timeout.bind(timer, text, expected_world),
 		CONNECT_ONE_SHOT
@@ -728,22 +773,29 @@ func _snap_camera(p: CharacterBody2D) -> void:
 func _enter_stage2() -> void:
 	if _stage2_entered: return
 	_stage2_entered = true
+	_acquire_pause_guard(PAUSE_GUARD_STAGE2)
 	_is_interacting = true
 	_freeze_player(true)
 	# 黑屏淡入
 	var blk = _create_black_overlay()
-	if not blk: _freeze_player(false); _is_interacting = false; return
+	if not blk:
+		_finish_stage2_transition()
+		return
 	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, level_data.stage_2_transition_fade_duration).finished
 	# 传送（await 后重新获取玩家引用，避免旧引用已释放）
 	var p = GameManager.player_ref
 	if not p or not is_instance_valid(p):
-		blk.queue_free(); _freeze_player(false); _is_interacting = false; return
+		blk.queue_free()
+		_finish_stage2_transition()
+		return
 	p.global_position = level_data.stage_2_spawn; p.velocity = Vector2.ZERO
 	_snap_camera(p)
 	_swap_player_skin("Lingnan")
 	p = GameManager.player_ref
 	if not p or not is_instance_valid(p):
-		blk.queue_free(); _freeze_player(false); _is_interacting = false; return
+		blk.queue_free()
+		_finish_stage2_transition()
+		return
 	_set_camera_limits(
 		level_data.stage_2_lingnan_camera_left,
 		level_data.stage_2_lingnan_camera_right,
@@ -757,17 +809,24 @@ func _enter_stage2() -> void:
 	# 黑屏淡出
 	await get_tree().create_tween().tween_property(blk, "color:a", 0.0, level_data.stage_2_transition_fade_duration).finished
 	blk.queue_free()
-	_freeze_player(false)
-	_is_interacting = false
+	_finish_stage2_transition()
 	_stage2_current_map = 0
 	_start_stage2_swap_timer()
 	_spawn_stage2_enemies()
 	_start_right_edge_flash()
 	_show_narrative(level_data.stage_2_entry_text)
 
+
+func _finish_stage2_transition() -> void:
+	_freeze_player(false)
+	_is_interacting = false
+	_release_pause_guard(PAUSE_GUARD_STAGE2)
+
 func _create_black_overlay() -> ColorRect:
-	var cv = $CanvasLayerUI
+	var cv = _get_or_create_child("Level04Transition", CanvasLayer) as CanvasLayer
 	if not cv: return null
+	cv.layer = UILayerContract.TRANSITION
+	cv.process_mode = Node.PROCESS_MODE_PAUSABLE
 	var f = ColorRect.new()
 	f.name = "Blackout"; f.set_anchors_preset(Control.PRESET_FULL_RECT)
 	f.color = Color(0, 0, 0, 0); f.mouse_filter = Control.MOUSE_FILTER_IGNORE; f.z_index = 200
@@ -939,7 +998,7 @@ func _build_erosion_ui() -> void:
 	container.position = Vector2(20, 105)
 	container.size = Vector2(280, 28)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(container)
+	hud.add_gameplay_control(container)
 
 	# 背景
 	_erosion_bar_bg = ColorRect.new()
@@ -1138,6 +1197,7 @@ func _spawn_stage2_enemies() -> void:
 func _enter_stage3() -> void:
 	if _stage3_entered: return
 	_stage3_entered = true
+	_acquire_pause_guard(PAUSE_GUARD_STAGE3)
 	_stage2_auto_swap = false
 	_stop_right_edge_flash()
 	_stop_stage2_warning()
@@ -1146,7 +1206,9 @@ func _enter_stage3() -> void:
 
 	# 黑屏过渡 → 跳转到 Level_05
 	var blk = _create_black_overlay()
-	if not blk: _freeze_player(false); _is_interacting = false; return
+	if not blk:
+		_cancel_stage3_transition(null)
+		return
 	await get_tree().create_tween().tween_property(blk, "color", Color.BLACK, level_data.stage_3_transition_fade_duration).finished
 
 	# 清除阶段2敌人
@@ -1166,6 +1228,17 @@ func _enter_stage3() -> void:
 
 	# 跳转
 	SceneTransitionManager.request_scene_change(level_data.next_level_path, self)
+	if not SceneTransitionManager.is_transitioning:
+		_cancel_stage3_transition(blk)
+
+
+func _cancel_stage3_transition(blackout: ColorRect) -> void:
+	if blackout and is_instance_valid(blackout):
+		blackout.queue_free()
+	_stage3_entered = false
+	_freeze_player(false)
+	_is_interacting = false
+	_release_pause_guard(PAUSE_GUARD_STAGE3)
 
 
 func _pan_camera_to(target: Vector2, cb: Callable = Callable()) -> void:
@@ -1173,6 +1246,7 @@ func _pan_camera_to(target: Vector2, cb: Callable = Callable()) -> void:
 	if not p or not is_instance_valid(p): return
 	var cam = p.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam: return
+	_acquire_pause_guard(PAUSE_GUARD_CAMERA_PAN)
 	_is_interacting = true
 	_freeze_player(true)
 	cam.follow_enabled = false
@@ -1185,18 +1259,21 @@ func _pan_camera_to(target: Vector2, cb: Callable = Callable()) -> void:
 	p = GameManager.player_ref
 	if not p or not is_instance_valid(p):
 		_is_interacting = false
+		_release_pause_guard(PAUSE_GUARD_CAMERA_PAN)
 		if cb.is_valid(): cb.call()
 		return
 	cam = p.get_node_or_null("SmoothCamera") as SmoothCamera
 	if not cam:
 		_freeze_player(false)
 		_is_interacting = false
+		_release_pause_guard(PAUSE_GUARD_CAMERA_PAN)
 		if cb.is_valid(): cb.call()
 		return
 	cam.global_position = p.global_position
 	cam.follow_enabled = true
 	_freeze_player(false)
 	_is_interacting = false
+	_release_pause_guard(PAUSE_GUARD_CAMERA_PAN)
 	if cb.is_valid(): cb.call()
 
 
@@ -1316,6 +1393,7 @@ func _on_enemy_died(data: Dictionary) -> void:
 func _trigger_level_end() -> void:
 	_stage2_auto_swap = false
 	_stop_stage2_warning()
+	_acquire_pause_guard(PAUSE_GUARD_ENDING)
 	current_state = LevelState.LEVEL_END_TRANSIT
 	if _ending_prompt: _ending_prompt.show()
 	if _ending_label and level_data: _ending_label.text = level_data.override_protocol_text
@@ -1328,10 +1406,15 @@ func _emit_level_complete() -> void:
 	EventBus.emit(GlobalDefine.EventName.LEVEL_COMPLETE, {"level": self, "next_level": level_data.next_level_path})
 
 func _full_cleanup() -> void:
+	if _cleanup_complete:
+		return
+	_cleanup_complete = true
 	_disconnect_input_manager()
 	_close_narrative(false)
+	_release_all_pause_guards()
 	InputManager.release_input_for_owner(self)
 	_stage2_auto_swap = false
+	_stop_code_rain(true)
 	_stop_stage2_warning()
 	_stop_right_edge_flash()
 	if _stage2_alarm_player:

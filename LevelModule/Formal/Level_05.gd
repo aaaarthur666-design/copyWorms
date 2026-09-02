@@ -8,10 +8,17 @@ class_name Level_05
 
 @export var level_data: Level05Data = preload("res://DataConfig/Level/Level05Data.tres")
 
+const PAUSE_GUARD_INTRO := "Level05Intro"
+const PAUSE_GUARD_HUADAN_CG := "Level05HuadanCG"
+const PAUSE_GUARD_GRANDPA_VIDEO := "Level05GrandpaVideo"
+const PAUSE_GUARD_BOSS_DEATH := "Level05BossDeathCinematic"
+
 @onready var _top_sprite: Sprite2D = $TopSprite
 @onready var _bot_sprite: Sprite2D = $BotSprite
 @onready var _cyber_collisions: Node2D = $CyberCollisions
 @onready var _lingnan_collisions: Node2D = $LingnanCollisions
+@onready var _gameplay_ui_canvas: CanvasLayer = $CanvasLayer
+@onready var _special_fx_canvas: CanvasLayer = $Level45SpecialFX
 
 var _top_mat: ShaderMaterial = null
 var _edge_tear: ColorRect = null
@@ -21,6 +28,7 @@ var _in_boss_arena: bool = false
 var _boss_instance: Node2D = null
 var _current_player_skin: String = "Cyber"   # 当前玩家皮肤（"Cyber"/"Lingnan"），用于G键切换
 var _layer_swap_cd: float = 0.0              # 双世界切换冷却（防战斗中频繁切换）
+var _pause_guard_tokens: Dictionary = {}
 
 # ---- 双角色独立血量（Boss战：Cyber/Lingnan 各100血，切人换血条，总200血） ----
 var _cyber_health: int = 0
@@ -219,6 +227,10 @@ func _on_ready() -> void:
 	if not level_data:
 		push_error("[Level_05] Level05Data 加载失败，停止初始化")
 		return
+	_gameplay_ui_canvas.layer = UILayerContract.LEVEL_UI
+	_gameplay_ui_canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_special_fx_canvas.layer = UILayerContract.LEVEL45_SPECIAL_FX
+	_special_fx_canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
 	_corruption = level_data.initial_corruption
 
@@ -289,7 +301,7 @@ func _on_ready() -> void:
 		_top_sprite.material = _top_mat
 
 	# 边缘撕裂覆盖层
-	var cv = get_node_or_null("CanvasLayer")
+	var cv = _special_fx_canvas
 	if cv:
 		_edge_tear = ColorRect.new()
 		_edge_tear.name = "EdgeTear"
@@ -369,6 +381,7 @@ func _setup_stage_test_panel() -> void:
 func _goto_bg3_test() -> void:
 	_in_boss_arena = false
 	_in_bg5 = false
+	_set_hud_gameplay_enabled(true)
 	_set_boss_area_active(false)
 	_set_bg5_area_active(false)
 	_set_map_sprites_visible(true)
@@ -384,6 +397,7 @@ func _goto_bg3_test() -> void:
 func _goto_bg4_test() -> void:
 	_in_boss_arena = true
 	_in_bg5 = false
+	_set_hud_gameplay_enabled(true)
 	_set_boss_area_active(true)
 	_set_map_sprites_visible(false)
 	_set_bg5_area_active(false)
@@ -404,6 +418,7 @@ func _goto_bg4_test() -> void:
 func _goto_bg5_test() -> void:
 	_in_boss_arena = false
 	_in_bg5 = true
+	_set_hud_gameplay_enabled(false)
 	if _current_player_skin != "Cyber":
 		_swap_player_skin("Cyber")
 	_set_boss_area_active(false)
@@ -422,6 +437,9 @@ func _exit_tree() -> void:
 
 func prepare_for_level_exit() -> void:
 	Engine.time_scale = 1.0
+	if _code_rain_overlay and is_instance_valid(_code_rain_overlay):
+		_code_rain_overlay.stop_rain(true)
+	_release_all_pause_guards()
 	InputManager.release_input_for_owner(self)
 	_dialog_open = false
 	_dialog_callback = Callable()
@@ -434,11 +452,34 @@ func prepare_for_level_exit() -> void:
 	EventBus.unsubscribe_all(self)
 
 
+func _acquire_pause_guard(scope: String) -> void:
+	if _pause_guard_tokens.has(scope):
+		return
+	_pause_guard_tokens[scope] = InputManager.acquire_pause_guard(scope, self)
+
+
+func _release_pause_guard(scope: String) -> void:
+	var token := int(_pause_guard_tokens.get(scope, 0))
+	if token > 0:
+		InputManager.release_pause_guard_token(token)
+	_pause_guard_tokens.erase(scope)
+
+
+func _release_all_pause_guards() -> void:
+	for token_value: Variant in _pause_guard_tokens.values():
+		var token := int(token_value)
+		if token > 0:
+			InputManager.release_pause_guard_token(token)
+	_pause_guard_tokens.clear()
+
+
 ## 入场黑屏遮罩：创建满黑 CanvasLayer，覆盖整个初始化过程
 func _play_intro_fade_in() -> void:
+	_acquire_pause_guard(PAUSE_GUARD_INTRO)
 	var cv = CanvasLayer.new()
 	cv.name = "IntroFadeCanvas"
-	cv.layer = 2000
+	cv.layer = UILayerContract.CINEMATIC
+	cv.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(cv)
 	var black = ColorRect.new()
 	black.name = "IntroFadeBlack"
@@ -450,12 +491,21 @@ func _play_intro_fade_in() -> void:
 ## 初始化完成后淡出黑屏（1.5s），完成后自动清理遮罩节点
 func _finish_intro_fade_in() -> void:
 	var cv = get_node_or_null("IntroFadeCanvas")
-	if not cv: return
+	if not cv:
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		return
 	var black = cv.get_node_or_null("IntroFadeBlack")
-	if not black: return
+	if not black:
+		cv.queue_free()
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		return
 	var tw = black.create_tween()
 	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(cv.queue_free)
+	tw.tween_callback(func() -> void:
+		_release_pause_guard(PAUSE_GUARD_INTRO)
+		if is_instance_valid(cv):
+			cv.queue_free()
+	)
 
 
 func _process(delta: float) -> void:
@@ -720,9 +770,10 @@ func _play_huadan_cg() -> void:
 	var stream := load(level_data.huadan_video_path) as VideoStream
 	if stream == null:
 		push_error("[Level_05] huadan-CG.ogv 加载失败，直接进入Boss战")
-		_enter_boss_arena()
+		_teleport_to_boss()
 		return
 	# 屏蔽游戏输入
+	_acquire_pause_guard(PAUSE_GUARD_HUADAN_CG)
 	InputManager.block_input("视频演出", self)
 	GameManager.begin_dialog(self)
 	# 冻结玩家
@@ -731,7 +782,9 @@ func _play_huadan_cg() -> void:
 		player.set_frozen(true)
 	# 用 CanvasLayer 确保在最上层
 	var layer := CanvasLayer.new()
-	layer.layer = 100
+	layer.name = "HuadanCinematic"
+	layer.layer = UILayerContract.CINEMATIC
+	layer.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(layer)
 	# 淡入黑屏
 	var black_bg := ColorRect.new()
@@ -761,6 +814,7 @@ func _play_huadan_cg() -> void:
 	layer.queue_free()
 	InputManager.unblock_input("视频演出", self)
 	GameManager.end_dialog(self)
+	_release_pause_guard(PAUSE_GUARD_HUADAN_CG)
 	if player and is_instance_valid(player) and player.has_method("set_frozen"):
 		player.set_frozen(false)
 	# 传送到Boss区域并开始战斗
@@ -776,10 +830,13 @@ func _play_grandpa_video() -> void:
 		_show_dialog([level_data.video_load_failure_text], Callable())
 		return
 	# 屏蔽游戏输入
+	_acquire_pause_guard(PAUSE_GUARD_GRANDPA_VIDEO)
 	InputManager.block_input("视频演出", self)
 	# 用 CanvasLayer 确保在最上层
 	var layer := CanvasLayer.new()
-	layer.layer = 100
+	layer.name = "GrandpaCinematic"
+	layer.layer = UILayerContract.CINEMATIC
+	layer.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(layer)
 	# 淡入黑屏
 	var black_bg := ColorRect.new()
@@ -816,6 +873,7 @@ func _play_grandpa_video() -> void:
 	await fade_out_tween.finished
 	# 清理
 	InputManager.unblock_input("视频演出", self)
+	_release_pause_guard(PAUSE_GUARD_GRANDPA_VIDEO)
 	layer.queue_free()
 	print("[Level_05] 黑屏淡入完成，切换到 Level_final")
 	# 切换到终局关卡
@@ -827,6 +885,8 @@ func _on_boss_death_recover(death_pos: Vector2) -> void:
 	Engine.time_scale = 1.0
 	_spawn_lantern(death_pos)
 	_show_dialog(level_data.boss_death_dialogues, Callable())
+	InputManager.unblock_input("Boss死亡演出", self)
+	_release_pause_guard(PAUSE_GUARD_BOSS_DEATH)
 
 ## 在Boss死亡位置生成灯笼交互物
 func _spawn_lantern(pos: Vector2) -> void:
@@ -931,6 +991,7 @@ func _update_lantern_prompt() -> void:
 func _teleport_to_bg5() -> void:
 	_in_boss_arena = false
 	_in_bg5 = true
+	_set_hud_gameplay_enabled(false)
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_CYBER)
 	if _current_player_skin != "Cyber":
 		_swap_player_skin("Cyber")
@@ -957,10 +1018,14 @@ func _teleport_to_bg5() -> void:
 ## 每帧持续隐藏所有战斗UI（_in_bg5 时调用，防止 HUD _process 恢复可见性）
 func _update_bg5_ui_hide() -> void:
 	if not _in_bg5: return
-	# 隐藏 HUD（血条+技能+蓄力图标+侵蚀进度条都在 HUD 下）
+	# 仅禁用 gameplay 根；共享 HUD 的暂停与设置面板继续可用。
+	_set_hud_gameplay_enabled(false)
+
+
+func _set_hud_gameplay_enabled(enabled: bool) -> void:
 	var hud = get_node_or_null("HUD")
-	if hud and hud.visible:
-		hud.visible = false
+	if hud and hud.has_method("set_gameplay_hud_enabled"):
+		hud.set_gameplay_hud_enabled(enabled)
 
 ## 激活/禁用bg5区域节点（背景显隐 + 碰撞体开关 + 爷爷交互物开关）
 func _set_bg5_area_active(active: bool) -> void:
@@ -977,11 +1042,20 @@ func _set_bg5_area_active(active: bool) -> void:
 	_sync_code_rain_for_bg5()
 
 func _build_code_rain_overlay() -> void:
-	var cv = get_node_or_null("CanvasLayer")
+	var cv = _special_fx_canvas
 	if not cv:
+		return
+	var existing := cv.get_node_or_null("CodeRainOverlay")
+	if existing:
+		if existing is CodeRain:
+			_code_rain_overlay = existing as CodeRain
+			_sync_code_rain_for_bg5()
+		else:
+			push_error("[Level_05] Level45SpecialFX/CodeRainOverlay 类型错误，停止重复构建")
 		return
 	_code_rain_overlay = CodeRain.new()
 	_code_rain_overlay.name = "CodeRainOverlay"
+	_code_rain_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cv.add_child(_code_rain_overlay)
 	_sync_code_rain_for_bg5()
 
@@ -1137,7 +1211,7 @@ func _build_erosion_bar() -> void:
 	bar.name = "ErosionBar"
 	bar.position = Vector2(20, 105); bar.size = Vector2(280, 28)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(bar)
+	hud.add_gameplay_control(bar)
 
 	_erosion_bar_bg = ColorRect.new()
 	_erosion_bar_bg.size = Vector2(280, 24); _erosion_bar_bg.position = Vector2(0, 4)
@@ -1196,6 +1270,8 @@ func _on_enemy_died(data: Dictionary) -> void:
 			randf_range(level_data.boss_death_lantern_y_min, level_data.boss_death_lantern_y_max)
 		)
 		_erosion_growth_locked = true
+		_acquire_pause_guard(PAUSE_GUARD_BOSS_DEATH)
+		InputManager.block_input("Boss死亡演出", self)
 		_hide_boss_bar()
 		GameManager.boss_target = null
 		_boss_instance = null

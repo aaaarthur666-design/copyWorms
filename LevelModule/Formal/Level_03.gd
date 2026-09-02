@@ -85,6 +85,10 @@ var _enemy_spawn_timer: Timer = null
 # ---- 终局 ----
 var _ending_enter_armed: bool = false
 var _level_complete_emitted: bool = false
+var _intro_pause_guard_token: int = -1
+var _ending_pause_guard_token: int = -1
+
+const RUNTIME_UI_BUILT_META: StringName = &"level_03_runtime_ui_built"
 
 var _fsm: Level_03_FSM = null
 
@@ -118,9 +122,6 @@ func _on_ready() -> void:
 	super._on_ready()
 	GameUIStyle.set_ui_theme(GameUIStyle.UI_THEME_LINGNAN)
 
-	# 入场黑屏遮罩（初始化在黑屏下进行，末尾淡出呈现关卡）
-	_play_intro_fade_in()
-
 	if not level_config:
 		level_config = load("res://DataConfig/Level/Level03Config.tres") as LevelConfig
 		_apply_config()
@@ -129,6 +130,8 @@ func _on_ready() -> void:
 	if not level_data:
 		push_error("[Level_03] Level03Data 加载失败，停止初始化")
 		return
+	# 必需配置确认后才持有暂停守卫，避免初始化失败时永久停在黑场。
+	_play_intro_fade_in()
 
 	# 预加载敌人场景
 	var wolf_path = "res://EnemyModule/Formal/Enemy_CyberWolf.tscn"
@@ -204,7 +207,6 @@ func _schedule_opening_narrative() -> void:
 	_intro_narrative_timer = Timer.new()
 	_intro_narrative_timer.name = "IntroNarrativeTimer"
 	_intro_narrative_timer.one_shot = true
-	_intro_narrative_timer.process_mode = Node.PROCESS_MODE_ALWAYS
 	_intro_narrative_timer.timeout.connect(_on_opening_narrative_timeout, CONNECT_ONE_SHOT)
 	add_child(_intro_narrative_timer)
 	_intro_narrative_timer.start(level_data.intro_narrative_delay)
@@ -228,9 +230,11 @@ func _cancel_opening_narrative() -> void:
 
 ## 入场黑屏遮罩：创建满黑 CanvasLayer，覆盖整个初始化过程
 func _play_intro_fade_in() -> void:
+	if _intro_pause_guard_token < 0:
+		_intro_pause_guard_token = InputManager.acquire_pause_guard("Level03入场黑场", self)
 	var cv = CanvasLayer.new()
 	cv.name = "IntroFadeCanvas"
-	cv.layer = 2000
+	cv.layer = UILayerContract.CINEMATIC
 	add_child(cv)
 	var black = ColorRect.new()
 	black.name = "IntroFadeBlack"
@@ -244,16 +248,43 @@ func _play_intro_fade_in() -> void:
 ## 初始化完成后淡出黑屏（1.5s），完成后自动清理遮罩节点
 func _finish_intro_fade_in() -> void:
 	var cv = get_node_or_null("IntroFadeCanvas")
-	if not cv: return
+	if not cv:
+		_release_intro_pause_guard()
+		return
 	var black = cv.get_node_or_null("IntroFadeBlack")
-	if not black: return
+	if not black:
+		_release_intro_pause_guard()
+		cv.queue_free()
+		return
 	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tw.tween_property(black, "color:a", 0.0, level_data.intro_fade_duration).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(cv.queue_free)
+	tw.tween_callback(_complete_intro_fade_in.bind(cv))
+
+
+func _complete_intro_fade_in(canvas: CanvasLayer) -> void:
+	_release_intro_pause_guard()
+	if is_instance_valid(canvas):
+		canvas.queue_free()
+
+
+func _release_intro_pause_guard() -> void:
+	if _intro_pause_guard_token < 0:
+		return
+	InputManager.release_pause_guard_token(_intro_pause_guard_token)
+	_intro_pause_guard_token = -1
+
+
+func _release_ending_pause_guard() -> void:
+	if _ending_pause_guard_token < 0:
+		return
+	InputManager.release_pause_guard_token(_ending_pause_guard_token)
+	_ending_pause_guard_token = -1
 
 
 func _exit_tree() -> void:
 	_cancel_opening_narrative()
+	_release_intro_pause_guard()
+	_release_ending_pause_guard()
 	_disconnect_input_manager()
 
 
@@ -281,9 +312,12 @@ func _disconnect_input_manager() -> void:
 
 
 func _load_hud() -> void:
+	if get_node_or_null("HUD"):
+		return
 	var hud_path = "res://UI/HUD.tscn"
 	if ResourceLoader.exists(hud_path):
 		var hud = load(hud_path).instantiate()
+		hud.name = "HUD"
 		add_child(hud)
 		print("[Level_03] HUD 加载成功")
 	else:
@@ -432,10 +466,13 @@ func _bind_scene_nodes() -> void:
 
 
 func _build_canvas_ui() -> void:
-	var canvas = _get_or_create_child("CanvasLayerUI", CanvasLayer)
-	canvas.layer = 2
-	canvas.process_mode = Node.PROCESS_MODE_ALWAYS
+	var canvas := _get_or_create_child("CanvasLayerUI", CanvasLayer) as CanvasLayer
+	canvas.layer = UILayerContract.LEVEL_UI
+	canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
+	if canvas.get_meta(RUNTIME_UI_BUILT_META, false):
+		return
 	Level_03_UIBuilder.new(self, canvas).build_all()
+	canvas.set_meta(RUNTIME_UI_BUILT_META, true)
 
 
 func _set_all_color_rect_mouse_ignore(node: Node) -> void:
@@ -1325,6 +1362,7 @@ func _trigger_level_end() -> void:
 	_is_interacting = false
 	_interact_cooldown = 0.0
 	InputManager.force_unblock_all()
+	_ending_pause_guard_token = InputManager.acquire_pause_guard("Level03终局提示", self)
 	if _ending_prompt:
 		_ending_prompt.show()
 		if _ending_label and level_data:
@@ -1338,6 +1376,7 @@ func _emit_level_complete() -> void:
 	var next_path = level_data.next_level_path
 	# 关卡退出三件套：释放 GUI 焦点 + 强制解除输入屏蔽 + 清理
 	get_viewport().gui_release_focus()
+	_release_ending_pause_guard()
 	InputManager.force_unblock_all()
 	_full_cleanup()
 	# 双模切换：无 MainEntry 托管时直接换场景，否则走 EventBus 由 MainEntry 接管
@@ -1350,6 +1389,8 @@ func _emit_level_complete() -> void:
 
 func _full_cleanup() -> void:
 	_cancel_opening_narrative()
+	_release_intro_pause_guard()
+	_release_ending_pause_guard()
 	_disconnect_input_manager()
 	for e in _cyber_enemies:
 		if is_instance_valid(e):

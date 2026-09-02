@@ -13,6 +13,8 @@ var _dialog_label: RichTextLabel = null
 var _dialog_lines: Array[String] = []
 var _dialog_index: int = 0
 var _ending_triggered: bool = false
+var _ending_pause_guard_token: int = -1
+var _hud: CanvasLayer = null
 
 const INTERACT_ID := "final_sun"
 
@@ -62,7 +64,8 @@ func _ready() -> void:
 			cam.bind_target(p)
 			cam.follow_enabled = true
 			cam.make_current()
-	# 不加载 HUD（不显示血条和技能图标）
+	# 终局保留共享暂停界面，但隐藏血条、技能等玩法 HUD。
+	_load_hud()
 	# 创建交互点
 	_create_interactive()
 	# 订阅交互事件
@@ -78,6 +81,7 @@ func _exit_tree() -> void:
 
 
 func prepare_for_level_exit() -> void:
+	_release_ending_pause_guard()
 	InputManager.release_input_for_owner(self)
 	GameManager.end_dialog(self)
 	_dialog_open = false
@@ -146,6 +150,7 @@ func _trigger_ending() -> void:
 			obj.mark_completed()
 			obj.set_active(false)
 	_dialog_open = true
+	_ending_pause_guard_token = InputManager.acquire_pause_guard("终局演出", self)
 	InputManager.block_input("终局", self)
 	GameManager.begin_dialog(self)
 	# 显示文本框
@@ -176,7 +181,7 @@ func _finish_ending() -> void:
 	# 读完后开始5s黑屏渐入
 	var cv = CanvasLayer.new()
 	cv.name = "FadeCanvas"
-	cv.layer = 2000
+	cv.layer = UILayerContract.CINEMATIC
 	add_child(cv)
 	var black = ColorRect.new()
 	cv.add_child(black)
@@ -194,7 +199,7 @@ func _finish_ending() -> void:
 func _create_dialog_panel() -> void:
 	var cv = CanvasLayer.new()
 	cv.name = "DialogLayer"
-	cv.layer = 50
+	cv.layer = UILayerContract.LEVEL_UI
 	add_child(cv)
 	_dialog_panel = Panel.new()
 	_dialog_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -202,3 +207,22 @@ func _create_dialog_panel() -> void:
 	_dialog_label = RichTextLabel.new()
 	_dialog_panel.add_child(_dialog_label)
 	GameUIStyle.apply_interaction_text_panel(_dialog_panel, _dialog_label, 22)
+
+
+func _load_hud() -> void:
+	if _hud and is_instance_valid(_hud):
+		return
+	var hud_path := "res://UI/HUD.tscn"
+	if not ResourceLoader.exists(hud_path):
+		push_warning("[Level_final] HUD.tscn 未找到，无法提供暂停界面")
+		return
+	_hud = load(hud_path).instantiate() as CanvasLayer
+	add_child(_hud)
+	_hud.call("set_gameplay_hud_enabled", false)
+
+
+func _release_ending_pause_guard() -> void:
+	if _ending_pause_guard_token < 0:
+		return
+	InputManager.release_pause_guard_token(_ending_pause_guard_token)
+	_ending_pause_guard_token = -1

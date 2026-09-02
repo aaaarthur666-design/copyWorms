@@ -12,19 +12,21 @@ signal closed()
 var _listening_action: StringName = &""
 var _action_rows: Dictionary = {}
 var _list_vbox: VBoxContainer
+var _pause_guard_token: int = -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
 	# 阻止 ESC 在此界面触发暂停切换
-	InputManager.set_pause_allowed(false)
+	_pause_guard_token = InputManager.acquire_pause_guard("按键设置", self)
 
 func _exit_tree() -> void:
 	# 安全清理：确保退出时恢复所有状态（场景切换等异常情况）
 	if _listening_action != &"":
 		_finish_listening()
-	if is_instance_valid(InputManager):
-		InputManager.set_pause_allowed(true)
+	if is_instance_valid(InputManager) and _pause_guard_token >= 0:
+		InputManager.release_pause_guard_token(_pause_guard_token)
+		_pause_guard_token = -1
 
 ## ================================================================
 ##  UI 构建
@@ -86,6 +88,7 @@ func _build_ui() -> void:
 	var back_btn := _make_btn("返回", Vector2(738, 504), Vector2(182, 68), true, 16)
 	back_btn.pressed.connect(_on_back_pressed)
 	add_child(back_btn)
+	reset_btn.call_deferred("grab_focus")
 
 ## 创建统一梦境赛博皮肤按钮
 func _make_btn(text: String, pos: Vector2, size: Vector2, force_simple: bool = false, font_size: int = 16) -> TextureButton:
@@ -103,6 +106,7 @@ func _make_btn(text: String, pos: Vector2, size: Vector2, force_simple: bool = f
 		GameUIStyle.apply_lingnan_pressed_texture_button(btn, font_size)
 	else:
 		GameUIStyle.apply_texture_button(btn, font_size, force_simple)
+	btn.focus_mode = Control.FOCUS_ALL
 	return btn
 
 func _add_action_row(action: StringName) -> void:
@@ -277,6 +281,5 @@ func _on_reset_pressed() -> void:
 func _on_back_pressed() -> void:
 	if _listening_action != &"":
 		_cancel_listening()
-	InputManager.set_pause_allowed(true)
 	closed.emit()
 	queue_free()

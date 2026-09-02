@@ -6,10 +6,12 @@ class_name Level_04_UIBuilder
 
 var level: Level_04
 var canvas: CanvasLayer
+var special_fx_canvas: CanvasLayer
 
-func _init(parent: Level_04, canvas_layer: CanvasLayer) -> void:
+func _init(parent: Level_04, canvas_layer: CanvasLayer, special_fx_layer: CanvasLayer) -> void:
 	level = parent
 	canvas = canvas_layer
+	special_fx_canvas = special_fx_layer
 
 func build_all() -> void:
 	_build_narrative_panel()
@@ -47,7 +49,8 @@ func _build_narrative_panel() -> void:
 func _build_code_rain_overlay() -> void:
 	var rain = CodeRain.new()
 	rain.name = "CodeRainOverlay"
-	canvas.add_child(rain)
+	rain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	special_fx_canvas.add_child(rain)
 	level._code_rain_overlay = rain
 
 
@@ -84,7 +87,7 @@ func _build_right_edge_flash() -> void:
 	flash.visible = false
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	flash.z_index = 250
-	canvas.add_child(flash)
+	special_fx_canvas.add_child(flash)
 	level._right_edge_flash = flash
 	# 扩散光晕（宽、淡）
 	var glow = ColorRect.new()
@@ -101,7 +104,7 @@ func _build_right_edge_flash() -> void:
 	glow.visible = false
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	glow.z_index = 249
-	canvas.add_child(glow)
+	special_fx_canvas.add_child(glow)
 	level._right_edge_glow = glow
 
 

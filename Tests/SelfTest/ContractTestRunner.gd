@@ -70,7 +70,9 @@ func _run() -> void:
 	_test_new_run_reset()
 	await _test_enemy_damage_event_pipeline()
 	await _test_player_damage_event_pipeline()
+	await _test_huadan_skill2_contracts()
 	await _test_input_lock_ownership()
+	_test_display_policy()
 	_test_scene_transition_preflight()
 	_test_runtime_state()
 	_test_damage_calculator()
@@ -452,6 +454,81 @@ func _test_input_lock_ownership() -> void:
 	await get_tree().process_frame
 	_assert_false(InputManager.is_action_blocked(&"player_attack"), "动作锁 owner 离树后必须自动释放")
 	owner_b.queue_free()
+
+
+func _test_display_policy() -> void:
+	_assert_true(
+		InputManager._editor_safe_display_policy(true, false, false),
+		"编辑器本机运行必须使用窗口化且不锁定鼠标的安全显示策略"
+	)
+	_assert_false(
+		InputManager._editor_safe_display_policy(false, false, false),
+		"导出桌面版必须保留正式全屏显示策略"
+	)
+	_assert_false(
+		InputManager._editor_safe_display_policy(true, true, false),
+		"Web 编辑器预览不得套用桌面窗口策略"
+	)
+	_assert_false(
+		InputManager._editor_safe_display_policy(true, false, true),
+		"headless 自测必须保留可断言的正式显示逻辑"
+	)
+
+
+func _test_huadan_skill2_contracts() -> void:
+	GameManager.reset_transient_state()
+	SFXManager.set_muted(true)
+
+	var boss := Enemy_BossHuadan.new()
+	boss.name = "Skill2ContractHuadan"
+	boss.set_physics_process(false)
+	add_child(boss)
+
+	var cyber := Player_Warrior_Cyber.new()
+	cyber.name = "Skill2ContractCyber"
+	cyber.set_physics_process(false)
+	add_child(cyber)
+
+	var lingnan := Player_Warrior_Lingnan.new()
+	lingnan.name = "Skill2ContractLingnan"
+	lingnan.set_physics_process(false)
+	add_child(lingnan)
+
+	var sword_scene := load("res://EnemyModule/Formal/SwordEnergy.tscn") as PackedScene
+	_assert_true(sword_scene != null, "花旦剑气场景必须可加载")
+	if sword_scene:
+		var sword := sword_scene.instantiate() as Node2D
+		sword.name = "Skill2ContractSwordEnergy"
+		sword.set_physics_process(false)
+		add_child(sword)
+		sword.call("setup", cyber.global_position, 10, 0.0, 2.0, boss)
+		_assert_equal(
+			sword.call("get_damage_instigator"),
+			boss,
+			"花旦剑气必须保留 Boss 作为伤害发起者"
+		)
+		var counter_target := cyber._resolve_skill2_counter_target(sword, Vector2.ZERO)
+		_assert_equal(counter_target, boss, "Cyber 技能 2 必须把花旦剑气反击目标解析为 Boss 本体")
+		sword.queue_free()
+		await get_tree().process_frame
+		_assert_true(is_instance_valid(counter_target), "剑气销毁后 Cyber 反击目标仍必须有效")
+		var boss_health_before_counter := boss.current_health
+		cyber._deal_skill2_damage(counter_target, 10, 0.0, 0.0)
+		cyber._end_skill2_hitstop()
+		_assert_true(boss.current_health < boss_health_before_counter, "剑气销毁后 Cyber 技能 2 必须能对花旦结算伤害")
+
+	_assert_true(lingnan._stun_huadan(boss), "岭南技能 2 首次命中花旦必须施加眩晕")
+	_assert_true(boss.stun_timer > 0.0, "岭南技能 2 成功时必须更新花旦眩晕计时")
+	_assert_false(lingnan._stun_huadan(boss), "花旦免疫窗口内重复命中必须明确返回失败")
+
+	boss.queue_free()
+	cyber.queue_free()
+	lingnan.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	GameManager.reset_transient_state()
+	EventBus.clear_transient()
+	SFXManager.set_muted(false)
 
 
 func _test_scene_transition_preflight() -> void:

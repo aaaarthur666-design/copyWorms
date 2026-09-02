@@ -325,7 +325,7 @@ func _on_exit_trigger_body_entered(body: Node2D) -> void:
 
 func _build_exit_white_overlay() -> void:
 	var canvas = _get_or_create_child("CanvasLayerUI", CanvasLayer) as CanvasLayer
-	canvas.layer = 2
+	canvas.layer = UILayerContract.LEVEL_UI
 	_exit_white_overlay = ColorRect.new()
 	_exit_white_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_exit_white_overlay.color = Color(1, 1, 1, 0)

@@ -31,6 +31,7 @@ var _overlay_fade_duration: float = 0.0
 var _overlay_fade_elapsed: float = 0.0
 var _overlay_fade_start_alpha: float = 1.0
 var _overlay_fade_completion: Callable = Callable()
+var _transition_pause_guard_token: int = -1
 const LEVEL_SWITCH_FADE_OUT_DURATION: float = 0.8
 
 func _ready() -> void:
@@ -76,6 +77,9 @@ func _on_level_complete(data: Dictionary) -> void:
 func _switch_to_level(next_path: String, overlay_color: Color = Color.BLACK) -> void:
 	_show_level_switch_overlay(overlay_color)
 	SceneTransitionManager.cleanup_for_transition(self)
+	# cleanup 会清空旧锁；MainEntry 的子关卡切换不进入 STM.is_transitioning，需重新守卫。
+	_transition_pause_guard_token = -1
+	_acquire_transition_pause_guard()
 	# 1) 释放旧关卡（玩家作为关卡子节点随之销毁; EventBus tree_exited 自动清理订阅）
 	if _current_level_node and is_instance_valid(_current_level_node):
 		_current_level_node.queue_free()
@@ -98,9 +102,10 @@ func _switch_to_level(next_path: String, overlay_color: Color = Color.BLACK) -> 
 
 func _show_level_switch_overlay(color: Color) -> void:
 	_cancel_level_switch_overlay_fade()
+	_acquire_transition_pause_guard()
 	if not _transition_canvas or not is_instance_valid(_transition_canvas):
 		_transition_canvas = CanvasLayer.new()
-		_transition_canvas.layer = 1000
+		_transition_canvas.layer = UILayerContract.TRANSITION
 		add_child(_transition_canvas)
 	if not _transition_black or not is_instance_valid(_transition_black):
 		_transition_black = ColorRect.new()
@@ -115,6 +120,7 @@ func _fade_out_level_switch_overlay(
 	completion: Callable = Callable()
 ) -> void:
 	if not _transition_black or not is_instance_valid(_transition_black):
+		_release_transition_pause_guard()
 		if completion.is_valid():
 			completion.call()
 		return
@@ -158,6 +164,20 @@ func _cancel_level_switch_overlay_fade() -> void:
 	_overlay_fade_elapsed = 0.0
 	_overlay_fade_start_alpha = 1.0
 	_overlay_fade_completion = Callable()
+	_release_transition_pause_guard()
+
+
+func _acquire_transition_pause_guard() -> void:
+	if _transition_pause_guard_token >= 0:
+		return
+	_transition_pause_guard_token = InputManager.acquire_pause_guard("MainEntry关卡转场", self)
+
+
+func _release_transition_pause_guard() -> void:
+	if _transition_pause_guard_token < 0:
+		return
+	InputManager.release_pause_guard_token(_transition_pause_guard_token)
+	_transition_pause_guard_token = -1
 
 
 func _finish_level_switch() -> void:
@@ -166,7 +186,7 @@ func _finish_level_switch() -> void:
 ## 后续关卡尚未制作时的安全降级画面
 func _show_end_placeholder() -> void:
 	var canvas = CanvasLayer.new()
-	canvas.layer = 10
+	canvas.layer = UILayerContract.LEVEL_UI
 	add_child(canvas)
 	var bg = ColorRect.new()
 	bg.color = Color(0, 0, 0, 1)

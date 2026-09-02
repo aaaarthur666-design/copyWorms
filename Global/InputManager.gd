@@ -7,6 +7,9 @@
 extends Node
 
 signal game_action(action: StringName, event: InputEvent)
+signal title_exit_requested
+
+const TITLE_SCENE_PATH := "res://UI/TitleScreen.tscn"
 
 var is_input_blocked: bool = false
 var block_reason: String = ""
@@ -14,21 +17,48 @@ var captured_this_frame: StringName = &""
 
 var _pause_allowed: bool = true
 var _next_lock_token: int = 1
+var _next_pause_guard_token: int = 1
 var _input_locks: Dictionary = {}
+var _pause_guards: Dictionary = {}
 var _blocked_actions: Dictionary = {}
 var _tracked_owner_ids: Dictionary = {}
 var _gameplay_display_active: bool = false
 var _gameplay_pointer_captured: bool = false
+var _fullscreen_active: bool = false
+var _window_mode_before_gameplay: int = DisplayServer.WINDOW_MODE_MAXIMIZED
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-## 由标题页的实际开始按钮调用。桌面端进入独占全屏；Web 端使用浏览器全屏。
+## 由标题页的实际开始按钮调用。编辑器图形运行保持窗口与可见鼠标；
+## 正式桌面端进入独占全屏，Web 端使用浏览器全屏。
 ## 调用必须留在用户点击回调中，否则浏览器可能拒绝全屏和鼠标捕获请求。
 func activate_gameplay_display() -> void:
+	if not _gameplay_display_active and not _is_headless_display():
+		_window_mode_before_gameplay = _non_fullscreen_restore_mode(DisplayServer.window_get_mode())
 	_gameplay_display_active = true
+	if _should_use_editor_safe_display():
+		_fullscreen_active = false
+		_set_gameplay_pointer_captured(false)
+		return
+	_enter_gameplay_fullscreen()
+
+
+## 退出全屏但不退出游戏、不暂停；窗口化后同步释放鼠标，避免继续锁住桌面。
+func exit_fullscreen() -> void:
+	if not _fullscreen_active:
+		return
+	_fullscreen_active = false
+	_set_gameplay_pointer_captured(false)
+	if _is_headless_display():
+		return
+	DisplayServer.window_set_mode(_window_mode_before_gameplay)
+
+
+func _enter_gameplay_fullscreen() -> void:
+	_fullscreen_active = true
 	if not _is_headless_display():
 		var fullscreen_mode := DisplayServer.WINDOW_MODE_FULLSCREEN
 		if not OS.has_feature("web"):
@@ -51,7 +81,7 @@ func show_gameplay_ui_pointer() -> void:
 
 ## 关闭局内界面或重新载入玩法 HUD 后恢复捕获。
 func restore_gameplay_pointer() -> void:
-	if _gameplay_display_active:
+	if _gameplay_display_active and _fullscreen_active:
 		_set_gameplay_pointer_captured(true)
 
 
@@ -61,6 +91,10 @@ func is_gameplay_display_active() -> bool:
 
 func is_gameplay_pointer_captured() -> bool:
 	return _gameplay_pointer_captured
+
+
+func is_fullscreen_active() -> bool:
+	return _fullscreen_active
 
 
 func _set_gameplay_pointer_captured(captured: bool) -> void:
@@ -74,10 +108,41 @@ func _is_headless_display() -> bool:
 	return DisplayServer.get_name() == "headless"
 
 
+func _should_use_editor_safe_display() -> bool:
+	return _editor_safe_display_policy(
+		OS.has_feature("editor"),
+		OS.has_feature("web"),
+		_is_headless_display()
+	)
+
+
+## 纯策略函数供 headless 契约测试覆盖，不读取或修改平台窗口状态。
+func _editor_safe_display_policy(is_editor: bool, is_web: bool, is_headless: bool) -> bool:
+	return is_editor and not is_web and not is_headless
+
+
 func _input(event: InputEvent) -> void:
+	if _is_desktop_fullscreen_toggle_shortcut(event) and (_fullscreen_active or _gameplay_display_active):
+		if _fullscreen_active:
+			exit_fullscreen()
+		else:
+			_enter_gameplay_fullscreen()
+		get_viewport().set_input_as_handled()
+		return
+
 	if event.is_action_pressed("ui_pause"):
-		if _pause_allowed:
-			_handle_pause()
+		# 转场是硬边界：旧场景仍在树中时也不能把 ESC 当成标题退出或暂停。
+		if SceneTransitionManager.is_transitioning:
+			get_viewport().set_input_as_handled()
+			return
+		if _is_title_screen_active():
+			get_viewport().set_input_as_handled()
+			title_exit_requested.emit()
+			return
+		if _is_pause_blocked():
+			# 不消费事件：按键设置、图鉴等 modal 仍需接收同一个 ESC 来关闭自己。
+			return
+		_handle_pause()
 		return
 
 	if _should_block_game_input():
@@ -96,6 +161,18 @@ func _input(event: InputEvent) -> void:
 func _should_block_game_input() -> bool:
 	_prune_dead_owners()
 	return GameManager.is_paused or is_input_blocked or _is_ui_focused()
+
+
+func _is_pause_blocked() -> bool:
+	_prune_dead_owners()
+	return (
+		not _pause_allowed
+		or not _pause_guards.is_empty()
+		or is_input_blocked
+		or GameManager.is_dialog_active
+		or GameManager.is_game_over
+		or SceneTransitionManager.is_transitioning
+	)
 
 
 ## 统一供事件分发与玩家每帧轮询使用，避免移动、跳跃或长按技能绕过全局锁。
@@ -158,6 +235,38 @@ func _emit_action(action: StringName, event: InputEvent) -> void:
 func _handle_pause() -> void:
 	GameManager.toggle_pause()
 	get_viewport().set_input_as_handled()
+
+
+func _is_title_screen_active() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var current_scene := tree.current_scene
+	return (
+		is_instance_valid(current_scene)
+		and current_scene.scene_file_path == TITLE_SCENE_PATH
+	)
+
+
+func _is_desktop_fullscreen_toggle_shortcut(event: InputEvent) -> bool:
+	if OS.has_feature("web") or _is_headless_display() or not event is InputEventKey:
+		return false
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return false
+	if key_event.keycode == KEY_F11 or key_event.physical_keycode == KEY_F11:
+		return true
+	return OS.has_feature("macos") and (
+		(key_event.keycode == KEY_F or key_event.physical_keycode == KEY_F)
+		and key_event.ctrl_pressed
+		and key_event.meta_pressed
+	)
+
+
+func _non_fullscreen_restore_mode(mode: int) -> int:
+	if mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+		return DisplayServer.WINDOW_MODE_MAXIMIZED
+	return mode
 
 
 func _identify_game_action(event: InputEvent) -> StringName:
@@ -270,6 +379,48 @@ func unblock_input_token(token: int) -> bool:
 	return true
 
 
+## 暂停守卫只阻止 ui_pause，不影响 modal 自己的翻页、关闭或确认输入。
+## 返回 token 便于嵌套流程精确释放；owner 离树时自动兜底清理。
+func acquire_pause_guard(reason: String, owner: Node = null) -> int:
+	var token := _next_pause_guard_token
+	_next_pause_guard_token += 1
+	_pause_guards[token] = {
+		"reason": reason,
+		"owner_id": _owner_id(owner),
+		"owner": weakref(owner) if owner else null,
+	}
+	_track_owner(owner)
+	return token
+
+
+func release_pause_guard(reason: String = "", owner: Node = null) -> bool:
+	_prune_dead_owners()
+	var owner_id := _owner_id(owner)
+	var matching_token := -1
+	var tokens: Array = _pause_guards.keys()
+	tokens.sort()
+	tokens.reverse()
+	for token: int in tokens:
+		var entry: Dictionary = _pause_guards[token]
+		if owner and int(entry["owner_id"]) != owner_id:
+			continue
+		if reason != "" and String(entry["reason"]) != reason:
+			continue
+		matching_token = token
+		break
+	if matching_token < 0:
+		return false
+	_pause_guards.erase(matching_token)
+	return true
+
+
+func release_pause_guard_token(token: int) -> bool:
+	if not _pause_guards.has(token):
+		return false
+	_pause_guards.erase(token)
+	return true
+
+
 func release_input_for_owner(owner: Node) -> void:
 	if owner == null:
 		return
@@ -278,7 +429,9 @@ func release_input_for_owner(owner: Node) -> void:
 
 func force_unblock_all() -> void:
 	_input_locks.clear()
+	_pause_guards.clear()
 	clear_action_blocks()
+	_pause_allowed = true
 	_refresh_input_lock_state()
 
 
@@ -286,11 +439,25 @@ func set_pause_allowed(allowed: bool) -> void:
 	_pause_allowed = allowed
 
 
+func is_pause_allowed() -> bool:
+	return not _is_pause_blocked()
+
+
 func get_active_locks() -> Array[Dictionary]:
 	_prune_dead_owners()
 	var result: Array[Dictionary] = []
 	for token: int in _input_locks:
 		var entry: Dictionary = _input_locks[token].duplicate()
+		entry["token"] = token
+		result.append(entry)
+	return result
+
+
+func get_active_pause_guards() -> Array[Dictionary]:
+	_prune_dead_owners()
+	var result: Array[Dictionary] = []
+	for token: int in _pause_guards:
+		var entry: Dictionary = _pause_guards[token].duplicate()
 		entry["token"] = token
 		result.append(entry)
 	return result
@@ -319,6 +486,9 @@ func _release_owner_id(owner_id: int) -> void:
 	for token: int in _input_locks.keys():
 		if int(_input_locks[token]["owner_id"]) == owner_id:
 			_input_locks.erase(token)
+	for token: int in _pause_guards.keys():
+		if int(_pause_guards[token]["owner_id"]) == owner_id:
+			_pause_guards.erase(token)
 	for action: StringName in _blocked_actions.keys():
 		var owners: Dictionary = _blocked_actions[action]
 		owners.erase(owner_id)
@@ -332,6 +502,12 @@ func _release_owner_id(owner_id: int) -> void:
 func _prune_dead_owners() -> void:
 	var stale_ids: Dictionary = {}
 	for entry: Dictionary in _input_locks.values():
+		if int(entry["owner_id"]) == 0:
+			continue
+		var owner_ref: WeakRef = entry["owner"] as WeakRef
+		if owner_ref == null or owner_ref.get_ref() == null:
+			stale_ids[int(entry["owner_id"])] = true
+	for entry: Dictionary in _pause_guards.values():
 		if int(entry["owner_id"]) == 0:
 			continue
 		var owner_ref: WeakRef = entry["owner"] as WeakRef

@@ -58,6 +58,8 @@ func _build_narrative_panel() -> void:
 func _build_code_rain_overlay() -> void:
 	var rain = CodeRain.new()
 	rain.name = "CodeRainOverlay"
+	rain.process_mode = Node.PROCESS_MODE_PAUSABLE
+	rain.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	canvas.add_child(rain)
 	level._code_rain_overlay = rain
 

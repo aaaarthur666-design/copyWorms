@@ -469,12 +469,7 @@ func _build_dynamic_actors_container() -> void:
 # ============================================================
 
 func _build_canvas_ui() -> void:
-	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer)
-	canvas.layer = 2
-	canvas.process_mode = Node.PROCESS_MODE_ALWAYS
-
-	var ui_builder = Level_03_UIBuilder.new(level, canvas)
-	ui_builder.build_all()
+	level._build_canvas_ui()
 
 
 # ============================================================

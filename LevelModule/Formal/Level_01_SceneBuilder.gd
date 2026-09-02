@@ -78,8 +78,8 @@ func _build_spawn_points() -> void:
 
 func _build_canvas_ui() -> void:
 	var canvas = level._get_or_create_child("CanvasLayerUI", CanvasLayer)
-	canvas.layer = 2
-	canvas.process_mode = Node.PROCESS_MODE_ALWAYS
+	canvas.layer = UILayerContract.LEVEL_UI
+	canvas.process_mode = Node.PROCESS_MODE_PAUSABLE
 
 	var ui_builder = Level_01_UIBuilder.new(level, canvas)
 	ui_builder.build_all()

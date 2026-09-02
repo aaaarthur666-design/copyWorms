@@ -14,8 +14,8 @@ var _visible: bool = false
 func _init(target: Node, stages: Array) -> void:
 	_target = target
 	_stages = stages
-	layer = 500
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	layer = UILayerContract.LEVEL_ALERT
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 
 func _ready() -> void:
 	_build_ui()

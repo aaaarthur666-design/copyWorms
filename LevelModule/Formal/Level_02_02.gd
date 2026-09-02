@@ -24,6 +24,7 @@ var _narrative_arm_remaining: float = 0.0
 var _narrative_wait_elapsed: float = 0.0
 var _narrative_poll_elapsed: float = 0.0
 var _intro_narrative_timer: Timer = null
+var _exit_pause_guard_token: int = -1
 var _paper_effigy_scene: PackedScene = null
 var _paper_effigies: Array[Node2D] = []
 var _lantern_ghost_scene: PackedScene = null
@@ -65,6 +66,7 @@ func _on_ready() -> void:
 func _exit_tree() -> void:
 	_cancel_intro_narrative()
 	_close_narrative()
+	_release_exit_pause_guard()
 	InputManager.release_input_for_owner(self)
 	EventBus.unsubscribe_all(self)
 
@@ -73,6 +75,7 @@ func prepare_for_level_exit() -> void:
 	_cancel_intro_narrative()
 	_close_narrative()
 	_cleanup_enemies()
+	_release_exit_pause_guard()
 	InputManager.release_input_for_owner(self)
 	EventBus.unsubscribe_all(self)
 
@@ -205,7 +208,7 @@ func _input(event: InputEvent) -> void:
 
 func _build_narrative_ui() -> void:
 	var canvas = _get_or_create_child("CanvasLayerUI", CanvasLayer) as CanvasLayer
-	canvas.layer = 10
+	canvas.layer = UILayerContract.LEVEL_UI
 
 	_narrative_panel = canvas.get_node_or_null("NarrativePanel") as Panel
 	if not _narrative_panel:
@@ -236,7 +239,7 @@ func _show_intro_narrative() -> void:
 	_intro_narrative_timer = Timer.new()
 	_intro_narrative_timer.name = "IntroNarrativeTimer"
 	_intro_narrative_timer.one_shot = true
-	_intro_narrative_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	_intro_narrative_timer.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_intro_narrative_timer.timeout.connect(_on_intro_narrative_timeout, CONNECT_ONE_SHOT)
 	add_child(_intro_narrative_timer)
 	_intro_narrative_timer.start(maxf(level_data.segment_02_intro_delay, 0.001))
@@ -481,9 +484,17 @@ func _ensure_trigger_zone(container: Node, zone_name: String, pos: Vector2, size
 
 
 func _on_exit_trigger_body_entered(body: Node2D) -> void:
-	if not _is_player_body(body):
+	if not _is_player_body(body) or _level_complete_emitted or _exit_pause_guard_token >= 0:
 		return
+	_exit_pause_guard_token = InputManager.acquire_pause_guard("关卡2分段出口", self)
 	call_deferred("_emit_level_complete")
+
+
+func _release_exit_pause_guard() -> void:
+	if _exit_pause_guard_token < 0:
+		return
+	InputManager.release_pause_guard_token(_exit_pause_guard_token)
+	_exit_pause_guard_token = -1
 
 
 func _is_player_body(body: Node2D) -> bool:
